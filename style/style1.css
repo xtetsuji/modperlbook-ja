@@ -457,3 +457,7 @@ span.sociable_tagline:hover span {
     font-size: 0.8em;
     border: 1px solid orange;
 }
+
+.hidden {
+    display: none;
+}
