@@ -33,6 +33,18 @@ This document's license is **CC2.0-BY-SA** as following original document.
 変更点については、この README.md に書いていきます。
 もしくは Changes を新設するかもしれません。
 
+##翻訳の方針
+
+- 文字コードはUTF-8 \(HTML中のmetaタグの書き換えも忘れずに\)
+- 原文と翻訳文の行の分割はなるべく合わせる
+- 原文を残す場合はHTML要素に original クラスを設定する \(JavaScriptで表示・非表示を選んだりできるようにする予定\)
+
+このあたりは[perldoc.jpの翻訳の作法](http://perldoc.jp/manners)を
+参考にしています。
+
+また今後もperldoc.jpの翻訳の作法を参考に、
+翻訳支援の枠組みを作っていく予定です。
+
 ##進捗率
 
 - 2013/05/13: 最初のコミット。進捗率は 1% にも満たない状態です。HTML等を整形してコミットしただけ同然。ぼちぼちやっていきます。
