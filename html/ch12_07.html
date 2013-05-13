@@ -1,0 +1,531 @@
+<html><head><title>Apache's mod_proxy Module (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch12_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">12.7. Apache's mod_proxy Module</h2>
+
+<p>Apache's mod_proxy <a name="pmodperl-CHP-12-ITERM-4986" /><a name="pmodperl-CHP-12-ITERM-4987" /><a name="pmodperl-CHP-12-ITERM-4988" />module
+implements a proxy and cache for Apache. It implements proxying
+capabilities for the following protocols: FTP, CONNECT (for SSL),
+HTTP/0.9, HTTP/1.0, and HTTP/1.1. The module can be configured to
+connect to other proxy modules for these and other protocols.</p>
+
+<p>mod_proxy is part of Apache, so there is no need to install a
+separate server&#8212;you just have to enable this module during the
+Apache build process or, if you have Apache compiled as a DSO, you
+can compile and add this module after you have completed the build of
+Apache.</p>
+
+<p>A setup with a mod_proxy-enabled server and a mod_perl-enabled server
+is depicted in <a href="ch12_07.html#pmodperl-CHP-12-FIG-6">Figure 12-6</a>.</p>
+
+<a name="pmodperl-CHP-12-FIG-6" /><div class="figure"><img src="figs/pmp_1206.gif" alt="Figure 12-6" width="378" /></div><h4 class="objtitle">Figure 12-6. mod_proxy-enabled Apache and mod_perl-enabled Apache</h4>
+
+<p>We do not think the difference in speed between
+Apache's mod_proxy and Squid is relevant for most
+sites, since the real value of what they do is buffering for slow
+client connections. However, Squid runs as a single process and
+probably consumes fewer system resources.</p>
+
+<p>The trade-off is that mod_rewrite is easy to use if you want to
+spread parts of the site across different backend servers, while
+mod_proxy knows how to fix up redirects containing the backend
+server's idea of the location. With Squid you can
+run a redirector process to proxy to more than one backend, but there
+is a problem in fixing redirects in a way that keeps the
+client's view of both server names and port numbers
+in all cases.</p>
+
+<p>The difficult case is where you have DNS aliases that map to the same
+IP address, you want them redirected to port 80 (although the server
+is on a different port), and you want to keep the specific name the
+browser has already sent so that it does not change in the
+client's browser's location window.</p>
+
+<p>The advantages of mod_proxy are:</p>
+
+<ul><li>
+<p>No additional server is needed. We keep the plain one plus one
+mod_perl-enabled Apache server. All you need is to enable mod_proxy
+in the <em class="emphasis">httpd_docs</em> server and add a few lines to
+the <em class="emphasis">httpd.conf</em> file.</p>
+
+<blockquote><pre class="code">ProxyPass        /perl/ http://localhost:81/perl/
+ProxyPassReverse /perl/ http://localhost:81/perl/</pre></blockquote>
+
+<p>The <tt class="literal">ProxyPass</tt> directive triggers the proxying
+process. A request for <em class="emphasis">http://example.com/perl/</em>
+is proxied by issuing a request for
+<em class="emphasis">http://localhost:81/perl/</em> to the mod_perl
+server. mod_proxy then sends the response to the client. The URL
+rewriting is transparent to the client, except in one case: if the
+mod_perl server issues a redirect, the URL to redirect to will be
+specified in a <tt class="literal">Location</tt> header in the response.
+This is where <tt class="literal">ProxyPassReverse</tt> kicks in: it scans
+<tt class="literal">Location</tt> headers from the responses it gets from
+proxied requests and rewrites the URL before forwarding the response
+to the client.</p>
+</li><li>
+<p>It buffers mod_perl output like Squid does.</p>
+</li><li>
+<p>It does caching, although you have to produce correct
+<tt class="literal">Content-Length</tt>, <tt class="literal">Last-Modified</tt>,
+and <tt class="literal">Expires</tt> HTTP headers for it to work. If some
+of your dynamic content does not change frequently, you can
+dramatically increase performance by caching it with mod_proxy.</p>
+</li><li>
+<p><tt class="literal">ProxyPass</tt> happens before the authentication phase,
+so you do not have to worry about authenticating twice.</p>
+</li><li>
+<p>Apache is able to accelerate secure HTTP requests completely, while
+also doing accelerated HTTP. With Squid you have to use an external
+redirection program for that.</p>
+</li><li>
+<p>The latest mod_proxy module (for Apache 1.3.6 and later) is reported
+to be <a name="pmodperl-CHP-12-ITERM-4989" /><a name="pmodperl-CHP-12-ITERM-4990" /><a name="pmodperl-CHP-12-ITERM-4991" />very stable.</p>
+</li></ul>
+<a name="pmodperl-CHP-12-SECT-7.1" /><div class="sect2">
+<h3 class="sect2">12.7.1. Concepts and Configuration Directives</h3>
+
+<p>In the following explanation, we will use
+<em class="emphasis">www.example.com</em> as the main server users access
+when they want to get some kind of service and
+<em class="emphasis">backend.example.com</em> as the machine that does the
+heavy work. The main and backend servers are different; they may or
+may not coexist on the same machine.</p>
+
+<p>We'll use the mod_proxy module built into the main
+server to handle requests to <em class="emphasis">www.example.com</em>.
+For the sake of this discussion it doesn't matter
+what functionality is built into the
+<em class="emphasis">backend.example.com</em> server&#8212;obviously
+it'll be mod_perl for most of us, but this technique
+can be successfully applied to other web programming languages (PHP,
+Java, etc.).</p>
+
+<a name="pmodperl-CHP-12-SECT-7.1.1" /><div class="sect3">
+<h3 class="sect3">12.7.1.1. ProxyPass</h3>
+
+<p>You can<a name="pmodperl-CHP-12-ITERM-4992" /><a name="pmodperl-CHP-12-ITERM-4993" /><a name="pmodperl-CHP-12-ITERM-4994" /><a name="pmodperl-CHP-12-ITERM-4995" /> use the <tt class="literal">ProxyPass</tt>
+configuration directive to map remote hosts into the URL space of the
+local server; the local server does not act as a proxy in the
+conventional sense, but appears to be a mirror of the remote server.</p>
+
+<p>Let's explore what this rule does:</p>
+
+<blockquote><pre class="code">ProxyPass   /perl/ http://backend.example.com/perl/</pre></blockquote>
+
+<p>When a user initiates a request to
+<em class="emphasis">http://www.example.com/perl/foo.pl</em>, the request
+is picked up by mod_proxy. It issues a request for
+<em class="emphasis">http://backend.example.com/perl/foo.pl</em> and
+forwards the response to the client. This reverse proxy process is
+mostly transparent to the client, as long as the response data does
+not contain absolute URLs.</p>
+
+<p>One such situation occurs when the backend server issues a redirect.
+The URL to redirect to is provided in a <tt class="literal">Location</tt>
+header in the response. The backend server will use its own
+<tt class="literal">ServerName</tt> and <tt class="literal">Port</tt> to build
+the URL to redirect to. For example, mod_dir will redirect a request
+for <em class="emphasis">http://www.example.com/somedir/</em> to
+<em class="emphasis">http://backend.example.com/somedir/</em> by issuing a
+redirect with the following header:</p>
+
+<blockquote><pre class="code">Location: http://backend.example.com/somedir/</pre></blockquote>
+
+<p>Since <tt class="literal">ProxyPass</tt> forwards the response unchanged to
+the client, the user will see
+<em class="emphasis">http://backend.example.com/somedir/</em> in her
+browser's location window, instead of
+<em class="emphasis">http://www.example.com/somedir/</em>.</p>
+
+<p>You have probably noticed many examples of this from real-life web
+sites you've visited. Free email service providers
+and other similar heavy online services display the login or the main
+page from their main server, and then when you log in you see
+something like <em class="emphasis">x11.example.com</em>, then
+<em class="emphasis">w59.example.com</em>, etc. These are the backend
+servers that do the actual work.</p>
+
+<p>Obviously this is not an ideal solution, but since users
+don't usually care about what they see in the
+location window, you can sometimes get away with this approach. In
+the following section we show a better solution that solves this
+issue and provides even more useful functionalities.</p>
+
+</div>
+
+<a name="pmodperl-CHP-12-SECT-7.1.2" /><div class="sect3">
+<h3 class="sect3">12.7.1.2. ProxyPassReverse</h3>
+
+<p>This
+<a name="pmodperl-CHP-12-ITERM-4996" /><a name="pmodperl-CHP-12-ITERM-4997" /><a name="pmodperl-CHP-12-ITERM-4998" /><a name="pmodperl-CHP-12-ITERM-4999" />directive lets Apache adjust the URL
+in the <tt class="literal">Location</tt> header on HTTP redirect responses.
+This is essential when Apache is used as a reverse proxy to avoid
+bypassing the reverse proxy because of HTTP redirects on the backend
+servers. It is generally used in conjunction with the
+<tt class="literal">ProxyPass</tt> directive to build a complete frontend
+proxy server.</p>
+
+<blockquote><pre class="code">ProxyPass          /perl/  http://backend.example.com/perl/
+ProxyPassReverse   /perl/  http://backend.example.com/perl/</pre></blockquote>
+
+<p>When a user initiates a request to
+<em class="emphasis">http://www.example.com/perl/foo</em>, the request is
+proxied to <em class="emphasis">http://backend.example.com/perl/foo</em>.
+Let's say the backend server responds by issuing a
+redirect for
+<em class="emphasis">http://backend.example.com/perl/foo/</em> (adding a
+trailing slash). The response will include a
+<tt class="literal">Location</tt> header:</p>
+
+<blockquote><pre class="code">Location: http://backend.example.com/perl/foo/</pre></blockquote>
+
+<p><tt class="literal">ProxyPassReverse</tt> on the frontend server will
+rewrite this header to:</p>
+
+<blockquote><pre class="code">Location: http://www.example.com/perl/foo/</pre></blockquote>
+
+<p>This happens completely transparently. The end user is never aware of
+the URL rewrites happening behind the scenes.</p>
+
+<p>Note that this <tt class="literal">ProxyPassReverse</tt> directive can also
+be used in conjunction with the proxy pass-through feature of
+mod_rewrite, described later in this chapter.</p>
+
+</div>
+
+<a name="pmodperl-CHP-12-SECT-7.1.3" /><div class="sect3">
+<h3 class="sect3">12.7.1.3. Security issues</h3>
+
+<p>Whenever <a name="pmodperl-CHP-12-ITERM-5000" /><a name="pmodperl-CHP-12-ITERM-5001" /><a name="pmodperl-CHP-12-ITERM-5002" /><a name="pmodperl-CHP-12-ITERM-5003" />you
+use mod_proxy you need to make sure that your server will not become
+a proxy for freeriders. Allowing clients to issue proxy requests is
+controlled by the <tt class="literal">ProxyRequests</tt> directive. Its
+default setting is <tt class="literal">Off</tt>, which means proxy requests
+are handled only if generated internally (by
+<tt class="literal">ProxyPass</tt> or <tt class="literal">RewriteRule...[P]</tt>
+directives). Do not use the <tt class="literal">ProxyRequests</tt>
+directive on your reverse proxy servers.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-12-SECT-7.2" /><div class="sect2">
+<h3 class="sect2">12.7.2. Knowing the Proxypassed Connection Type</h3>
+
+<p>Let's say <a name="pmodperl-CHP-12-ITERM-5004" /><a name="pmodperl-CHP-12-ITERM-5005" />that you have a frontend server running
+mod_ssl, mod_rewrite, and mod_proxy. You want to make sure that your
+user is using a secure connection for some specific actions, such as
+login information submission. You don't want to let
+the user log in unless the request was submitted through a secure
+port.</p>
+
+<p>Since you have to proxypass the request between the frontend and
+backend servers, you cannot know where the connection originated. The
+HTTP headers cannot reliably provide this information.</p>
+
+<p>A possible solution for this problem is to have the mod_perl server
+listen on two different ports (e.g., 8000 and 8001) and have the
+mod_rewrite proxy rule in the regular server redirect to port 8000
+and the mod_rewrite proxy rule in the SSL virtual host redirect to
+port 8001. Under the mod_perl server, use
+<tt class="literal">$r-&gt;connection-&gt;port</tt> or the environment
+variable <tt class="literal">PORT</tt> to tell if the connection is secure.</p>
+
+</div>
+<a name="pmodperl-CHP-12-SECT-7.3" /><div class="sect2">
+<h3 class="sect2">12.7.3. Buffering Feature</h3>
+
+<p>In addition to <a name="pmodperl-CHP-12-ITERM-5006" /><a name="pmodperl-CHP-12-ITERM-5007" /><a name="pmodperl-CHP-12-ITERM-5008" />correcting
+the URI on its way back from the backend server, mod_proxy, like
+Squid, also provides buffering services that benefit mod_perl and
+similar heavy modules. The buffering feature allows mod_perl to pass
+the generated data to mod_proxy and move on to serve new requests,
+instead of waiting for a possibly slow client to receive all the
+data.</p>
+
+<p><a href="ch12_07.html#pmodperl-CHP-12-FIG-7">Figure 12-7</a> depicts this feature.</p>
+
+<a name="pmodperl-CHP-12-FIG-7" /><div class="figure"><img src="figs/pmp_1207.gif" alt="Figure 12-7" width="464" /></div><h4 class="objtitle">Figure 12-7. mod_proxy buffering</h4>
+
+<p>mod_perl streams the generated response into the kernel send buffer,
+which in turn goes into the kernel receive buffer of mod_proxy via
+the TCP/IP connection. mod_proxy then streams the file into the
+kernel send buffer, and the data goes to the client over the TCP/IP
+connection. There are four buffers between mod_perl and the client:
+two kernel send buffers, one receive buffer, and finally the
+mod_proxy user space buffer. Each of those buffers will take the data
+from the previous stage, as long as the buffer is not full. Now
+it's clear that in order to immediately release the
+mod_perl process, the generated response should fit into these four
+buffers.</p>
+
+<p>If the data doesn't fit immediately into all
+buffers, mod_perl will wait until the first kernel buffer is emptied
+partially or completely (depending on the OS implementation) and then
+place more data into it. mod_perl will repeat this process until the
+last byte has been placed into the buffer.</p>
+
+<p>The kernel's receive buffers
+(<em class="emphasis">recvbuf</em>) and send buffers
+(<em class="emphasis">sendbuf</em>) are used for different things: the
+receive buffers are for TCP data that hasn't been
+read by the application yet, and the send buffers are for application
+data that hasn't been sent over the network yet. The
+kernel buffers actually seem smaller than their declared size,
+because not everything goes to actual TCP/IP data. For example, if
+the size of the buffer is 64 KB, only about 55 KB or so can actually
+be used for data. Of course, the overhead varies from OS to OS.</p>
+
+<p>It might not be a very good idea to increase the
+kernel's receive buffer too much, because you could
+just as easily increase mod_proxy's user space
+buffer size and get the same effect in terms of buffering capacity.
+Kernel memory is <em class="emphasis">pinned</em> (not swappable), so
+it's harder on the system to use a lot of it.</p>
+
+<p>The user space buffer size for mod_proxy seems to be fixed at 8 KB,
+but changing it is just a matter of replacing
+<tt class="literal">HUGE_STRING_LEN</tt> with something else in
+<em class="emphasis">src/modules/proxy/proxy_http.c</em> under the Apache
+source distribution.</p>
+
+<p>mod_proxy's receive buffer is configurable by the
+<tt class="literal">ProxyReceiveBufferSize</tt> parameter. For example:</p>
+
+<blockquote><pre class="code">ProxyReceiveBufferSize 16384</pre></blockquote>
+
+<p>will create a buffer 16 KB in size.
+<tt class="literal">ProxyReceiveBufferSize</tt> must be bigger than or
+equal to 512 bytes. If it's not set or is set to
+<tt class="literal">0</tt>, the system default will be used. The number
+it's set to should be an integral multiple of 512.
+<tt class="literal">ProxyReceiveBufferSize</tt> cannot be bigger than the
+kernel receive buffer size; if you set the value of
+<tt class="literal">ProxyReceiveBufferSize</tt> larger than this size, the
+default value will be used (a warning will be printed in this case by
+mod_proxy).</p>
+
+<p>You can modify the source code to adjust the size of the
+server's internal read-write buffers by changing the
+definition of <tt class="literal">IOBUFSIZE</tt> in
+<em class="emphasis">include/httpd.h</em>.</p>
+
+<p>Unfortunately, you cannot set the kernel buffers'
+sizes as large as you might want because there is a limit to the
+available physical memory and OSes have their own upper limits on the
+possible buffer size. To increase the physical memory limits, you
+have to add more RAM. You can change the OS limits as well, but these
+procedures are very specific to OSes. Here are some of the OSes and
+the procedures to increase their socket buffer sizes:</p>
+
+<dl>
+<dt><i>Linux</i></dt>
+<dd>
+For 2.2<a name="pmodperl-CHP-12-ITERM-5009" /><a name="pmodperl-CHP-12-ITERM-5010" /> kernels, the maximum
+limit for receive buffer size is set in
+<em class="emphasis">/proc/sys/net/core/rmem_max</em></tt> and the default
+value is in <em class="emphasis">/proc/sys/net/core/rmem_default</em></tt>. If
+you want to increase the <em class="emphasis">rcvbuf</em></tt>size above
+65,535 bytes, the default maximum value, you have to first raise the
+absolute limit in <em class="emphasis">/proc/sys/net/core/rmem_max</em></tt>.
+At runtime, execute this command to raise it to 128 KB:</p>
+
+<blockquote><pre class="code">panic# echo 131072 &gt; /proc/sys/net/core/rmem_max</pre></blockquote>
+
+<p>You probably want to put this command into
+<em class="emphasis">/etc/rc.d/rc.local</em></tt> (or elsewhere, depending on
+the operating system and the distribution) or a similar script that
+is executed at server startup, so the change will take effect at
+system reboot.</p>
+
+<p>For the 2.2.5 kernel, the maximum and default values are either 32 KB
+or 64 KB. You can also change the default and maximum values during
+kernel compilation; for that, you should alter the
+<tt class="literal">SK_RMEM_DEFAULT</tt> and <tt class="literal">SK_RMEM_MAX</tt>
+definitions, respectively. (Since kernel source files tend to change,
+use the <em class="emphasis">grep(1)</em></tt> utility to find the files.)</p>
+
+<p>The same applies for the write buffers. You need to adjust
+<em class="emphasis">/proc/sys/net/core/wmem_max</em></tt> and possibly the
+default value in
+<em class="emphasis">/proc/sys/net/core/wmem_default</em></tt>. If you want to
+adjust the kernel configuration, you have to adjust the
+<tt class="literal">SK_WMEM_DEFAULT</tt> and <tt class="literal">SK_WMEM_MAX</tt>
+definitions, respectively.</p>
+</dd>
+
+</dl>
+
+<dl>
+<dt><i>FreeBSD</i></dt>
+<dd>
+Under<a name="pmodperl-CHP-12-ITERM-5011" /><a name="pmodperl-CHP-12-ITERM-5012" /> FreeBSD
+it's possible to configure the kernel to have bigger
+socket buffers:</p>
+
+<blockquote><pre class="code">panic# sysctl -w kern.ipc.maxsockbuf=2621440</pre></blockquote>
+</dd>
+
+
+<dt><i>Solaris</i></dt>
+<dd>
+Under<a name="pmodperl-CHP-12-ITERM-5013" /><a name="pmodperl-CHP-12-ITERM-5014" /> Solaris this upper limit
+is specified by the <tt class="literal">tcp_max_buf</tt> parameter; its
+default value is 256 KB.</p>
+</dd>
+
+</dl>
+
+<p>This buffering technique applies only to <em class="emphasis">downstream
+data</em></tt> (data coming from the origin server to the proxy),
+not to upstream data. When the server gets an incoming stream,
+because a request has been issued, the first bits of data hit the
+mod_perl server immediately. Afterward, if the request includes a lot
+of data (e.g., a big <tt class="literal">POST</tt> request, usually a file
+upload) and the client has a slow connection, the mod_perl process
+will stay tied, waiting for all the data to come in (unless it
+decides to abort the request for some reason). Falling back on
+mod_cgi seems to be the best solution for specific scripts whose
+major function is receiving large amounts of upstream data. Another
+alternative is to use yet another mod_perl server, which will be
+dedicated to file uploads only, and have it serve those specific URIs
+through correct proxy <a name="pmodperl-CHP-12-ITERM-5015" /><a name="pmodperl-CHP-12-ITERM-5016" /><a name="pmodperl-CHP-12-ITERM-5017" />configuration.</p>
+
+</div>
+<a name="pmodperl-CHP-12-SECT-7.4" /><div class="sect2">
+<h3 class="sect2">12.7.4. Closing Lingering Connections with lingerd</h3>
+
+<p>Because of
+<a name="pmodperl-CHP-12-ITERM-5018" /><a name="pmodperl-CHP-12-ITERM-5019" /><a name="pmodperl-CHP-12-ITERM-5020" />some technical complications in
+TCP/IP, at the end of each client connection, it is not enough for
+Apache to close the socket and forget about it; instead, it needs to
+spend about one second <em class="emphasis">lingering</em></tt> (waiting) on
+the client.<a href="#FOOTNOTE-43">[43]</a></p> <blockquote><a name="FOOTNOTE-43" /><p> [43]More details can be found at <a href="http://httpd.apache.org/docs/misc/fin_wait_2.html">http://httpd.apache.org/docs/misc/fin_wait_2.html</a>.</p>
+</blockquote>
+
+<p><tt class="literal">lingerd</tt> is a daemon (service) designed to take
+over the job of properly closing network connections from an HTTP
+server such as Apache and immediately freeing it to handle new
+connections.</p>
+
+<p><tt class="literal">lingerd</tt> can do an effective job only if HTTP
+<tt class="literal">KeepAlive</tt>s are turned off. Since
+<tt class="literal">Keep-Alive</tt>s are useful for images, the recommended
+setup is to serve dynamic content with mod_perl-enabled Apache and
+<tt class="literal">lingerd</tt>, and static content with plain Apache.</p>
+
+<p>With a <tt class="literal">lingerd</tt>setup, we don't
+have the proxy (we don't want to use
+<tt class="literal">lingerd</tt> on our <em class="emphasis">httpd_docs</em></tt>
+server, which is also our proxy), so the buffering chain we presented
+earlier for the proxy setup is much shorter here (see <a href="ch12_07.html#pmodperl-CHP-12-FIG-8">Figure 12-8</a>).</p>
+
+<a name="pmodperl-CHP-12-FIG-8" /><div class="figure"><img src="figs/pmp_1208.gif" alt="Figure 12-8" width="230" /></div><h4 class="objtitle">Figure 12-8. Shorter buffering chain</h4>
+
+<p>Hence, in this setup it becomes more important to have a big enough
+kernel send buffer.</p>
+
+<p>With <tt class="literal">lingerd</tt>, a big enough kernel send buffer, and
+<tt class="literal">KeepAlive</tt>s off, the job of spoonfeeding the data
+to a slow client is done by the OS kernel in the background. As a
+result, <tt class="literal">lingerd</tt> makes it possible to serve the
+same load using considerably fewer Apache processes. This translates
+into a reduced load on the server. It can be used as an alternative
+to the proxy setups we have seen so far.</p>
+
+<p>For more information about <tt class="literal">lingerd</tt>, see
+<a href="http://www.iagora.com/about/software/lingerd/">http://www.iagora.com/about/software/lingerd/</a>.</p>
+
+</div>
+<a name="pmodperl-CHP-12-SECT-7.5" /><div class="sect2">
+<h3 class="sect2">12.7.5. Caching Feature</h3>
+
+<p>Apache <a name="pmodperl-CHP-12-ITERM-5021" /><a name="pmodperl-CHP-12-ITERM-5022" />does
+caching as well. It's relevant to mod_perl only if
+you produce proper headers, so your scripts' output
+can be cached. See the Apache documentation for more details on the
+configuration of this capability.</p>
+
+<p>To enable caching, use the <tt class="literal">CacheRoot</tt> directive,
+specifying the directory where cache files are to be saved:</p>
+
+<blockquote><pre class="code">CacheRoot /usr/local/apache/cache</pre></blockquote>
+
+<p>Make sure that directory is writable by the user under which
+<em class="emphasis">httpd</em></tt> is running.</p>
+
+<p>The <tt class="literal">CacheSize</tt> directive sets the desired space
+usage in kilobytes:</p>
+
+<blockquote><pre class="code">CacheSize 50000   # 50 MB</pre></blockquote>
+
+<p>Garbage collection, which enforces the cache size, is set in hours by
+the <tt class="literal">CacheGcInterval</tt>. If unspecified, the cache
+size will grow until disk space runs out. This setting tells
+mod_proxy to check that your cache doesn't exceed
+the maximum size every hour:</p>
+
+<blockquote><pre class="code">CacheGcInterval 1</pre></blockquote>
+
+<p><tt class="literal">CacheMaxExpire</tt>specifies the maximum number of
+hours for which cached documents will be retained without checking
+the origin server:</p>
+
+<blockquote><pre class="code">CacheMaxExpire 72</pre></blockquote>
+
+<p>If the origin server for a document did not send an expiry date in
+the form of an <tt class="literal">Expires</tt> header, then the
+<tt class="literal">CacheLastModifiedFactor</tt> will be used to estimate
+one by multiplying the factor by the time the document was last
+modified, as supplied in the <tt class="literal">Last-Modified</tt> header.</p>
+
+<blockquote><pre class="code">CacheLastModifiedFactor 0.1</pre></blockquote>
+
+<p>If the content was modified 10 hours ago, mod_proxy will assume an
+expiration time of 10 &#xD7; 0.1 = 1 hour. You should set this
+according to how often your content is updated.</p>
+
+<p>If neither <tt class="literal">Last-Modified</tt> nor
+<tt class="literal">Expires</tt> is present, the
+<tt class="literal">CacheDefaultExpire</tt> directive specifies the number
+of hours until the document is expired from the cache:</p>
+
+<blockquote><pre class="code">CacheDefaultExpire 24</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-12-SECT-7.6" /><div class="sect2">
+<h3 class="sect2">12.7.6. Build Process</h3>
+
+<p>To build
+mod_proxy<a name="pmodperl-CHP-12-ITERM-5023" /><a name="pmodperl-CHP-12-ITERM-5024" />
+into Apache, just add <em class="emphasis">&#8212;enable-module=proxy</em></tt>
+during the Apache <em class="emphasis">./configure</em></tt>stage. Since you
+will probably need mod_rewrite's capability as well,
+enable it with <em class="emphasis">&#8212;enable-module=rewrite</em></tt>.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch12_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">12.6. The Squid Server and mod_perl</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">12.8. mod_rewrite Examples</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

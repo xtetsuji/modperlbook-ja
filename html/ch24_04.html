@@ -1,0 +1,291 @@
+<html><head><title>Installing mod_perl 2.0 (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch24_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch24_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">24.4. Installing mod_perl 2.0</h2>
+
+<p>Since as of this writing mod_perl 2.0 hasn't yet
+been released, the installation instructions may change a bit, but
+the basics should be the same. Always refer to the mod_perl
+documentation for the correct information.</p>
+
+<a name="pmodperl-CHP-24-SECT-4.1" /><div class="sect2">
+<h3 class="sect2">24.4.1. Installing from Source</h3>
+
+<p>First download the latest stable
+<a name="pmodperl-CHP-24-ITERM-5894" /><a name="pmodperl-CHP-24-ITERM-5895" /><a name="pmodperl-CHP-24-ITERM-5896" />sources of Apache 2.0, mod_perl
+2.0, and Perl 5.8.0.<a href="#FOOTNOTE-59">[59]</a> Remember that mod_perl 1.0 works
+only with Apache 1.3, and mod_perl 2.0 requires Apache 2.0. You can
+get the sources from:</p> <blockquote><a name="FOOTNOTE-59" /><p> [59]Perl 5.6.1 can be used with
+<em class="emphasis">prefork</em>, but if you build from source why not go
+for the best?</p> </blockquote>
+
+<ul><li>
+<p>mod_perl 2.0&#8212;<a href="http://perl.apache.org/dist/">http://perl.apache.org/dist/</a></p>
+</li><li>
+<p>Apache 2.0&#8212;<a href="http://httpd.apache.org/dist/">http://httpd.apache.org/dist/</a></p>
+</li><li>
+<p>Perl 5.8.0&#8212;<a href="http://cpan.org/src/">http://cpan.org/src/</a></p>
+</li></ul>
+<p>You can always find the most up-to-date download information at
+<a href="http://perl.apache.org/download/">http://perl.apache.org/download/</a>.</p>
+
+<p>Next, build Apache 2.0:</p>
+
+<ol><li>
+<p>Extract the source (as usual, replace <em class="emphasis">x</em> with the
+correct version number):</p>
+
+<blockquote><pre class="code">panic% tar -xzvf httpd-2.0.xx</pre></blockquote>
+
+<p>If you don't have GNU <em class="emphasis">tar(1)</em>,
+use the appropriate tools and flags to extract the source.</p>
+</li><li>
+<p>Configure:</p>
+
+<blockquote><pre class="code">panic% cd httpd-2.0.xx
+panic% ./configure --prefix=/home/httpd/httpd-2.0 --with-mpm=prefork</pre></blockquote>
+
+<p>Adjust the <em class="emphasis">&#8212;prefix</em> option to the directory
+where you want Apache 2.0 to be installed. If you want to use a
+different MPM, adjust the <em class="emphasis">&#8212;with-mpm</em>
+option. The easiest way to find all of the configuration options for
+Apache 2.0 is to run:</p>
+<blockquote><pre class="code">panic% ./configure --help</pre></blockquote>
+
+</li><li>
+<p>Finally, build and install:</p>
+
+<blockquote><pre class="code">panic% make &amp;&amp; make install</pre></blockquote>
+</li></ol>
+<p>If you don't have Perl 5.6.0 or higher installed, or
+you need to rebuild it because you want to enable certain
+compile-time features or you want to run one of the threaded MPMs,
+which require Perl 5.8.0, build Perl (we will assume that you build
+Perl 5.8.0):</p>
+
+<ol><li>
+<p>Extract the source:</p>
+
+<blockquote><pre class="code">panic% tar -xzvf perl-5.8.0.tar.gz</pre></blockquote>
+
+</li><li>
+<p>Configure:</p>
+
+<blockquote><pre class="code">panic% cd perl-5.8.0
+panic% ./Configure -des -Dprefix=$HOME/perl/perl-5.8.0 -Dusethreads</pre></blockquote>
+
+<p>This configuration accepts all the defaults suggested by the
+<em class="emphasis">Configure</em> script and produces a terse output.
+The <em class="emphasis">-Dusethreads</em> option enables Perl ithreads.
+The <em class="emphasis">-Dprefix</em> option specifies a custom
+installation directory, which you may want to adjust. For example,
+you may decide to install it in the default location provided by
+Perl, which is <em class="emphasis">/usr/local</em> under most systems.</p>
+
+<p>For a complete list of configuration options and for information on
+installation on non-Unix systems, refer to the
+<em class="emphasis">INSTALL</em> document.</p>
+</li><li>
+<p>Now build, test, and install Perl:</p>
+
+<blockquote><pre class="code">panic% make &amp;&amp; make test &amp;&amp; make install</pre></blockquote>
+</li></ol>
+<p>Before proceeding with the installation of mod_perl 2.0,
+it's advisable to install at least the LWP package
+into your newly installed Perl distribution so that you can fully
+test mod_perl 2.0 later. You can use <tt class="literal">CPAN.pm</tt> to
+accomplish that:</p>
+
+<blockquote><pre class="code">panic% $HOME/perl/perl-5.8.0/bin/perl -MCPAN -e 'install("LWP")'</pre></blockquote>
+
+<p>Now that you have Perl 5.8.0 and Apache 2.0 installed, you can
+proceed with the mod_perl 2.0 installation:</p>
+
+<ol><li>
+<p>Extract the source:</p>
+
+<blockquote><pre class="code">panic% tar -xzvf mod_perl-2.0.x.tar.gz</pre></blockquote>
+
+</li><li>
+<p>Remember the nightmare number of options for mod_perl 1.0? You need
+only two options to build mod_perl 2.0. If you need more control,
+read <em class="emphasis">install.pod</em> in the source mod_perl
+distribution or online at <a href="http://perl.apache.org/docs/2.0/user/">http://perl.apache.org/docs/2.0/user/</a>.
+Configure:</p>
+
+<blockquote><pre class="code">panic% cd mod_perl-2.0.x
+panic% perl Makefile.PL MP_AP_PREFIX=/home/stas/httpd/prefork \
+       MP_INST_APACHE2=1</pre></blockquote>
+
+<p>The <em class="emphasis">MP_AP_PREFIX</em> option specifies the base
+directory of the installed Apache 2.0, under which the
+<em class="emphasis">include/</em> directory with Apache C header files
+can be found. For example, if you have installed Apache 2.0 in the
+directory <em class="emphasis">\Apache2</em> on Win32, you should use:</p>
+
+<blockquote><pre class="code">MP_AP_PREFIX=\Apache2</pre></blockquote>
+
+<p>The <em class="emphasis">MP_INST_APACHE2</em> option is needed only if you
+have mod_perl 1.0 installed under the same Perl tree. You can remove
+this option if you don't have or
+don't plan to install mod_perl 1.0.</p>
+</li><li>
+<p>Now build, test, and install mod_perl 2.0:</p>
+
+<blockquote><pre class="code">panic% make &amp;&amp; make test &amp;&amp; make install</pre></blockquote>
+
+<p>On Win32 you have to use <em class="emphasis">nmake</em> instead of
+<em class="emphasis">make</em>, and the <em class="emphasis">&amp;&amp;</em>
+chaining doesn't work on all Win32 platforms, so
+instead you should do:</p>
+
+<blockquote><pre class="code">C:\modperl-2.0\&gt; nmake
+C:\modperl-2.0\&gt; nmake test
+C:\modperl-2.0\&gt; nmake install</pre></blockquote>
+</li></ol>
+</div>
+
+<a name="pmodperl-CHP-24-SECT-4.2" /><div class="sect2">
+<h3 class="sect2">24.4.2. Installing Binaries</h3>
+
+<p>Apache 2.0 binaries can be
+<a name="pmodperl-CHP-24-ITERM-5897" /><a name="pmodperl-CHP-24-ITERM-5898" /><a name="pmodperl-CHP-24-ITERM-5899" />obtained from <a href="http://httpd.apache.org/dist/binaries/">http://httpd.apache.org/dist/binaries/</a>.</p>
+
+<p>Perl 5.6.1 or 5.8.0 binaries can be obtained from <a href="http://cpan.org/ports/index.html">http://cpan.org/ports/index.html</a>.</p>
+
+<p>For mod_perl 2.0, as of this writing only the binaries for the Win32
+platform are available, kindly prepared and maintained by Randy
+Kobes. Once mod_perl 2.0 is released, various OS distributions will
+provide binary versions for their platforms.</p>
+
+<p>If you are not on a Win32 platform you can safely skip to the next
+section.</p>
+
+<p>There are two ways of obtaining a binary mod_perl 2.0 package for
+Win32:</p>
+
+<dl>
+<dt><b><tt class="literal">PPM</tt></b></dt>
+<dd>
+The first, for ActivePerl users, is through PPM, which assumes you
+already have ActivePerl (build 6xx or later), available from
+<a href="http://www.activestate.com/">http://www.activestate.com/</a>, and
+a Win32 Apache 2.0 binary, available from <a href="http://www.apache.org/dist/httpd/binaries/win32/">http://www.apache.org/dist/httpd/binaries/win32/</a>.
+In installing this, you may find it convenient when transcribing any
+Unix-oriented documentation to choose installation directories that
+do not have spaces in their names (e.g.,
+<em class="emphasis">C:\Apache2</em>).</p>
+
+<p>After installing Perl and Apache 2.0, you can then install mod_perl
+2.0 via the <tt class="literal">PPM</tt> utility. ActiveState does not
+maintain mod_perl in its PPM repository, so you must get it from
+somewhere else. One way is simply to do:</p>
+
+<blockquote><pre class="code">C:\&gt; ppm install http://theoryx5.uwinnipeg.ca/ppmpackages/mod_perl-2.ppd</pre></blockquote>
+
+<p>Another way, which will be useful if you plan on installing
+additional Apache modules, is to set the repository within the
+<tt class="literal">PPM</tt>shell utility as follows (the lines are broken
+here for readability):</p>
+
+<blockquote><pre class="code">PPM&gt; set repository theoryx5 
+      http://theoryx5.uwinnipeg.ca/cgi-bin/ppmserver?urn:/PPMServer</pre></blockquote>
+
+<p>or, for <tt class="literal">PPM3</tt>:</p>
+
+<blockquote><pre class="code">PPM&gt; rep add theoryx5 
+      http://theoryx5.uwinnipeg.ca/cgi-bin/ppmserver?urn:/PPMServer</pre></blockquote>
+
+<p>mod_perl 2.0 can then be installed as:</p>
+
+<blockquote><pre class="code">PPM&gt; install mod_perl-2</pre></blockquote>
+
+<p>This will install the necessary modules under an
+<em class="emphasis">Apache2/</em> subdirectory in your Perl tree, so as
+not to disturb an existing <em class="emphasis">Apache/</em> directory
+from mod_perl 1.0. See the next section for instructions on how to
+add this directory to the <tt class="literal">@INC</tt> path for searching
+for modules.</p>
+
+<p>The mod_perl <tt class="literal">PPM</tt> package also includes the
+necessary Apache DLL <em class="emphasis">mod_perl.so</em>; a
+post-installation script that will offer to copy this file to your
+<em class="emphasis">Apache2</em> modules directory (e.g.,
+<em class="emphasis">C:\Apache2\modules</em>) should be run. If this is
+not done, you can get the file <em class="emphasis">mod_perl-2.tar.gz</em>
+from <a href="http://theoryx5.uwinnipeg.ca/ppmpackages/x86/">http://theoryx5.uwinnipeg.ca/ppmpackages/x86/</a>.
+This file, when unpacked, contains <em class="emphasis">mod_perl.so</em>
+in the top-level directory.</p>
+
+<p>Note that the mod_perl package available from this site will always
+use the latest mod_perl sources compiled against the latest official
+Apache release; depending on changes made in Apache, you may or may
+not be able to use an earlier Apache binary. However, in the Apache
+Win32 world it is a particularly good idea to use the latest version,
+for bug and security fixes.</p>
+</dd>
+
+
+<dt><i>Apache/mod_perl binary</i></dt>
+<dd>
+At <a href="ftp://theoryx5.uwinnipeg.ca/pub/other/">ftp://theoryx5.uwinnipeg.ca/pub/other/</a> you
+can find an archive called <em class="emphasis">Apache2.tar.gz</em></tt>
+containing a binary version of Apache 2.0 with mod_perl 2.0. This
+archive unpacks into an <em class="emphasis">Apache2</em></tt> directory,
+underneath which is a <em class="emphasis">blib</em></tt>subdirectory
+containing the necessary mod_perl files (enabled with a
+<tt class="literal">PerlSwitches</tt> directive in
+<em class="emphasis">httpd.conf</em></tt>). Some editing of
+<em class="emphasis">httpd.conf</em></tt> will be necessary to reflect the
+location of the installed directory. See the
+<em class="emphasis">Apache2.readme</em></tt> file for further information.</p>
+
+<p>This package, which is updated periodically, is compiled against
+recent CVS sources of Apache 2.0 and mod_perl 2.0. As such, it may
+contain features, and bugs, not present in the current official
+releases. Also for this reason, these may not be binary-compatible
+with other versions of Apache 2.0/mod_perl 2.0.</p>
+</dd>
+
+
+<dt><i>Apache/mod_perl/Perl 5.8 binary distribution</i></dt>
+<dd>
+Because mod_perl 2.0 works best with Perl 5.8 in threaded
+environments such as Apache 2.0 with the <em class="emphasis">win32</em>
+MPM, there is a package including Perl 5.8, Apache 2.0, and mod_perl
+2.0. To get this, look for the
+<em class="emphasis">perl-5.8-win32-bin.tar.gz</em> package at <a href="ftp://theoryx5.uwinnipeg.ca/pub/other/">ftp://theoryx5.uwinnipeg.ca/pub/other/</a>, and
+extract it to <em class="emphasis">C:\</em>, which will give you an
+<em class="emphasis">Apache2</em> directory containing the Apache 2.0
+installation along with mod_perl 2.0, and a <em class="emphasis">Perl</em>
+directory containing the Perl installation (you should add this
+<em class="emphasis">Perl</em> directory to your path).</p>
+</dd>
+
+</dl>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch24_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch24_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">24.3. What's New in mod_perl 2.0</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">24.5. Configuring mod_perl 2.0</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

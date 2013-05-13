@@ -1,0 +1,333 @@
+<html><head><title>The Development of mod_perl 1.0 (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch01_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch01_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">1.3. The Development of mod_perl 1.0</h2>
+
+<p>Of the various <a name="pmodperl-CHP-1-ITERM-3359" /><a name="pmodperl-CHP-1-ITERM-3360" />attempts to improve on
+mod_cgi's shortcomings, mod_perl has proven to be
+one of the better solutions and has been widely adopted by CGI
+developers. Doug MacEachern fathered the core code of this Apache
+module and licensed it under the Apache Software License, which is a
+certified open source license.</p>
+
+<p>mod_perl does away with mod_cgi's forking by
+embedding the Perl interpreter into Apache's child
+processes, thus avoiding the forking mod_cgi needed to run Perl
+programs. In this new model, the child process
+doesn't exit when it has processed a request. The
+Perl interpreter is loaded only once, when the process is started.
+Since the interpreter is persistent throughout the
+process's lifetime, all code is loaded and compiled
+only once, the first time it is needed. All subsequent requests run
+much faster, because everything is already loaded and compiled.
+Response processing is reduced to simply running the code, which
+improves response times by a factor of 10-100, depending on the code
+being executed.</p>
+
+<p>But Doug's real accomplishment was adding a mod_perl
+API to the Apache core. This made it possible to write complete
+Apache modules in Perl, a feat that used to require coding in C. From
+then on, mod_perl enabled the programmer to handle all phases of
+request processing in Perl.</p>
+
+<p>The mod_perl API also allows complete server configuration in Perl.
+This has made the lives of many server administrators much easier, as
+they now benefit from dynamically generating the configuration and
+are freed from hunting for bugs in huge configuration files full of
+similar directives for virtual hosts and the like.<a href="#FOOTNOTE-9">[9]</a></p>
+<blockquote><a name="FOOTNOTE-9" /><p> [9]mod_vhost_alias offers similar functionality.</p>
+</blockquote>
+
+<p>To provide backward compatibility for plain CGI scripts that used to
+be run under mod_cgi, while still benefiting from a preloaded Perl
+interpreter and modules, a few special handlers were written, each
+allowing a different level of proximity to pure mod_perl
+functionality. Some take full advantage of mod_perl, while others do
+not.</p>
+
+<p>mod_perl embeds a copy of the Perl interpreter into the Apache
+<em class="emphasis">httpd</em> executable, providing complete access to
+Perl functionality within Apache. This enables a set of
+mod_perl-specific configuration directives, all of which start with
+the string <tt class="literal">Perl</tt>. Most, but not all, of these
+directives are used to specify handlers for various phases of the
+request.</p>
+
+<p>It might occur
+<a name="pmodperl-CHP-1-ITERM-3361" /><a name="pmodperl-CHP-1-ITERM-3362" /><a name="pmodperl-CHP-1-ITERM-3363" /><a name="pmodperl-CHP-1-ITERM-3364" />to you that sticking a large executable
+(Perl) into another large executable (Apache) creates a very, very
+large program. mod_perl certainly makes <em class="emphasis">httpd</em>
+significantly bigger, and you will need more RAM on your production
+server to be able to run many mod_perl processes. However, in
+reality, the situation is not as bad as it first appears. mod_perl
+processes requests much faster, so the number of processes needed to
+handle the same request rate is much lower relative to the mod_cgi
+approach. Generally, you need slightly more available memory, but the
+speed improvements you will see are well worth every megabyte of
+memory you can add. Techniques that can reduce memory requirements
+are covered in <a href="ch10_01.html">Chapter 10</a>.</p>
+
+<p>According to <a href="http://netcraft.com/">http://netcraft.com/</a>, as of January 2003,
+mod_perl has been used on more than four million web sites. Some of
+these sites have been using mod_perl since its early days. You can
+see an extensive list of
+sites<a name="pmodperl-CHP-1-ITERM-3365" /><a name="pmodperl-CHP-1-ITERM-3366" /> that
+use mod_perl at <a href="http://perl.apache.org/outstanding/sites.html">http://perl.apache.org/outstanding/sites.html</a>
+or <a href="http://perl.apache.org/outstanding/success_stories/">http://perl.apache.org/outstanding/success_stories/</a>.
+The latest usage statistics can be viewed at <a href="http://perl.apache.org/outstanding/stats/">http://perl.apache.org/outstanding/stats/</a>.</p>
+
+<a name="pmodperl-CHP-1-SECT-3.1" /><div class="sect2">
+<h3 class="sect2">1.3.1. Running CGI Scripts with mod_perl</h3>
+
+<p>Since many web application developers are interested in the content
+delivery phase and come from a CGI background, mod_perl includes
+packages designed to make the transition from CGI simple and
+painless. <tt class="literal">Apache::PerlRun</tt> and
+<tt class="literal">Apache::Registry</tt> run unmodified CGI scripts,
+albeit much faster than mod_cgi.<a href="#FOOTNOTE-10">[10]</a></p>
+<blockquote><a name="FOOTNOTE-10" /><p> [10]<tt class="literal">Apache::RegistryNG</tt> and
+<tt class="literal">Apache::RegistryBB</tt> are two new experimental
+modules that you may want to try as well.</p> </blockquote>
+
+<p>The difference between
+<tt class="literal">Apache::Registry</tt><a name="pmodperl-CHP-1-ITERM-3367" />
+<a name="pmodperl-CHP-1-ITERM-3368" />and
+<tt class="literal">Apache::PerlRun</tt><a name="pmodperl-CHP-1-ITERM-3369" /> is that
+<tt class="literal">Apache::Registry</tt> caches all scripts, and
+<tt class="literal">Apache::PerlRun</tt> doesn't. To
+understand why this matters, remember that if one of
+mod_perl's benefits is added speed, another is
+persistence. Just as the Perl interpreter is loaded only once, at
+child process startup, your scripts are loaded and compiled only
+once, when they are first used. This can be a double-edged sword:
+persistence means global variables aren't reset to
+initial values, and file and database handles aren't
+closed when the script ends. This can wreak havoc in badly written
+CGI scripts.</p>
+
+<p>Whether you should use <tt class="literal">Apache::Registry</tt> or
+<tt class="literal">Apache::PerlRun</tt> for your CGI scripts depends on
+how well written your existing Perl scripts are. Some scripts
+initialize all variables, close all file handles, use taint mode, and
+give only polite error messages. Others don't.</p>
+
+<p><tt class="literal">Apache::Registry</tt> compiles scripts on first use and
+keeps the compiled scripts in memory. On subsequent requests, all the
+needed code (the script and the modules it uses) is already compiled
+and loaded in memory. This gives you enormous performance benefits,
+but it requires that scripts be well behaved.</p>
+
+<p><tt class="literal">Apache::PerlRun</tt>, on the other hand, compiles
+scripts at each request. The script's namespace is
+flushed and is fresh at the start of every request. This allows
+scripts to enjoy the basic benefit of mod_perl (i.e., not having to
+load the Perl interpreter) without requiring poorly written scripts
+to be rewritten.</p>
+
+<p>A typical problem
+<a name="pmodperl-CHP-1-ITERM-3370" /><a name="pmodperl-CHP-1-ITERM-3371" /><a name="pmodperl-CHP-1-ITERM-3372" />some developers encounter
+when porting from mod_cgi to <tt class="literal">Apache::Registry</tt> is
+the use of uninitialized global variables. Consider the following
+script:</p>
+
+<blockquote><pre class="code">use CGI;
+$q = CGI-&gt;new( );
+$topsecret = 1 if $q-&gt;param("secret") eq 'Muahaha';
+# ...
+if ($topsecret) {
+    display_topsecret_data( );
+}
+else {
+    security_alert( );
+}</pre></blockquote>
+
+<p>This script will always do the right thing under mod_cgi: if
+<tt class="literal">secret=Muahaha</tt> is supplied, the top-secret data
+will be displayed via <tt class="literal">display_topsecret_data( )</tt>,
+and if the authentication fails, the <tt class="literal">security_alert(
+)</tt> function will be called. This works only because under
+mod_cgi, all globals are undefined at the beginning of each request.</p>
+
+<p>Under <tt class="literal">Apache::Registry</tt>, however, global variables
+preserve their values between requests. Now imagine a situation where
+someone has successfully authenticated, setting the global variable
+<tt class="literal">$topsecret</tt> to a true value. From now on, anyone
+can access the top-secret data without knowing the secret phrase,
+because <tt class="literal">$topsecret</tt> will stay true until the
+process dies or is modified elsewhere in the code.</p>
+
+<p>This is an example of sloppy code. It will do the right thing under
+<tt class="literal">Apache::PerlRun</tt>, since all global variables are
+undefined before each iteration of the script. However, under
+<tt class="literal">Apache::Registry</tt> and mod_perl handlers, all global
+variables must be initialized before they can be used.</p>
+
+<p>The example can be fixed in a few ways. It's a good
+idea to always use the <tt class="literal">strict</tt> mode, which requires
+the <a name="pmodperl-CHP-1-ITERM-3373" /><a name="pmodperl-CHP-1-ITERM-3374" />global
+variables to be declared before they are used:</p>
+
+<blockquote><pre class="code">use strict;
+use CGI;
+use vars qw($top $q);
+# init globals
+$top = 0;
+$q = undef;
+# code
+$q = CGI-&gt;new( );
+$topsecret = 1 if $q-&gt;param("secret") eq 'Muahaha';
+# ...</pre></blockquote>
+
+<p>But of course, the simplest solution is to avoid using globals where
+possible. Let's look at the example rewritten
+without globals:</p>
+
+<blockquote><pre class="code">use strict;
+use CGI;
+my $q = CGI-&gt;new( );
+my $topsecret = $q-&gt;param("secret") eq 'Muahaha' ? 1 : 0;
+# ...</pre></blockquote>
+
+<p>The last two versions of the example will run perfectly under
+<tt class="literal">Apache::Registry</tt>.</p>
+
+<p>Here is another example that won't work correctly
+under <tt class="literal">Apache::Registry</tt>. This example presents a
+simple search engine script:</p>
+
+<blockquote><pre class="code">use CGI;
+my $q = CGI-&gt;new( );
+print $q-&gt;header('text/plain');
+my @data = read_data( )
+my $pat = $q-&gt;param("keyword");
+foreach (@data) {
+    print if /$pat/o;
+}</pre></blockquote>
+
+<p>The example retrieves some data using <tt class="literal">read_data( )</tt>
+(e.g., lines in the text file), tries to match the keyword submitted
+by a user against this data, and prints the matching lines. The
+<tt class="literal">/o</tt> regular expression modifier is used to compile
+the regular expression only once, to speed up the matches. Without
+it, the regular expression will be recompiled as many times as the
+size of the <tt class="literal">@data</tt> array.</p>
+
+<p>Now consider that <a name="pmodperl-CHP-1-ITERM-3375" />someone is using this script to search for
+something inappropriate. Under <tt class="literal">Apache::Registry</tt>,
+the pattern will be cached and won't be recompiled
+in subsequent requests, meaning that the next person using this
+script (running in the same process) may receive something quite
+unexpected as a result. Oops.</p>
+
+<p>The proper solution to this problem is discussed in <a href="ch06_01.html">Chapter 6</a>, but <tt class="literal">Apache::PerlRun</tt>
+provides an immediate workaround, since it resets the regular
+expression cache before each request.</p>
+
+<p>So why bother to keep your code clean? Why not use
+<tt class="literal">Apache::PerlRun</tt> all the time? As we mentioned
+earlier, the convenience provided by
+<tt class="literal">Apache::PerlRun</tt> comes at a price of performance
+deterioration.</p>
+
+<p>In <a href="ch09_01.html">Chapter 9</a>, we show in detail how to
+<a name="pmodperl-CHP-1-ITERM-3376" /><a name="pmodperl-CHP-1-ITERM-3377" /><a name="pmodperl-CHP-1-ITERM-3378" />benchmark the code and server
+configuration. Based on the results of the benchmark, you can tune
+the service for the best performance. For now, let's
+just show the benchmark of the short script in <a href="ch01_03.html#pmodperl-CHP-1-EX-6">Example 1-6</a>.</p>
+
+<a name="pmodperl-CHP-1-EX-6" /><div class="example">
+<h4 class="objtitle">Example 1-6. readdir.pl</h4>
+<blockquote><pre class="code">use strict;
+
+use CGI ( );
+use IO::Dir ( );
+
+my $q = CGI-&gt;new;
+print $q-&gt;header("text/plain");
+my $dir = IO::Dir-&gt;new(".");
+print join "\n", $dir-&gt;read;</pre></blockquote>
+</div>
+
+<p>The script loads two modules (<tt class="literal">CGI</tt> and
+<tt class="literal">IO::Dir</tt>), prints the HTTP header, and prints the
+contents of the current directory. If we compare the performance of
+this script under mod_cgi, <tt class="literal">Apache::Registry</tt>, and
+<tt class="literal">Apache::PerlRun</tt>, we get the following results:</p>
+
+<blockquote><pre class="code">  Mode          Requests/sec
+-------------------------------
+  Apache::Registry       473
+  Apache::PerlRun        289
+  mod_cgi                 10</pre></blockquote>
+
+<p>Because the script does very little, the performance differences
+between the three modes are very significant.
+<tt class="literal">Apache::Registry</tt> thoroughly outperforms mod_cgi,
+and you can see that <tt class="literal">Apache::PerlRun</tt> is much
+faster than mod_cgi, although it is still about twice as slow as
+<tt class="literal">Apache::Registry</tt>. The performance gap usually
+shrinks a bit as more code is added, as the overhead of
+<tt class="literal">fork( )</tt> and code compilation becomes less
+significant compared to execution times. But the benchmark results
+won't change significantly.</p>
+
+<p>Jumping ahead, if we convert the script in <a href="ch01_03.html#pmodperl-CHP-1-EX-6">Example 1-6</a> into a mod_perl handler, we can reach 517
+requests per second under the same conditions, which is a bit faster
+than <tt class="literal">Apache::Registry</tt>. In <a href="ch13_01.html">Chapter 13</a>, we discuss why running the code under the
+<tt class="literal">Apache::Registry</tt> handler is a bit slower than
+using a pure mod_perl content handler.</p>
+
+<p>It can easily be seen from this benchmark that
+<tt class="literal">Apache::Registry</tt> is what you should use for your
+scripts to get the most out of mod_perl. But
+<tt class="literal">Apache::PerlRun</tt> is still quite useful for making
+an easy transition to mod_perl. With
+<tt class="literal">Apache::PerlRun</tt>, you can get a significant
+performance improvement over mod_cgi with minimal effort.</p>
+
+<p>Later, we will see that
+<tt class="literal">Apache::Registry</tt>'s caching
+mechanism is implemented by compiling each script in its own
+namespace. <tt class="literal">Apache::Registry</tt> builds a unique
+package name using the script's name, the current
+URI, and the current virtual host (if any).
+<tt class="literal">Apache::Registry</tt> prepends a
+<tt class="literal">package</tt>statement to your script, then compiles it
+using Perl's <tt class="literal">eval</tt> function. In
+<a href="ch06_01.html">Chapter 6</a>, we will show how exactly this is done.</p>
+
+<p>What happens if you modify the script's file after
+it has been compiled and cached? <tt class="literal">Apache::Registry</tt>
+checks the file's last-modification time, and if the
+file has changed since the last compile, it is reloaded and
+recompiled.</p>
+
+<p>In case of a compilation or execution error, the error is logged to
+the server's error log, and a server error is
+returned to the client.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch01_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch01_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">1.2. The Apache 1.3 Server Model</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">1.4. Apache 1.3 Request Processing Phases</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

@@ -1,0 +1,774 @@
+<html><head><title>Error Handling and Debugging (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part4.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch21_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 21. Error Handling and Debugging</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch21_01.html#pmodperl-CHP-21-SECT-1">Warnings and Errors Explained</a><br />
+<a href="ch21_02.html">Debugging Code in Single-Server Mode</a><br />
+<a href="ch21_03.html">Tracing System Calls</a><br />
+<a href="ch21_04.html">Tracing mod_perl-Specific Perl Calls</a><br />
+<a href="ch21_05.html">Debugging Perl Code</a><br />
+<a href="ch21_06.html">Analyzing Dumped core Files</a><br />
+<a href="ch21_07.html">Hanging Processes: Detection and Diagnostics</a><br />
+<a href="ch21_08.html">Useful Debug Modules</a><br />
+<a href="ch21_09.html">Looking Inside the Server</a><br />
+<a href="ch21_10.html">References</a><br /></p></div><p>Every programmer needs to know how to debug his programs. It is an
+easy task with plain Perl: just invoke the program with the
+<em class="emphasis">-d</em> flag to invoke the debugger. Under mod_perl,
+however, you have to jump through a few hoops.</p><p>In this chapter we explain how to correctly handle server, program,
+and user errors and how to keep your user loyal to your service by
+displaying good error messages.</p><p>We also demonstrate how you can peek at what is going on in a
+mod_perl-enabled server while it is running: for example, monitoring
+the value of a global variable, seeing what database connections are
+open, tracing what modules were loaded and their paths, checking the
+value of <tt class="literal">@INC</tt>, and much more.</p><p>It's been said that there's always
+one more bug in any given program. Bugs that show symptoms during the
+development cycle are usually easily found. As their number
+diminishes, the bugs become harder to find. Subtle interactions
+between software components can create bugs that
+aren't easily reproduced. In such cases, tools and
+techniques that can help track down the offending code come in handy.</p><div class="sect1"><a name="pmodperl-CHP-21-SECT-1" />
+<h2 class="sect1">21.1. Warnings and Errors Explained</h2>
+
+<p>The Perl interpreter
+<a name="pmodperl-CHP-21-ITERM-5449" /><a name="pmodperl-CHP-21-ITERM-5450" /><a name="pmodperl-CHP-21-ITERM-5451" /><a name="pmodperl-CHP-21-ITERM-5452" />distinguishes
+between warnings and errors. <em class="emphasis">Warnings</em> are
+messages that the Perl interpreter prints to
+<tt class="literal">STDERR</tt> (or to Apache's error log
+under mod_perl). These messages indicate that Perl thinks there is a
+problem with your code, but they do not prevent the code from
+running. <em class="emphasis">Errors</em> are output in the same way as
+warnings, but the program terminates after an error. For example,
+errors occur if your code uses invalid syntax. If a <tt class="literal">die(
+)</tt> occurs outside of any exception-handling
+<tt class="literal">eval</tt>, it behaves just like an error, with a
+message being output and program execution terminating.</p>
+
+<p>For someone new to Perl programming, the warning and error messages
+output by Perl can be confusing and worrysome. In this section we
+will show you how to interpret Perl's messages, and
+how to track down and solve the problems that cause them.</p>
+
+<a name="pmodperl-CHP-21-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">21.1.1. The Importance of Warnings</h3>
+
+<p>Just like
+<a name="pmodperl-CHP-21-ITERM-5453" /><a name="pmodperl-CHP-21-ITERM-5454" />errors, Perl's optional
+warnings, if they are enabled, go to the
+<em class="emphasis">error_log</em> file. You have enabled them in your
+development server, haven't you? We discussed the
+various techniques to enable warnings in <a href="ch04_01.html">Chapter 4</a> and <a href="ch06_01.html">Chapter 6</a>, but we will
+repeat them in this section.</p>
+
+<p>The code you write lives a dual life. In the first life it is
+written, tested, debugged, improved, tested, debugged, rewritten,
+retested, and debugged again. In the second life
+it's just <em class="emphasis">used</em>.</p>
+
+<p>A significant part of the script's first life is
+spent on the developer's machine. The second life is
+spent on the production server, where the code is supposed to be
+perfect.</p>
+
+<p>When you develop the code you want all the help you can get to spot
+possible problems. By enabling warnings you will ensure that Perl
+gives you all the help it can to identify actual or potential
+problems in your code. Whenever you see an error or warning in the
+<em class="emphasis">error_log</em>, you <em class="emphasis">must</em> try to
+get rid of it.</p>
+
+<p>But why bother, if the program runs and seems to work?</p>
+
+<ul><li>
+<p>The Perl interpreter issues warnings because it thinks that
+something's wrong with your code. The Perl
+interpreter is rarely wrong; if you ignore the warnings it provides,
+you may well encounter problems later, perhaps when the code is used
+on the production server.</p>
+</li><li>
+<p>If each invocation of a script generates any superfluous warnings, it
+will be very hard to catch real problems. The warnings that seem
+important will be lost amongst the mass of
+"unimportant" warnings that you
+didn't bother to fix. All warnings are important,
+and all warnings can be dealt with.</p>
+</li></ul>
+<p>On the other hand, on a production server, you really want to
+turn<a name="pmodperl-CHP-21-ITERM-5455" /> warnings off. And there are good
+reasons for this:</p>
+
+<ul><li>
+<p>There is no added value in having the same warning showing up, again
+and again, triggered by thousands of script invocations. If your code
+isn't very clean and generates even a single warning
+per script invocation, on the heavily loaded server you will end up
+with a huge <em class="emphasis">error_log</em> file in a short time.</p>
+
+<p>The warning-elimination phase is supposed to be a part of the
+development process and should be done before the code goes live.</p>
+</li><li>
+<p>In any Perl script, not just under mod_perl, enabling runtime
+warnings has a performance impact.</p>
+</li></ul>
+<p>mod_perl provides a very simple solution to handling warnings, so you
+should avoid enabling warnings in the scripts themselves unless you
+really have to. Let mod_perl control this mode globally. All you need
+to do is put the directive:</p>
+
+<a name="pmodperl-CHP-21-ITERM-5456" /><a name="pmodperl-CHP-21-ITERM-5457" /><blockquote><pre class="code">PerlWarn On</pre></blockquote>
+
+<p>in <em class="emphasis">httpd.conf</em> on your development machine and
+the directive:</p>
+
+<blockquote><pre class="code">PerlWarn Off</pre></blockquote>
+
+<p>on the live machine.</p>
+
+<p>If there is a piece of code that generates warnings and you want to
+disable them only in that code, you can do that too. The Perl special
+variable <tt class="literal">$^W</tt><a name="pmodperl-CHP-21-ITERM-5458" /><a name="pmodperl-CHP-21-ITERM-5459" />
+allows you to
+<a name="pmodperl-CHP-21-ITERM-5460" />dynamically turn warnings mode on
+and off.</p>
+
+<blockquote><pre class="code">{
+    local $^W = 0;
+    # some code that generates innocuous warnings
+}</pre></blockquote>
+
+<p>Don't forget to localize the
+<a name="pmodperl-CHP-21-ITERM-5461" />setting
+inside a block. By localizing the variable you switch warnings off
+only within the scope of the block and ensure that the original value
+of <tt class="literal">$^W</tt> is restored upon exit from the block.
+Without localization, the setting of <tt class="literal">$^W</tt> will
+affect <em class="emphasis">all</em> the requests handled by the Apache
+child process that changed this variable, for
+<em class="emphasis">all</em> the scripts it executes&#8212;not just the
+one that changed <tt class="literal">$^W</tt>!</p>
+
+<p>Starting from Perl 5.6.0 you can use the
+<tt class="literal">warnings</tt><a name="pmodperl-CHP-21-ITERM-5462" /><a name="pmodperl-CHP-21-ITERM-5463" />
+pragma:</p>
+
+<blockquote><pre class="code">{
+    no warnings;
+    # some code that generates innocuous warnings
+}</pre></blockquote>
+
+<p>The <tt class="literal">diagnostics</tt> pragma can shed more light on
+errors and warnings, as we will see in the following sections.</p>
+
+<a name="pmodperl-CHP-21-SECT-1.1.1" /><div class="sect3">
+<h3 class="sect3">21.1.1.1. The diagnostics pragma</h3>
+
+<p>This<a name="pmodperl-CHP-21-ITERM-5464" /><a name="pmodperl-CHP-21-ITERM-5465" /><a name="pmodperl-CHP-21-ITERM-5466" /> pragma extends the terse diagnostics
+normally emitted during the compilation and runtime phases and
+augments them with the more verbose and endearing descriptions found
+in the <em class="emphasis">perldiag</em> manpage.</p>
+
+<p>Like any other pragma, <tt class="literal">diagnostics</tt> is invoked with
+<tt class="literal">use</tt>, by placing:</p>
+
+<blockquote><pre class="code">use diagnostics;</pre></blockquote>
+
+<p>in your program. This also turns warnings mode on for the scope of
+the program.</p>
+
+<p>This pragma is especially useful when you are new to Perl and want a
+better explanation of the errors and warnings. It's
+also helpful when you encounter some warning you've
+never seen before&#8212;e.g., when a new warning has been introduced
+in an upgraded version of Perl.</p>
+
+<p>You may not want to leave diagnostics mode on for your production
+server. For each warning, diagnostics mode generates about ten times
+more output than warnings mode. If your code generates warnings that
+go into the <em class="emphasis">error_log</em> file, with the diagnostics
+pragma you will use disk space much faster.</p>
+
+<p>Diagnostics mode adds a large performance
+<a name="pmodperl-CHP-21-ITERM-5467" />overhead in
+comparison with just having the warnings mode on. You can see the
+benchmark results in <a href="ch09_01.html">Chapter 9</a>.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-21-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">21.1.2. Curing "Internal Server Error" Problems</h3>
+
+<p>Say you've<a name="pmodperl-CHP-21-ITERM-5468" /><a name="pmodperl-CHP-21-ITERM-5469" /><a name="pmodperl-CHP-21-ITERM-5470" /> just installed a new
+script, and when you try it out you see the grey screen of death
+saying "Internal Server Error"
+(<a href="ch21_01.html#pmodperl-CHP-21-FIG-1">Figure 21-1</a>). Or even worse,
+you've had a script running on a production server
+for a long time without problems, when the same grey screen starts to
+show up occasionally for no apparent reason.</p>
+
+<a name="pmodperl-CHP-21-FIG-1" /><div class="figure"><img src="figs/pmp_2101.gif" alt="Figure 21-1" width="481" /></div><h4 class="objtitle">Figure 21-1. Internal Server Error</h4>
+
+<p>How can you find out what the problem is, before you actually attempt
+to solve it?</p>
+
+<p>The first problem is determining the location of the error message.</p>
+
+<p>You have been coding in Perl for years, and whenever an error
+occurred in the past it was displayed in the same terminal window
+from which you started the script. But when you work with a web
+server, the errors do not show up in a terminal. In many cases, the
+server has no terminal to which to send the error messages.</p>
+
+<p>Actually, the error messages don't disappear; they
+end up in <a name="pmodperl-CHP-21-ITERM-5471" />the
+<em class="emphasis">error_log</em><a name="pmodperl-CHP-21-ITERM-5472" /> file.
+Its location is specified by the
+<tt class="literal">ErrorLog</tt><a name="pmodperl-CHP-21-ITERM-5473" /><a name="pmodperl-CHP-21-ITERM-5474" />
+directive in <em class="emphasis">httpd.conf</em>. The default setting is:</p>
+
+<blockquote><pre class="code">ErrorLog logs/error_log</pre></blockquote>
+
+<p>where <em class="emphasis">logs/error_log</em> is appended to the value of
+the <tt class="literal">ServerRoot</tt> directive.</p>
+
+<p>If you've followed the convention
+we've used in this book and your
+<tt class="literal">ServerRoot</tt> is:</p>
+
+<blockquote><pre class="code">ServerRoot /home/httpd/httpd_perl</pre></blockquote>
+
+<p>the full path to the file will be
+<em class="emphasis">/home/httpd/httpd_perl/logs/error_log</em>.</p>
+
+<p>Whenever you see "Internal Server
+Error" in a browser it's time to
+look at this file.</p>
+
+<p>There are cases when errors don't go to the
+<em class="emphasis">error_log</em> file. This can happen when the server
+is starting and hasn't gotten as far as opening the
+<em class="emphasis">error_log</em> file for writing before it needs to
+write an error message. In that case, Apache writes the messages to
+<tt class="literal">STDERR</tt><a name="pmodperl-CHP-21-ITERM-5475" />. If you have entered a
+nonexistent directory path in your <tt class="literal">ErrorLog</tt>
+directive in <em class="emphasis">httpd.conf</em>, the error message will
+be printed to <tt class="literal">STDERR</tt>. If the error happens when
+the server executes a <tt class="literal">PerlRequire</tt>,
+<tt class="literal">PerlModule</tt>, or other startup-time directive you
+might also see output sent to <tt class="literal">STDERR</tt>. If you
+haven't redirected Apache's
+<tt class="literal">STDERR</tt>, then the messages are printed to the
+console (tty, terminal) from which you started the server.</p>
+
+<p>Note that when you're running the server in
+<a name="pmodperl-CHP-21-ITERM-5476" /><a name="pmodperl-CHP-21-ITERM-5477" /><a name="pmodperl-CHP-21-ITERM-5478" />single-process mode (<em class="emphasis">httpd
+-X</em>), the usual startup message:</p>
+
+<blockquote><pre class="code">Apache/1.3.24 (Unix) mod_perl/1.26 configured</pre></blockquote>
+
+<p>won't appear in the <em class="emphasis">error_log</em>
+file. Also, any startup warnings will be printed to the console,
+since in this mode the server redirects its STDERR stream to the
+<em class="emphasis">error_log</em> file only at a later stage.</p>
+
+<p>The first problem is solved: we know where the error messages are.</p>
+
+<p>The second problem is,
+how<a name="pmodperl-CHP-21-ITERM-5479" /> useful is
+<a name="pmodperl-CHP-21-ITERM-5480" /><a name="pmodperl-CHP-21-ITERM-5481" />the error message?</p>
+
+<p>The usefulness of the error message depends to some extent on the
+programmer's coding style. An uninformative message
+might not help you spot and fix the error.</p>
+
+<p>For example, let's take a function that opens a file
+passed to it as a parameter for reading. It does nothing else with
+the file. Here's the first version of the code:</p>
+
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+sub open_file {
+    my $filename = shift;
+    die "No filename passed" unless defined $filename;
+    open FILE, $filename or die;
+}
+
+open_file("/tmp/test.txt");</pre></blockquote>
+
+<p>Let's assume that <em class="emphasis">/tmp/test.txt</em>
+doesn't exist, so the <tt class="literal">open( )</tt>
+call will fail to open the file. When we call this script from our
+browser, the browser returns an "Internal Server
+Error" message and we see the following error
+appended to <em class="emphasis">error_log</em>:</p>
+
+<blockquote><pre class="code">Died at /home/httpd/perl/test.pl line 9.</pre></blockquote>
+
+<p>We can use the hint Perl kindly gave to us to find where in the code
+<tt class="literal">die( )</tt><a name="pmodperl-CHP-21-ITERM-5482" /> was called. However, we still
+won't necessarily know what filename was passed to
+this subroutine to cause the program termination.</p>
+
+<p>If we have only one function call, as in the example above, the task
+of finding the problematic filename is trivial. Now
+let's add one more <tt class="literal">open_file( )</tt>
+function call and assume that of the two, only the file
+<em class="emphasis">/tmp/test.txt</em> exists:</p>
+
+<blockquote><pre class="code">open_file("/tmp/test.txt");
+open_file("/tmp/test2.txt");</pre></blockquote>
+
+<p>When you execute the above call, you will see:</p>
+
+<blockquote><pre class="code">Died at /home/httpd/perl/test.pl line 9.</pre></blockquote>
+
+<p>Based on this error message, can you tell what file your program
+failed to open? Probably not. Let's improve it by
+showing the name of the file that failed:</p>
+
+<blockquote><pre class="code">sub open_file {
+    my $filename = shift;
+    die "No filename passed" unless defined $filename;
+    open FILE, $filename or die "failed to open $filename";
+}
+
+open_file("/tmp/test2.txt");</pre></blockquote>
+
+<p>When we execute the above code, we see:</p>
+
+<blockquote><pre class="code">failed to open /tmp/test2.txt at
+    /home/httpd/perl/test.pl line 9.</pre></blockquote>
+
+<p>which obviously makes a big difference, since now we know what file
+we failed to open.</p>
+
+<p>By the way, if you append a newline to the end of the message you
+pass to <tt class="literal">die( )</tt>, Perl won't report
+the line number at which the error has happened. If you write:</p>
+
+<blockquote><pre class="code">open FILE, $filename or die "failed to open $filename\n";</pre></blockquote>
+
+<p>the error message will be:</p>
+
+<blockquote><pre class="code">failed to open /tmp/test2.txt</pre></blockquote>
+
+<p>which gives you very little to go on. It's very hard
+to debug with such uninformative error messages.</p>
+
+<p>The <tt class="literal">warn( )</tt><a name="pmodperl-CHP-21-ITERM-5483" /> function outputs an error message in the
+same way as <tt class="literal">die( )</tt>, but whereas <tt class="literal">die(
+)</tt> causes program termination, execution continues normally
+after a <tt class="literal">warn( )</tt>. Just like with <tt class="literal">die(
+)</tt>, if you add a newline to the end of the message, the
+filename and the line number from which <tt class="literal">warn( )</tt>
+was called won't be logged.</p>
+
+<p>You might want to use <tt class="literal">warn( )</tt> instead of
+<tt class="literal">die( )</tt> if the failure isn't
+critical. Consider the following code:</p>
+
+<blockquote><pre class="code">if (open FILE, $filename) {
+    # do something with the file
+    close FILE;
+}
+else {
+    warn "failed to open $filename";
+}
+# more code here...</pre></blockquote>
+
+<p>However, unless you have a really good reason to do otherwise, you
+should generally <tt class="literal">die( )</tt> when your code encounters
+any problem whatsoever. It can be very hard to catch a problem that
+manifests itself only several hundred lines after the problem was
+caused.</p>
+
+<p>A different approach for producing useful warnings and error messages
+is to print the <a name="pmodperl-CHP-21-ITERM-5484" /><a name="pmodperl-CHP-21-ITERM-5485" />function call stack
+backtrace. The <tt class="literal">Carp</tt><a name="pmodperl-CHP-21-ITERM-5486" />
+module comes to our aid with its <tt class="literal">cluck(
+)</tt><a name="pmodperl-CHP-21-ITERM-5487" /> function. Consider the script in <a href="ch21_01.html#pmodperl-CHP-21-EX-1">Example 21-1</a>.</p>
+
+<a name="pmodperl-CHP-21-EX-1" /><div class="example">
+<h4 class="objtitle">Example 21-1. warnings.pl</h4>
+<blockquote><pre class="code">#!/usr/bin/perl -w
+
+use strict;
+use Carp ( );
+local $SIG{_ _WARN_ _} = \&amp;Carp::cluck;
+
+correct( );
+incorrect( );
+
+sub correct   { print_value("Perl"); }
+sub incorrect { print_value( ); }
+
+sub print_value {
+  my $var = shift;
+  print "My value is $var\n";
+}</pre></blockquote>
+</div>
+
+<p><tt class="literal">Carp::cluck( )</tt> is assigned as a warnings signal
+handler. Whenever a warning is triggered, this function will be
+called. When we execute the script, we see:</p>
+
+<blockquote><pre class="code">My value is Perl
+Use of uninitialized value at ./warnings.pl line 15.
+  main::print_value( ) called at ./warnings.pl line 11
+  main::incorrect( ) called at ./warnings.pl line 8
+My value is</pre></blockquote>
+
+<p>Take a moment to understand the stack trace in the warning. The
+deepest calls are printed first. So the second line tells us that the
+warning was triggered in <tt class="literal">print_value( )</tt> and the
+third line tells us that <tt class="literal">print_value( )</tt> was called
+by the subroutine <tt class="literal">incorrect( )</tt>:</p>
+
+<blockquote><pre class="code">script -&gt; incorrect( ) -&gt; print_value( )</pre></blockquote>
+
+<p>When we look at the source code for the function <tt class="literal">incorrect(
+)</tt>, we see that we forgot to pass the variable to the
+<tt class="literal">print_value( )</tt> function. Of course, when you write
+a subroutine like <tt class="literal">print_value( )</tt>,
+it's a good idea to check the passed arguments
+before starting execution. We omitted that step to contrive an easily
+debuggable example.</p>
+
+<p>You can also call <tt class="literal">Carp::cluck( )</tt> directly in your
+code, and it will produce the call-stack backtrace for you. This is
+usually very useful during the code development phase.</p>
+
+<p><tt class="literal">Carp::confess( )</tt><a name="pmodperl-CHP-21-ITERM-5488" /> is like <tt class="literal">Carp::cluck(
+)</tt>, but it acts as a <tt class="literal">die( )</tt> function
+(i.e., terminates the program) and prints the call-stack backtrace.
+The functions <tt class="literal">Carp::carp(
+)</tt><a name="pmodperl-CHP-21-ITERM-5489" />
+and <tt class="literal">Carp::croak( )</tt><a name="pmodperl-CHP-21-ITERM-5490" /> are two other equivalents of
+<tt class="literal">warn( )</tt> and <tt class="literal">die( )</tt>,
+respectivily, but they report about the caller of the function in
+which they are used, rather the function itself.</p>
+
+<p>In some cases the built-in <tt class="literal">caller(
+)</tt><a name="pmodperl-CHP-21-ITERM-5491" /> function can be useful as well, but it
+can be a bit cumbersome to use when you need to peek several levels
+up the call stack.</p>
+
+<p>When using the <tt class="literal">warn( )</tt> and <tt class="literal">die(
+)</tt> functions, be aware of the following pitfall. Here the
+message passed to <tt class="literal">die( )</tt> is printed with no
+problems, assuming the file <em class="emphasis">/does_not_exist</em>
+actually doesn't exist:</p>
+
+<blockquote><pre class="code">panic% perl -e 'open F, "/does_not_exist" or die "cannot open the file"'</pre></blockquote>
+
+<p>But now try the same code using the equivalent <tt class="literal">||</tt>
+operator:</p>
+
+<blockquote><pre class="code">panic% perl -e 'open F, "/does_not_exist" || die "cannot open the file"'</pre></blockquote>
+
+<p>Nothing happens! The pitfall lies in the precedence of the
+<tt class="literal">||</tt> operator. The above call is equal to:</p>
+
+<blockquote><pre class="code">panic% perl -e 'open F, ("/does_not_exist" || die "cannot open the file")'</pre></blockquote>
+
+<p>where the left part returns true, and makes this call equivalent to:</p>
+
+<blockquote><pre class="code">panic% perl -e 'open F, "/does_not_exist"'</pre></blockquote>
+
+<p>So the <tt class="literal">die( )</tt> part has effectively disappeared.
+Make sure you always use the low-precendence logical OR operator
+<tt class="literal">or</tt> in this situation. Alternatively, you can use
+parentheses, but this is less visually appealing:</p>
+
+<blockquote><pre class="code">panic% perl -e 'open(F, "/does_not_exist") || die("cannot open the file")'</pre></blockquote>
+
+<p>Only the first pair of parentheses is really needed here, but to be
+consistent we use them through the whole statement.</p>
+
+<p>Now let's return to improving the warning and error
+messages. The failing code reports the names of the problematic
+files, but we still don't know the real reason for
+the failure. Let's try to improve the <tt class="literal">warn(
+)</tt> example. The <tt class="literal">-r</tt> operator tests whether
+the file is readable:</p>
+
+<blockquote><pre class="code">if (-r $filename) {
+    open FILE, $filename;
+    # do something with file
+}
+else {
+    warn "Couldn't open $filename - doesn't exist or is not readable";
+}</pre></blockquote>
+
+<p>Now if we cannot read the file we do not even try to open it. But we
+still see a warning in <em class="emphasis">error_log</em>:</p>
+
+<blockquote><pre class="code">Couldn't open /tmp/test.txt - doesn't exist or is not readable
+at /home/httpd/perl/test.pl line 9.</pre></blockquote>
+
+<p>The warning tells us the reason for the failure, so we
+don't have to go to the code and check what it was
+trying to do with the file.</p>
+
+<p>It could be quite a coding overhead to explain all the possible
+failure reasons that way, but why reinvent the wheel? We already have
+the reason for the failure stored in the <tt class="literal">$!</tt>
+variable. Let's go back to the <tt class="literal">open_file(
+)</tt> function:</p>
+
+<blockquote><pre class="code">sub open_file {
+    my $filename = shift;
+    die "No filename passed" unless defined $filename;
+    open FILE, $filename or die "failed to open $filename: $!";
+}
+
+open_file("/tmp/test.txt");</pre></blockquote>
+
+<p>This time, if <tt class="literal">open( )</tt> fails we see:</p>
+
+<blockquote><pre class="code">failed to open /tmp/test.txt: No such file or directory
+at /home/httpd/perl/test.pl line 9.</pre></blockquote>
+
+<p>Now we have all the information we need to debug these problems: we
+know what line of code triggered <tt class="literal">die( )</tt>, we know
+what file we were trying to open, and we also know the reason,
+provided by Perl's <tt class="literal">$!</tt> variable.</p>
+
+<p>Note that there's a big difference between the
+following two commonly seen bits of Perl code:</p>
+
+<blockquote><pre class="code">open FILE, $filename or die "Can't open $filename: $!";
+open FILE, $filename or die "Can't open $filename!";</pre></blockquote>
+
+<p>The first bit is helpful; the second is just rude. Please do your
+part to ease human suffering, and use the first version, not the
+second.</p>
+
+<p>To show our useful error messages in action, let's
+cause an error. We'll create the file
+<em class="emphasis">/tmp/test.txt</em> as a different user and make sure
+that it isn't readable by Apache processes:</p>
+
+<blockquote><pre class="code">panic% touch /tmp/test.txt
+panic% chmod 0600 /tmp/test.txt # -rw-------</pre></blockquote>
+
+<p>Now when we execute the latest version of the code, we see:</p>
+
+<blockquote><pre class="code">failed to open /tmp/test.txt: Permission denied
+at /home/httpd/perl/test.pl line 9.</pre></blockquote>
+
+<p>Here we see a different reason: we created a file that
+doesn't belong to the user the server runs as
+(usually <em class="emphasis">nobody</em>). It does not have permission to
+read the file.</p>
+
+<p>Now you can see that it's much easier to debug your
+code if you validate the return values of the system calls and
+properly code arguments to <tt class="literal">die( )</tt> and
+<tt class="literal">warn( )</tt> calls. The <tt class="literal">open( )</tt>
+function is just one of the many system calls Perl provides.</p>
+
+<p>Second problem solved: we now have useful error messages.</p>
+
+<p>So now you can code and see error messages from mod_perl scripts and
+modules as easily as if they were plain Perl scripts that you
+<a name="pmodperl-CHP-21-ITERM-5492" />execute<a name="pmodperl-CHP-21-ITERM-5493" /> from <a name="pmodperl-CHP-21-ITERM-5494" /><a name="pmodperl-CHP-21-ITERM-5495" /><a name="pmodperl-CHP-21-ITERM-5496" />a shell.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">21.1.3. Making Use of the error_log</h3>
+
+<p>It's a good <a name="pmodperl-CHP-21-ITERM-5497" />idea to
+keep the <em class="emphasis">error_log</em> open all the time in a
+dedicated terminal using <tt class="literal">tail -f</tt>:</p>
+
+<blockquote><pre class="code">panic% tail -f /home/httpd/httpd_perl/logs/error_log</pre></blockquote>
+
+<p>or <tt class="literal">less -S</tt>:</p>
+
+<blockquote><pre class="code">panic% less -S /home/httpd/httpd_perl/logs/error_log</pre></blockquote>
+
+<p>You can use whichever one you prefer (the latter allows you to
+navigate around the file, search, etc.). This will ensure that you
+see all the errors and warnings as they happen.</p>
+
+<p>Another tip is to create a shell <em class="emphasis">alias</em>, to make
+<a name="pmodperl-CHP-21-ITERM-5498" /><a name="pmodperl-CHP-21-ITERM-5499" />it easier to execute the
+above commands. In a C-style shell, use:</p>
+
+<blockquote><pre class="code">panic% alias err "tail -f /home/httpd/httpd_perl/logs/error_log"</pre></blockquote>
+
+<p>In a Bourne-style shell, use:</p>
+
+<blockquote><pre class="code">panic% alias err='tail -f /home/httpd/httpd_perl/logs/error_log'</pre></blockquote>
+
+<p>From now on, in the shell you set the alias in, executing:</p>
+
+<blockquote><pre class="code">panic% err</pre></blockquote>
+
+<p>will execute <em class="emphasis">tail -f
+/home/httpd/httpd_perl/logs/error_log</em>. If you are using a
+C-style shell, put the alias into your <em class="emphasis">~/.cshrc</em>
+file or its equivalent. For setting this alias globally to all users,
+put it into <em class="emphasis">/etc/csh.cshrc</em> or similar. If you
+are using a Bourne-style shell, the corresponding files are usually
+<em class="emphasis">~/.bashrc</em> and <em class="emphasis">/etc/profile</em>.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">21.1.4. Displaying Errors to Users</h3>
+
+<p>If you<a name="pmodperl-CHP-21-ITERM-5500" /> spend a lot of time browsing the
+Internet, you will see many error messages, ranging from generic but
+useless messages like "An error has
+happened" to the cryptic ones that no one
+understands. If you are developing a user-friendly system,
+it's important to understand that the errors are
+divided into at least two major groups:
+<a name="pmodperl-CHP-21-ITERM-5501" /><em class="emphasis">user
+related</em> and <em class="emphasis">server related</em>. When an
+error happens, you want to notify either a user or a server
+administrator, according to the category of the error. In some cases
+you may want to notify both.</p>
+
+<p>If you set a file-upload limit to 1 MB and a user tries to upload a
+file bigger than the limit, it is a user error. You should report
+this error to the user, explain why the error has happened, and tell
+the user what to do to resolve the problem. Since we are talking
+about the Web, the error should be sent to the
+user's browser. A system administrator usually
+doesn't care about this kind of error, and therefore
+probably shouldn't be notified, but it may be an
+indication of an attempt to compromise the server, so that may be a
+reason to notify the administrator.</p>
+
+<p>If the user has successfully uploaded a file, but the server has
+failed to save this file for some reason (e.g., it ran out of free
+disk space), the error should be logged in
+<em class="emphasis">error_log</em> if possible and the system
+administrator should be notified by email, pager, or similar means.
+Since the user couldn't accomplish what she was
+trying to do, you must tell her that the operation failed. The user
+probably doesn't care why the operation has failed,
+but she would want to know how to resolve it (e.g., in the worst
+case, tell her to try again later). The actual reason for the error
+probably shouldn't be displayed&#8212;if you do, it
+will probably only confuse the user. Instead, you should nicely
+explain that something went wrong and that the system administrator
+has been notified and will take care of the problem as soon as
+possible. If the service is very mission-critical, you probably need
+to provide the user with some problem tracking number and a way to
+contact a human, so she will be able to figure out when the problem
+has been resolved. Alternatively, you may want to ask for the
+user's email address and use this to follow up on
+the problem.</p>
+
+<p>Some applications use:</p>
+
+<blockquote><pre class="code">use CGI::Carp qw(fatalsToBrowser);</pre></blockquote>
+
+<p>which sends <a name="pmodperl-CHP-21-ITERM-5502" />all the errors to the browser. This
+module might be useful in development, if you have a problem
+accessing your server using an interactive session, so you can see
+the contents of the <em class="emphasis">error_log</em> file. But please
+don't leave this line in the production version of
+your code. Instead, trap the errors and decide what to do about each
+error separately. To trap
+<a name="pmodperl-CHP-21-ITERM-5503" /><a name="pmodperl-CHP-21-ITERM-5504" />errors, you can use the <tt class="literal">eval(
+)</tt> exception-handling mechanism:<a href="#FOOTNOTE-49">[49]</a></p> <blockquote><a name="FOOTNOTE-49" /><p> [49]Notice the
+semicolon after the <tt class="literal">eval { }</tt> block.</p>
+</blockquote>
+
+<blockquote><pre class="code">eval {
+    # do something
+};
+if ($@) {
+    # decide what to do about the error stored in $@
+}</pre></blockquote>
+
+<p>which is equivalent to the C++/Java/other languages concept of:</p>
+
+<blockquote><pre class="code">try {
+    # do something
+}
+catch {
+    # do something about errors
+}</pre></blockquote>
+
+<p>There are also <a name="pmodperl-CHP-21-ITERM-5505" />CPAN modules, such as
+<tt class="literal">Error</tt> and <tt class="literal">Exception::Class</tt>,
+that use the same approach but provide a special interface for doing
+exception handling (and also provide additional functionality).</p>
+
+<p>Another technique is to assign a <a name="pmodperl-CHP-21-ITERM-5506" /><a name="pmodperl-CHP-21-ITERM-5507" />signal handler:</p>
+
+<blockquote><pre class="code">$SIG{_ _DIE_ _} = sub {
+    print STDERR "error: ", join("\n", @_), "\n";
+    exit;
+};</pre></blockquote>
+
+<p>When <tt class="literal">die( )</tt> is called, this anonymous function
+will be invoked and the argument list to <tt class="literal">die( )</tt>
+will be forwarded to it. So if later in the code you write:</p>
+
+<blockquote><pre class="code">die "good bye, cruel world";</pre></blockquote>
+
+<p>the code will print to <tt class="literal">STDERR</tt> (which under
+mod_perl usually ends up in <em class="emphasis">error_log</em>):</p>
+
+<blockquote><pre class="code">error: good bye, cruel world</pre></blockquote>
+
+<p>and the normal program flow will be aborted, since the handler has
+called <tt class="literal">exit( )</tt>.</p>
+
+<p>If you don't localize this setting as:</p>
+
+<blockquote><pre class="code">local $SIG{_ _DIE_ _} = sub {...};</pre></blockquote>
+
+<p>it affects the whole process. It also interferes with
+Perl's normal exception mechanism, shown earlier; in
+fact, it breaks Perl's exception handling, because a
+signal handler will be called before you get the chance to examine
+<tt class="literal">$@</tt> after calling the <tt class="literal">eval</tt>
+block.</p>
+
+<p>You can attempt to work around this problem by checking the value of
+<tt class="literal">$^S</tt>, which is true when the code is running in the
+<tt class="literal">eval</tt> block. If you are using
+<tt class="literal">Apache::Registry</tt> or a similar module, the code is
+always executed within an <tt class="literal">eval</tt> block, so this is
+not a good solution.</p>
+
+<p>Since the signal handler setting is global, it's
+possible that some other module might try to assign its own signal
+handler for <tt class="literal">_ _DIE_ _</tt>, and therefore there will be
+a mess. The two signal handlers will conflict with each other,
+leading to unexpected behavior. You should avoid using this
+technique, and use Perl's standard
+<tt class="literal">eval</tt> exception-handling mechanism instead. For
+more information about exception handling, see<a name="pmodperl-CHP-21-ITERM-5508" /> <a href="http://perl.apache.org/docs/general/perl_reference/perl_reference.html#Exception_Handling_for_mod_perl">http://perl.apache.org/docs/general/perl_reference/perl_reference.html#Exception_Handling_for_mod_perl</a>.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part4.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch21_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">IV. Debugging and Troubleshooting</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">21.2. Debugging Code in Single-Server Mode</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

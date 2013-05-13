@@ -1,0 +1,1238 @@
+<html><head><title>Loading and Reloading Modules (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">6.8. Loading and Reloading Modules</h2>
+
+<p>You often need to reload modules in development and production
+environments. mod_perl tries hard to avoid unnecessary module
+reloading, but sometimes (especially during the development process)
+we want some modules to be reloaded when modified. The following
+sections discuss issues related to module loading and reloading.</p>
+
+<a name="pmodperl-CHP-6-SECT-8.1" /><div class="sect2">
+<h3 class="sect2">6.8.1. The @INC Array Under mod_perl</h3>
+
+<p>Under<a name="pmodperl-CHP-6-ITERM-4516" /><a name="pmodperl-CHP-6-ITERM-4517" /> mod_perl, <tt class="literal">@INC</tt> can be
+modified only during server startup. After each request, mod_perl
+resets <tt class="literal">@INC</tt>'s value to the one it
+had before the request.</p>
+
+<p>If mod_perl encounters a statement like the following:</p>
+
+<blockquote><pre class="code">use lib qw(foo/bar);</pre></blockquote>
+
+<p>it modifies <tt class="literal">@INC</tt> only for the period during which
+the code is being parsed and compiled. Afterward,
+<tt class="literal">@INC</tt> is reset to its original value. Therefore,
+the only way to change <tt class="literal">@INC</tt> permanently is to
+modify it at server startup.</p>
+
+<p>There are two ways to alter<a name="pmodperl-CHP-6-ITERM-4518" />
+<tt class="literal">@INC</tt> at server startup:</p>
+
+<ul><li>
+<p>In the configuration file, with:</p>
+
+<blockquote><pre class="code">PerlSetEnv PERL5LIB /home/httpd/perl</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">PerlSetEnv PERL5LIB /home/httpd/perl:/home/httpd/mymodules</pre></blockquote>
+
+</li><li>
+<p>In the <em class="emphasis">startup.pl</em><a name="pmodperl-CHP-6-ITERM-4519" />
+file:</p>
+
+<blockquote><pre class="code">use lib qw(/home/httpd/perl /home/httpd/mymodules);
+1;</pre></blockquote>
+
+<p>As always, the startup file needs to be loaded from
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlRequire /path/to/startup.pl</pre></blockquote>
+</li></ul>
+
+<p>To make sure that you have set <tt class="literal">@INC</tt> correctly,
+configure <tt class="literal">perl-status</tt> into your server, as
+explained in <a href="ch21_01.html">Chapter 21</a>. Follow the
+"Loaded Modules" item in the menu
+and look at the bottom of the generated page, where the contents of
+<tt class="literal">@INC</tt> are shown:</p>
+
+<blockquote><pre class="code">@INC = 
+/home/httpd/mymodules
+/home/httpd/perl
+/usr/lib/perl5/5.6.1/i386-linux
+/usr/lib/perl5/5.6.1
+/usr/lib/perl5/site_perl/5.6.1/i386-linux
+/usr/lib/perl5/site_perl/5.6.1
+/usr/lib/perl5/site_perl
+.
+/home/httpd/httpd_perl/
+/home/httpd/httpd_perl/lib/perl</pre></blockquote>
+
+<p>As you can see in our setup, we have two custom directories prepended
+at the beginning of the list. The rest of the list contains standard
+directories from the Perl distribution, plus the
+<em class="emphasis">$ServerRoot</em> and
+<em class="emphasis">$ServerRoot/lib/perl</em> directories appended at the
+end (which mod_perl adds automatically).</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-8.2" /><div class="sect2">
+<h3 class="sect2">6.8.2. Reloading Modules and Required Files</h3>
+
+<p>When working with mod_cgi, you can change the code and rerun the CGI
+script from your browser to see the changes. Since the script
+isn't cached in memory, the server starts up a new
+Perl interpreter for each request, which loads and recompiles the
+script from scratch. The effects of any changes are immediate.</p>
+
+<p>The situation is different with mod_perl, since the whole idea is to
+get maximum performance from the server. By default, the server
+won't spend time checking whether any included
+library modules have been changed. It assumes that they
+weren't, thus saving the time it takes to
+<tt class="literal">stat( )</tt> the source files from any modules and
+libraries you <tt class="literal">use( )</tt> and <tt class="literal">require(
+)</tt> in your script.</p>
+
+<p>If the scripts are running under <tt class="literal">Apache::Registry</tt>,
+the only check that is performed is to see whether your main script
+has been changed. If your scripts do not <tt class="literal">use( )</tt> or
+<tt class="literal">require( )</tt> any other Perl modules or packages,
+there is nothing to worry about. If, however, you are developing a
+script that includes other modules, the files you <tt class="literal">use(
+)</tt> or <tt class="literal">require( )</tt> aren't
+checked for modification, and you need to do something about that.</p>
+
+<p>There are a couple of techniques to make a mod_perl-enabled server
+recognize changes in library modules. They are discussed in the
+following sections.</p>
+
+<a name="pmodperl-CHP-6-SECT-8.2.1" /><div class="sect3">
+<h3 class="sect3">6.8.2.1. Restarting the server</h3>
+
+<p>The
+simplest<a name="pmodperl-CHP-6-ITERM-4520" /><a name="pmodperl-CHP-6-ITERM-4521" /><a name="pmodperl-CHP-6-ITERM-4522" />
+approach is to restart the server each time you apply some change to
+your code. Restarting techniques are covered in <a href="ch05_01.html">Chapter 5</a>. After restarting the server about 50 times,
+you will tire of it and look for other solutions.</p>
+
+</div>
+
+<a name="pmodperl-CHP-6-SECT-8.2.2" /><div class="sect3">
+<h3 class="sect3">6.8.2.2. Using Apache::StatINC</h3>
+
+<p>Help
+<a name="pmodperl-CHP-6-ITERM-4523" /><a name="pmodperl-CHP-6-ITERM-4524" /><a name="pmodperl-CHP-6-ITERM-4525" /><a name="pmodperl-CHP-6-ITERM-4526" />comes from the
+<tt class="literal">Apache::StatINC</tt> module. When Perl pulls in a file
+with <tt class="literal">require( )</tt>, it stores the full pathname as a
+value in the global hash <tt class="literal">%INC</tt> with the filename as
+the key. <tt class="literal">Apache::StatINC</tt> looks through
+<tt class="literal">%INC</tt> and immediately reloads any file that has
+been updated on the disk.</p>
+
+<p>To enable this module, add these two lines to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Apache::StatINC
+PerlInitHandler Apache::StatINC</pre></blockquote>
+
+<p>To be sure it really works, turn on debug mode on your development
+system by adding <tt class="literal">PerlSetVar StatINCDebug On</tt> to
+your configuration file. You end up with something like this:</p>
+
+<blockquote><pre class="code">PerlModule Apache::StatINC
+PerlInitHandler Apache::StatINC
+&lt;Location /perl&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options ExecCGI
+    PerlSendHeader On
+    PerlSetVar StatINCDebug On
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Be aware that only the modules located in <tt class="literal">@INC</tt> are
+reloaded on change, and you can change <tt class="literal">@INC</tt> only
+before the server has been started (in the startup file).</p>
+
+<p>Note the following trap: because
+".", the current
+directory, is in <tt class="literal">@INC</tt>, Perl knows how to
+<tt class="literal">require( )</tt> files with pathnames relative to the
+current script's directory. After the code has been
+parsed, however, the server doesn't remember the
+path. So if the code loads a module <tt class="literal">MyModule</tt>
+located in the directory of the script and this directory is not in
+<tt class="literal">@INC</tt>, you end up with the following entry in
+<tt class="literal">%INC</tt>:</p>
+
+<blockquote><pre class="code">'MyModule.pm' =&gt; 'MyModule.pm'</pre></blockquote>
+
+<p>When <tt class="literal">Apache::StatINC</tt> tries to check whether the
+file has been modified, it won't be able to find the
+file, since <em class="emphasis">MyModule.pm</em> is not in any of the
+paths in <tt class="literal">@INC</tt>. To correct this problem, add the
+module's location path to <tt class="literal">@INC</tt> at
+server startup.</p>
+
+</div>
+
+<a name="pmodperl-CHP-6-SECT-8.2.3" /><div class="sect3">
+<h3 class="sect3">6.8.2.3. Using Apache::Reload</h3>
+
+<p><tt class="literal">Apache::Reload</tt>
+<a name="pmodperl-CHP-6-ITERM-4527" /><a name="pmodperl-CHP-6-ITERM-4528" /><a name="pmodperl-CHP-6-ITERM-4529" /><a name="pmodperl-CHP-6-ITERM-4530" />is a newer module that comes as a drop-in
+replacement for <tt class="literal">Apache::StatINC</tt>. It provides extra
+functionality and is more flexible.</p>
+
+<p>To make <tt class="literal">Apache::Reload</tt> check all the loaded
+modules on each request, just add the following line to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlInitHandler Apache::Reload</pre></blockquote>
+
+<p>To reload only specific modules when these get changed, three
+alternatives are provided: registering the module implicitly,
+registering the module explicitly, and setting up a dummy file to
+<em class="emphasis">touch</em> whenever you want the modules reloaded.</p>
+
+<p>To use implicit module registration, turn off the
+<tt class="literal">ReloadAll</tt> variable, which is on by default:</p>
+
+<blockquote><pre class="code">PerlInitHandler Apache::Reload
+PerlSetVar ReloadAll Off</pre></blockquote>
+
+<p>and add the following line to every module that you want to be
+reloaded on change:</p>
+
+<blockquote><pre class="code">use Apache::Reload;</pre></blockquote>
+
+<p>Alternatively, you can explicitly specify modules to be reloaded in
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlInitHandler Apache::Reload
+PerlSetVar ReloadModules "Book::Foo Book::Bar Foo::Bar::Test"</pre></blockquote>
+
+<p>Note that these are split on whitespace, but the module list
+<em class="emphasis">must</em> be in quotes, or Apache will try to parse
+the parameter list itself.</p>
+
+<p>You can register groups of modules using the metacharacter
+<tt class="literal">*</tt>:</p>
+
+<blockquote><pre class="code">PerlSetVar ReloadModules "Foo::* Bar::*"</pre></blockquote>
+
+<p>In the above example, all modules starting with
+<tt class="literal">Foo:</tt>: and <tt class="literal">Bar:</tt>: will become
+registered. This feature allows you to assign all the modules in a
+project using a single pattern.</p>
+
+<p>The third option is to set up a file that you can
+<em class="emphasis">touch</em> to cause the reloads to be performed:</p>
+
+<blockquote><pre class="code">PerlSetVar ReloadTouchFile /tmp/reload_modules</pre></blockquote>
+
+<p>Now when you're happy with your changes, simply go
+to the command line and type:</p>
+
+<blockquote><pre class="code">panic% touch /tmp/reload_modules</pre></blockquote>
+
+<p>If you set this, and don't
+<em class="emphasis">touch</em> the file, the reloads
+won't happen (regardless of how the modules have
+been registered).</p>
+
+<p>This feature is very convenient in a production server environment,
+but compared to a full restart, the benefits of preloaded modules
+memory-sharing are lost, since each child will get its own copy of
+the reloaded modules.</p>
+
+<p>Note that <tt class="literal">Apache::Reload</tt> might have a problem with
+reloading single modules containing multiple packages that all use
+pseudo-hashes. The solution: don't use
+pseudo-hashes. Pseudo-hashes will be removed from newer versions of
+Perl anyway.</p>
+
+<p>Just like with <tt class="literal">Apache::StatInc</tt>, if you have
+modules loaded from directories that are not in
+<tt class="literal">@INC</tt>, <tt class="literal">Apache::Reload</tt> will fail
+to find the files. This is because <tt class="literal">@INC</tt> is reset
+to its original value even if it gets temporarily modified in the
+script. The solution is to extend <tt class="literal">@INC</tt> at server
+startup to include all the directories from which you load files that
+aren't in the standard <tt class="literal">@INC</tt>
+paths.</p>
+
+</div>
+
+<a name="pmodperl-CHP-6-SECT-8.2.4" /><div class="sect3">
+<h3 class="sect3">6.8.2.4. Using dynamic configuration files</h3>
+
+<p>Sometimes you <a name="pmodperl-CHP-6-ITERM-4531" /><a name="pmodperl-CHP-6-ITERM-4532" /><a name="pmodperl-CHP-6-ITERM-4533" /><a name="pmodperl-CHP-6-ITERM-4534" />may want an application to
+monitor its own configuration file and reload it when it is altered.
+But you don't want to restart the server for these
+changes to take effect. The solution is to use dynamic configuration
+files.</p>
+
+<p>Dynamic configuration files are especially useful when you want to
+provide administrators with a configuration tool that modifies an
+application on the fly. This approach eliminates the need to provide
+shell access to the server. It can also prevent typos, because the
+administration program can verify the submitted modifications.</p>
+
+<p>It's possible to get away with
+<tt class="literal">Apache::Reload</tt> and still have a similar small
+overhead for the <tt class="literal">stat( )</tt> call, but this requires
+the involvement of a person who can modify
+<em class="emphasis">httpd.conf</em> to configure
+<tt class="literal">Apache::Reload</tt>. The method described next has no
+such requirement.</p>
+
+<a name="pmodperl-CHP-6-SECT-8.2.2.1" /><div class="sect4">
+<h4 class="sect4">6.8.2.4.1. Writing configuration files</h4>
+
+<p>We'll <a name="pmodperl-CHP-6-ITERM-4535" /><a name="pmodperl-CHP-6-ITERM-4536" />start by
+describing various approaches to writing configuration files, and
+their strengths and weaknesses.</p>
+
+<p>If your configuration file contains only a few variables, it
+doesn't matter how you write the file. In practice,
+however, configuration files often grow as a project develops. This
+is especially true for projects that generate HTML files, since they
+tend to demand many easily configurable settings, such as the
+location of headers, footers, templates, colors, and so on.</p>
+
+<p>A common approach used by CGI programmers is to define all
+<a name="pmodperl-CHP-6-ITERM-4537" /><a name="pmodperl-CHP-6-ITERM-4538" />configuration variables
+in a separate file. For example:</p>
+
+<blockquote><pre class="code">$cgi_dir  = '/home/httpd/perl';
+$cgi_url  = '/perl';
+$docs_dir = '/home/httpd/docs';
+$docs_url = '/';
+$img_dir  = '/home/httpd/docs/images';
+$img_url  = '/images';
+# ... many more config params here ...
+$color_hint   = '#777777';
+$color_warn   = '#990066';
+$color_normal = '#000000';</pre></blockquote>
+
+<p>The <tt class="literal">use strict;</tt> pragma demands that all variables
+be declared. When using these variables in a mod_perl script, we must
+declare them with <tt class="literal">use vars</tt> in the script, so we
+start the script with:</p>
+
+<blockquote><pre class="code">use strict;
+use vars qw($cgi_dir $cgi_url $docs_dir $docs_url 
+            # ... many more config params here ....
+            $color_hint  $color_warn $color_normal
+           );</pre></blockquote>
+
+<p>It is a nightmare to maintain such a script, especially if not all
+features have been coded yet&#8212;we have to keep adding and
+removing variable names. Since we're writing clean
+code, we also start the configuration file with <tt class="literal">use
+strict;</tt>, so we have to list the variables with <tt class="literal">use
+vars</tt> here as well&#8212;a second list of variables to
+maintain. Then, as we write many different scripts, we may get name
+collisions between configuration files.</p>
+
+<p>The solution is to use the power of Perl's packages
+and assign a unique <a name="pmodperl-CHP-6-ITERM-4539" /><a name="pmodperl-CHP-6-ITERM-4540" />package name to each
+configuration file. For example, we might declare the following
+package name:</p>
+
+<blockquote><pre class="code">package Book::Config0;</pre></blockquote>
+
+<p>Now each configuration file is isolated into its own
+<a name="pmodperl-CHP-6-ITERM-4541" />namespace. But how does the script
+use these variables? We can no longer just <tt class="literal">require(
+)</tt> the file and use the variables, since they now belong to
+a different package. Instead, we must modify all our scripts to use
+the configuration variables' fully qualified names
+(e.g., referring to <tt class="literal">$Book::Config0::cgi_url</tt>
+instead of just <tt class="literal">$cgi_url</tt>).</p>
+
+<p>You may find typing fully qualified names tedious, or you may have a
+large repository of legacy scripts that would take a while to update.
+If so, you'll want to import the required variables
+into any script that is going to use them. First, the configuration
+package has to export those variables. This entails listing the names
+of all the variables in the <tt class="literal">@EXPORT_OK</tt> hash. See
+<a href="ch06_08.html#pmodperl-CHP-6-EX-21">Example 6-21</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-21" /><div class="example">
+<h4 class="objtitle">Example 6-21. Book/Config0.pm</h4>
+<blockquote><pre class="code">package Book::Config0;
+use strict;
+
+BEGIN {
+  use Exporter ( );
+
+  @Book::HTML::ISA       = qw(Exporter);
+  @Book::HTML::EXPORT    = qw( );
+  @Book::HTML::EXPORT_OK = qw($cgi_dir $cgi_url $docs_dir $docs_url
+                              # ... many more config params here ....
+                              $color_hint $color_warn $color_normal);
+}
+
+use vars qw($cgi_dir $cgi_url $docs_dir $docs_url 
+            # ... many more config params here ....
+            $color_hint  $color_warn $color_normal
+           );
+
+$cgi_dir  = '/home/httpd/perl';
+$cgi_url  = '/perl';
+$docs_dir = '/home/httpd/docs';
+$docs_url = '/';
+$img_dir  = '/home/httpd/docs/images';
+$img_url  = '/images';
+# ... many more config params here ...
+$color_hint   = "#777777';
+$color_warn   = "#990066';
+$color_normal = "#000000';</pre></blockquote>
+</div>
+
+<p>A script that uses this package will start with this code:</p>
+
+<blockquote><pre class="code">use strict;
+use Book::Config0 qw($cgi_dir $cgi_url $docs_dir $docs_url 
+                     # ... many more config params here ....
+                     $color_hint  $color_warn $color_normal
+                  );
+use vars          qw($cgi_dir $cgi_url $docs_dir $docs_url 
+                     # ... many more config params here ....
+                     $color_hint  $color_warn $color_normal
+                  );</pre></blockquote>
+
+<p>Whoa! We now have to update at least three variable lists when we
+make a change in naming of the configuration variables. And we have
+only one script using the configuration file, whereas a real-life
+application often contains many different scripts.</p>
+
+<p>There's also a performance
+<a name="pmodperl-CHP-6-ITERM-4542" />drawback:
+exported variables add some memory overhead, and in the context of
+mod_perl this overhead is multiplied by the number of server
+processes running.</p>
+
+<p>There are a number of techniques we can use to get rid of these
+problems. First, variables can be grouped in named groups called
+<em class="emphasis">tags</em>. The tags are later used as arguments to
+the <tt class="literal">import( )</tt> or <tt class="literal">use( )</tt> calls.
+You are probably familiar with:</p>
+
+<blockquote><pre class="code">use CGI qw(:standard :html);</pre></blockquote>
+
+<p>We can implement this quite easily, with the help of
+<tt class="literal">export_ok_tags( )</tt> from
+<tt class="literal">Exporter</tt>. For example:</p>
+
+<blockquote><pre class="code">BEGIN {
+  use Exporter ( );
+  use vars qw( @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS );
+  @ISA         = qw(Exporter);
+  @EXPORT      = ( );
+  @EXPORT_OK   = ( );
+
+  %EXPORT_TAGS = (
+      vars =&gt; [qw($firstname $surname)],
+      subs =&gt; [qw(reread_conf untaint_path)],
+  );
+  Exporter::export_ok_tags('vars');
+  Exporter::export_ok_tags('subs');
+}</pre></blockquote>
+
+<p>In the script using this configuration, we write:</p>
+
+<blockquote><pre class="code">use Book::Config0 qw(:subs :vars);</pre></blockquote>
+
+<p>Subroutines are
+<a name="pmodperl-CHP-6-ITERM-4543" />exported exactly like
+variables, since symbols are what are actually being exported. Notice
+we don't use <tt class="literal">export_tags( )</tt>, as
+it exports the variables automatically without the user asking for
+them (this is considered bad style). If a module automatically
+exports variables with <tt class="literal">export_tags( )</tt>, you can
+avoid unnecessary imports in your script by using this syntax:</p>
+
+<blockquote><pre class="code">use Book::Config0 ( );</pre></blockquote>
+
+<p>You can also go even further and group tags into other named groups.
+For example, the <tt class="literal">:all</tt> tag from
+<tt class="literal">CGI.pm</tt> is a group tag of all other groups. It
+requires a little more effort to implement, but you can always save
+time by looking at the solution in
+<tt class="literal">CGI.pm</tt>'s code.
+It's just a matter of an extra code to expand all
+the groups recursively.</p>
+
+<p>As the number of variables grows, however, your configuration will
+become unwieldy. Consider keeping all the variables in a single hash
+built from references to other scalars, anonymous arrays, and hashes.
+See <a href="ch06_08.html#pmodperl-CHP-6-EX-22">Example 6-22</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-22" /><div class="example">
+<h4 class="objtitle">Example 6-22. Book/Config1.pm</h4>
+<blockquote><pre class="code">package Book::Config1;
+use strict;
+
+BEGIN {
+  use Exporter ( );
+
+  @Book::Config1::ISA       = qw(Exporter);
+  @Book::Config1::EXPORT    = qw( );
+  @Book::Config1::EXPORT_OK = qw(%c);
+}
+
+use vars qw(%c);
+
+%c = (
+   dir =&gt; {
+       cgi  =&gt; '/home/httpd/perl',
+       docs =&gt; '/home/httpd/docs',
+       img  =&gt; '/home/httpd/docs/images',
+      },
+   url =&gt; {
+       cgi  =&gt; '/perl',
+       docs =&gt; '/',
+       img  =&gt; '/images',
+      },
+   color =&gt; {
+         hint   =&gt; '#777777',
+         warn   =&gt; '#990066',
+         normal =&gt; '#000000',
+        },
+  );</pre></blockquote>
+</div>
+
+<p>Good Perl style suggests keeping a comma at the end of each list.
+This makes it easy to add new items at the end of a list.</p>
+
+<p>Our script now looks like this:</p>
+
+<blockquote><pre class="code">use strict;
+use Book::Config1 qw(%c);
+use vars          qw(%c);
+print "Content-type: text/plain\n\n";
+print "My url docs root: $c{url}{docs}\n";</pre></blockquote>
+
+<p>The whole mess is gone. Now there is only one variable to worry about.</p>
+
+<p>The one small downside to this approach is auto-vivification. For
+example, if we write <tt class="literal">$c{url}{doc}</tt> by mistake, Perl
+will silently create this element for us with the value undef. When
+we <tt class="literal">use strict;</tt>, Perl will tell us about any
+misspelling of this kind for a simple scalar, but this check is not
+performed for hash elements. This puts the onus of responsibility
+back on us, since we must take greater care.</p>
+
+<p>The benefits of the hash approach are significant.
+Let's make it even better by getting rid of the
+<tt class="literal">Exporter</tt>stuff completely, removing all the
+exporting code from the configuration file. See <a href="ch06_08.html#pmodperl-CHP-6-EX-23">Example 6-23</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-23" /><div class="example">
+<h4 class="objtitle">Example 6-23. Book/Config2.pm</h4>
+<blockquote><pre class="code">package Book::Config2;
+use strict;
+use vars qw(%c);
+
+%c = (
+   dir =&gt; {
+       cgi  =&gt; '/home/httpd/perl',
+       docs =&gt; '/home/httpd/docs',
+       img  =&gt; '/home/httpd/docs/images',
+      },
+   url =&gt; {
+       cgi  =&gt; '/perl',
+       docs =&gt; '/',
+       img  =&gt; '/images',
+      },
+   color =&gt; {
+         hint   =&gt; '#777777',
+         warn   =&gt; '#990066',
+         normal =&gt; '#000000',
+        },
+  );</pre></blockquote>
+</div>
+
+<p>Our script is modified to use fully qualified names for the
+configuration variables it uses:</p>
+
+<blockquote><pre class="code">use strict;
+use Book::Config2 ( );
+print "Content-type: text/plain\n\n";
+print "My url docs root: $Book::Config2::c{url}{docs}\n";</pre></blockquote>
+
+<p>To save typing and spare the need to use fully qualified variable
+names, we'll use a magical Perl feature to alias the
+configuration variable to a script's variable:</p>
+
+<blockquote><pre class="code">use strict;
+use Book::Config2 ( );
+use vars qw(%c);
+*c = \%Book::Config2::c;
+print "Content-type: text/plain\n\n";
+print "My url docs root: $c{url}{docs}\n";</pre></blockquote>
+
+<p>We've aliased the <tt class="literal">*c</tt> glob with a
+reference to the configuration hash. From now on,
+<tt class="literal">%Book::Config2::c</tt> and <tt class="literal">%c</tt> refer
+to the same hash for all practical purposes.</p>
+
+<p>One last point: often, redundancy is introduced in configuration
+variables. Consider:</p>
+
+<blockquote><pre class="code">$cgi_dir  = '/home/httpd/perl';
+$docs_dir = '/home/httpd/docs';
+$img_dir  = '/home/httpd/docs/images';</pre></blockquote>
+
+<p>It's obvious that the base path
+<em class="emphasis">/home/httpd</em> should be moved to a separate
+variable, so only that variable needs to be changed if the
+application is moved to another location on the filesystem.</p>
+
+<blockquote><pre class="code">$base     = '/home/httpd';
+$cgi_dir  = "$base/perl";
+$docs_dir = "$base/docs";
+$img_dir  = "$docs_dir/images";</pre></blockquote>
+
+<p>This cannot be done with a hash, since we cannot refer to its values
+before the definition is completed. That is, this will not work:</p>
+
+<blockquote><pre class="code">%c = (
+   base =&gt; '/home/httpd',
+   dir =&gt; {
+       cgi  =&gt; "$c{base}/perl",
+       docs =&gt; "$c{base}/docs",
+       img  =&gt; "$c{base}{docs}/images",
+      },
+  );</pre></blockquote>
+
+<p>But nothing stops us from adding additional variables that are
+lexically scoped with <tt class="literal">my( )</tt>. The following code is
+correct:</p>
+
+<blockquote><pre class="code">my $base = '/home/httpd';
+%c = (
+   dir =&gt; {
+       cgi  =&gt; "$base/perl",
+       docs =&gt; "$base/docs",
+       img  =&gt; "$base/docs/images",
+      },
+  );</pre></blockquote>
+
+<p>We've learned how to write configuration files that
+are easy to maintain, and how to save memory by avoiding importing
+variables in each script's namespace. Now
+let's look at reloading those<a name="pmodperl-CHP-6-ITERM-4544" /><a name="pmodperl-CHP-6-ITERM-4545" /> files.</p>
+
+</div>
+
+<a name="pmodperl-CHP-6-SECT-8.2.2.2" /><div class="sect4">
+<h4 class="sect4">6.8.2.4.2. Reloading configuration files</h4>
+
+<p>First, <a name="pmodperl-CHP-6-ITERM-4546" /><a name="pmodperl-CHP-6-ITERM-4547" />lets look
+at a simple case, in which we just have to look after a simple
+configuration file like the one below. Imagine a script that tells
+you who is the patch pumpkin of the current Perl release.<a href="#FOOTNOTE-30">[30]</a>
+(<em class="emphasis">Pumpkin</em> is a whimsical term for the person with
+exclusive access to a virtual
+"token" representing a certain
+authority, such as applying patches to a master copy of some source.)</p>
+<blockquote><a name="FOOTNOTE-30" /><p> [30]These are the recent pumpkins: Chip Salzenberg for 5.004,
+Gurusamy Sarathy for 5.005 and 5.6, Jarkko Hietaniemi for 5.8, Hugo
+van der Sanden for 5.10.</p> </blockquote>
+
+<blockquote><pre class="code">use CGI ( );
+use strict;
+
+my $firstname = "Jarkko";
+my $surname = "Hietaniemi";
+my $q = CGI-&gt;new;
+
+print $q-&gt;header(-type=&gt;'text/html');
+print $q-&gt;p("$firstname $surname holds the patch pumpkin" .
+             "for this Perl release.");</pre></blockquote>
+
+<p>The script is very simple: it initializes the CGI object, prints the
+proper HTTP header, and tells the world who the current patch pumpkin
+is. The name of the patch pumpkin is a hardcoded value.</p>
+
+<p>We don't want to modify the script every time the
+patch pumpkin changes, so we put the <tt class="literal">$firstname</tt>
+and <tt class="literal">$surname</tt> variables into a configuration file:</p>
+
+<blockquote><pre class="code">$firstname = "Jarkko";
+$surname = "Hietaniemi";
+1;</pre></blockquote>
+
+<p>Note that there is no package declaration in the above file, so the
+code will be evaluated in the caller's package or in
+the <tt class="literal">main:</tt>: package if none was declared. This
+means that the variables <tt class="literal">$firstname</tt> and
+<tt class="literal">$surname</tt> will override (or initialize) the
+variables with the same names in the caller's
+namespace. This works for global variables only&#8212;you cannot
+update variables defined lexically (with <tt class="literal">my( )</tt>)
+using this technique.</p>
+
+<p>Let's say we have started the server and everything
+is working properly. After a while, we decide to modify the
+configuration. How do we let our running server know that the
+configuration was modified without restarting it? Remember, we are in
+production, and a server restart can be quite expensive. One of the
+simplest solutions is to poll the file's
+modification time by calling <tt class="literal">stat( )</tt> before the
+script starts to do real work. If we see that the file was updated,
+we can force a reconfiguration of the variables located in this file.
+We will call the function that reloads the configuration
+<tt class="literal">reread_conf( )</tt> and have it accept the relative
+path to the configuration file as its single argument.</p>
+
+<p><tt class="literal">Apache::Registry</tt> executes a <tt class="literal">chdir(
+)</tt> to the script's directory before it
+starts the script's execution. So if your CGI script
+is invoked under the <tt class="literal">Apache::Registry</tt> handler, you
+can put the configuration file in the same directory as the script.
+Alternatively, you can put the file in a directory below that and use
+a path relative to the script directory. However, you have to make
+sure that the file will be found, somehow. Be aware that <tt class="literal">do(
+)</tt>searches the libraries in the directories in
+<tt class="literal">@INC</tt>.</p>
+
+<blockquote><pre class="code">use vars qw(%MODIFIED);
+sub reread_conf {
+    my $file = shift;
+    return unless defined $file;
+    return unless -e $file and -r _;
+    my $mod = -M _;
+    unless (exists $MODIFIED{$file} and $MODIFIED{$file} =  = $mod) {
+        unless (my $result = do $file) {
+            warn "couldn't parse $file: $@" if $@;
+            warn "couldn't read $file: $!" unless defined $result;
+            warn "couldn't run $file"      unless         $result;
+        }
+        $MODIFIED{$file} = $mod; # Update the MODIFICATION times
+    }
+}</pre></blockquote>
+
+<p>Notice that we use the <tt class="literal">= =</tt> comparison operator
+when checking the file's modification timestamp,
+because all we want to know is whether the file was changed or not.</p>
+
+<p>When the <tt class="literal">require( )</tt>, <tt class="literal">use( )</tt>,
+and <tt class="literal">do( )</tt> operators successfully return, the file
+that was passed as an argument is inserted into
+<tt class="literal">%INC</tt>. The hash element key is the name of the
+file, and the element's value is the
+file's path. When Perl sees <tt class="literal">require(
+)</tt> or <tt class="literal">use( )</tt> in the code, it first tests
+<tt class="literal">%INC</tt> to see whether the file is already there and
+thus loaded. If the test returns true, Perl saves the overhead of
+code rereading and recompiling; however, calling <tt class="literal">do(
+)</tt> will load or reload the file regardless of whether it has
+been previously loaded.</p>
+
+<p>We use <tt class="literal">do( )</tt>, not <tt class="literal">require( )</tt>,
+to reload the code in this file because although <tt class="literal">do(
+)</tt> behaves almost identically to <tt class="literal">require(
+)</tt>, it reloads the file unconditionally. If <tt class="literal">do(
+)</tt> cannot read the file, it returns <tt class="literal">undef</tt>
+and sets <tt class="literal">$!</tt> to report the error. If <tt class="literal">do(
+)</tt> can read the file but cannot compile it, it returns
+<tt class="literal">undef</tt> and sets an error message in
+<tt class="literal">$@</tt>. If the file is successfully compiled,
+<tt class="literal">do( )</tt> returns the value of the last expression
+evaluated.</p>
+
+<p>The configuration file can be broken if someone has incorrectly
+modified it. Since we don't want the whole service
+using that file to be broken that easily, we trap the possible
+failure to <tt class="literal">do( )</tt> the file and ignore the changes
+by resetting the modification time. If <tt class="literal">do( )</tt> fails
+to load the file, it might be a good idea to send an email about the
+problem to the system administrator.</p>
+
+<p>However, since <tt class="literal">do( )</tt> updates
+<tt class="literal">%INC</tt> like <tt class="literal">require( )</tt> does, if
+you are using <tt class="literal">Apache::StatINC</tt> it will attempt to
+reload this file before the <tt class="literal">reread_conf( )</tt> call.
+If the file doesn't compile, the request will be
+aborted. <tt class="literal">Apache::StatINC</tt>
+shouldn't be used in production anyway (because it
+slows things down by <tt class="literal">stat( )</tt> ing all the files
+listed in <tt class="literal">%INC</tt>), so this
+shouldn't be a problem.</p>
+
+<p>Note that we assume that the entire purpose of this function is to
+reload the configuration if it was changed. This is fail-safe,
+because if something goes wrong we just return without modifying the
+server configuration. The script should not be used to initialize the
+variables on its first invocation. To do that, you would need to
+replace each occurrence of <tt class="literal">return( )</tt> and
+<tt class="literal">warn( )</tt> with <tt class="literal">die( )</tt>.</p>
+
+<p>We've used the above approach with a huge
+configuration file that was loaded only at server startup and another
+little configuration file that included only a few variables that
+could be updated by hand or through the web interface. Those
+variables were initialized in the main configuration file. If the
+webmaster breaks the syntax of this dynamic file while updating it by
+hand, it won't affect the main (write-protected)
+configuration file and won't stop the proper
+execution of the programs. In the next section, we will see a simple
+web interface that allows us to modify the configuration file without
+the risk of breaking it.</p>
+
+<p><a href="ch06_08.html#pmodperl-CHP-6-EX-24">Example 6-24</a> shows a sample script using our
+<tt class="literal">reread_conf( )</tt>subroutine.</p>
+
+<a name="pmodperl-CHP-6-EX-24" /><div class="example">
+<h4 class="objtitle">Example 6-24. reread_conf.pl</h4>
+<blockquote><pre class="code">use vars qw(%MODIFIED $firstname $surname);
+use CGI ( );
+use strict;
+
+my $q = CGI-&gt;new;
+print $q-&gt;header(-type =&gt; 'text/plain');
+my $config_file = "./config.pl";
+reread_conf($config_file);
+print $q-&gt;p("$firstname $surname holds the patch pumpkin" .
+             "for this Perl release.");
+
+sub reread_conf {
+    my $file = shift;
+    return unless defined $file;
+    return unless -e $file and -r _;
+    my $mod = -M _;
+    unless ($MODIFIED{$file} and $MODIFIED{$file} == $mod) {
+        unless (my $result = do $file) {
+            warn "couldn't parse $file: $@" if $@;
+            warn "couldn't read $file: $!"  unless defined $result;
+            warn "couldn't run $file"       unless $result;
+        }
+        $MODIFIED{$file} = $mod; # Update the MODIFICATION time
+    }
+}</pre></blockquote>
+</div>
+
+<p>You should be using <tt class="literal">(stat $file)[9]</tt> instead of
+<tt class="literal">-M $file</tt> if you are modifying the
+<tt class="literal">$^T</tt> variable. This is because
+<tt class="literal">-M</tt> returns the modification time relative to the
+Perl interpreter startup time, set in <tt class="literal">$^T</tt>. In some
+scripts, it can be useful to reset <tt class="literal">$^T</tt> to the time
+of the script invocation with "<tt class="literal">local $^T = time(
+)</tt>". That way, <tt class="literal">-M</tt> and other
+<tt class="literal">-X</tt> file status tests are performed relative to the
+script invocation time, not the time the process was started.</p>
+
+<p>If your configuration file is more sophisticated&#8212;for example,
+if it declares a package and exports variables&#8212;the above code
+will work just as well. Variables need not be <tt class="literal">import(
+)</tt>ed again: when <tt class="literal">do( )</tt> recompiles the
+script, the originally imported variables will be updated with the
+values from the reloaded<a name="pmodperl-CHP-6-ITERM-4548" /><a name="pmodperl-CHP-6-ITERM-4549" /> code.</p>
+
+</div>
+
+<a name="pmodperl-CHP-6-SECT-8.2.2.3" /><div class="sect4">
+<h4 class="sect4">6.8.2.4.3. Dynamically updating configuration files</h4>
+
+<p>The <a name="pmodperl-CHP-6-ITERM-4550" /><a name="pmodperl-CHP-6-ITERM-4551" />CGI script below allows a system
+administrator to dynamically update a configuration file through a
+web interface. This script, combined with the code we have just seen
+to reload the modified files, gives us a system that is dynamically
+reconfigurable without having to restart the server. Configuration
+can be performed from any machine that has a browser.</p>
+
+<p>Let's say we have a configuration file like the one
+in <a href="ch06_08.html#pmodperl-CHP-6-EX-25">Example 6-25</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-25" /><div class="example">
+<h4 class="objtitle">Example 6-25. Book/MainConfig.pm</h4>
+<blockquote><pre class="code">package Book::MainConfig;
+
+use strict;
+use vars qw(%c);
+
+%c = (
+      name     =&gt; "Larry Wall",
+      release  =&gt; "5.000",
+      comments =&gt; "Adding more ways to do the same thing :)",
+
+      other    =&gt; "More config values",
+
+      colors   =&gt; { foreground =&gt; "black",
+                    background =&gt; "white",
+                  },
+
+      machines =&gt; [qw( primary secondary tertiary )],
+
+);</pre></blockquote>
+</div>
+
+<p>We want to make the variables <tt class="literal">name</tt>,
+<tt class="literal">release</tt>, and <tt class="literal">comments</tt>
+dynamically configurable. We'll need a web interface
+with an input form that allows modifications to these variables.
+We'll also need to update the configuration file and
+propagate the changes to all the currently running processes.</p>
+
+<p>Let's look at the main stages of the implementation:</p>
+
+<ol><li>
+<p>Create a form with preset current values of the variables.</p>
+</li><li>
+<p>Let the administrator modify the variables and submit the changes.</p>
+</li><li>
+<p>Validate the submitted information (numeric fields should hold
+numbers within a given range, etc.).</p>
+</li><li>
+<p>Update the configuration file.</p>
+</li><li>
+<p>Update the modified value in the current process's
+memory.</p>
+</li><li>
+<p>Display the form as before with the (possibly changed) current values.</p>
+</li></ol>
+<p>The only part that seems hard to implement is a configuration file
+update, for a couple of reasons. If updating the file breaks it, the
+whole service won't work. If the file is very big
+and includes comments and complex data structures, parsing the file
+can be quite a challenge.</p>
+
+<p>So let's simplify the task. If all we want is to
+update a few variables, why don't we create a tiny
+configuration file containing just those variables? It can be
+modified through the web interface and overwritten each time there is
+something to be changed, so that we don't have to
+parse the file before updating it. If the main configuration file is
+changed, we don't care, because we
+don't depend on it any more.</p>
+
+<p>The dynamically updated variables will be duplicated in the main file
+and the dynamic file. We do this to simplify maintenance. When a new
+release is installed, the dynamic configuration file
+won't exist&#8212;it will be created only after the
+first update. As we just saw, the only change in the main code is to
+add a snippet to load this file if it exists and was changed.</p>
+
+<p>This additional code must be executed after the main configuration
+file has been loaded. That way, the updated variables will override
+the default values in the main file. See <a href="ch06_08.html#pmodperl-CHP-6-EX-26">Example 6-26</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-26" /><div class="example">
+<h4 class="objtitle">Example 6-26. manage_conf.pl</h4>
+<blockquote><pre class="code"># remember to run this code in taint mode
+use strict;
+use vars qw($q %c $dynamic_config_file %vars_to_change %validation_rules);
+
+use CGI ( );
+
+use lib qw(.);
+use Book::MainConfig ( );
+*c = \%Book::MainConfig::c;
+
+$dynamic_config_file = "./config.pl";
+
+# load the dynamic configuration file if it exists, and override the
+# default values from the main configuration file
+do $dynamic_config_file if -e $dynamic_config_file and -r _;
+
+# fields that can be changed and their captions
+%vars_to_change =
+  (
+   'name'     =&gt; "Patch Pumpkin's Name",
+   'release'  =&gt; "Current Perl Release",
+   'comments' =&gt; "Release Comments",
+  );
+
+# each field has an associated regular expression
+# used to validate the field's content when the
+# form is submitted
+%validation_rules =
+  (
+   'name'     =&gt; sub { $_[0] =~ /^[\w\s\.]+$/;   },
+   'release'  =&gt; sub { $_[0] =~ /^\d+\.[\d_]+$/; },
+   'comments' =&gt; sub { 1;                        },
+  );
+
+# create the CGI object, and print the HTTP and HTML headers
+$q = CGI-&gt;new;
+print $q-&gt;header(-type=&gt;'text/html'), 
+      $q-&gt;start_html( );
+
+# We always rewrite the dynamic config file, so we want all the
+# variables to be passed, but to save time we will only check
+# those variables that were changed.  The rest will be retrieved from
+# the 'prev_*' values.
+my %updates = ( );
+foreach (keys %vars_to_change) {
+    # copy var so we can modify it
+    my $new_val = $q-&gt;param($_) || '';
+
+    # strip a possible ^M char (Win32)
+    $new_val =~ s/\cM//g;
+
+    # push to hash if it was changed
+    $updates{$_} = $new_val
+        if defined $q-&gt;param("prev_" . $_)
+           and $new_val ne $q-&gt;param("prev_" . $_);
+}
+
+# Note that we cannot trust the previous values of the variables
+# since they were presented to the user as hidden form variables,
+# and the user could have mangled them. We don't care: this can't do
+# any damage, as we verify each variable by rules that we define.
+
+# Process if there is something to process. Will not be called if
+# it's invoked the first time to display the form or when the form
+# was submitted but the values weren't modified (we'll know by
+# comparing with the previous values of the variables, which are
+# the hidden fields in the form).
+
+process_changed_config(%updates) if %updates;
+
+show_modification_form( );
+ 
+# update the config file, but first validate that the values are
+# acceptable
+sub process_changed_config {
+    my %updates = @_;
+
+    # we will list here all variables that don't validate
+    my %malformed = ( );
+
+    print $q-&gt;b("Trying to validate these values&lt;br&gt;");
+    foreach (keys %updates) {
+        print "&lt;dt&gt;&lt;b&gt;$_&lt;/b&gt; =&gt; &lt;pre&gt;$updates{$_}&lt;/pre&gt;";
+
+        # now we have to handle each var to be changed very carefully,
+        # since this file goes immediately into production!
+        $malformed{$_} = delete $updates{$_}
+            unless $validation_rules{$_}-&gt;($updates{$_});
+
+    }   
+
+    if (%malformed) {
+        print $q-&gt;hr,
+            $q-&gt;p($q-&gt;b(qq{Warning! These variables were changed
+                           to invalid values. The original
+                           values will be kept.})
+                 ),
+            join ",&lt;br&gt;",
+                 map { $q-&gt;b($vars_to_change{$_}) . " : $malformed{$_}\n"
+                     } keys %malformed;
+    }
+
+    # Now complete the vars that weren't changed from the
+    # $q-&gt;param('prev_var') values
+    map { $updates{$_} = $q-&gt;param('prev_' . $_)
+              unless exists $updates{$_} } keys %vars_to_change;
+
+    # Now we have all the data that should be written into the dynamic
+    # config file
+
+    # escape single quotes "'" while creating a file
+    my $content = join "\n",
+        map { $updates{$_} =~ s/(['\\])/\\$1/g;
+              '$c{' . $_ . "} = '" . $updates{$_} . "';\n"
+            } keys %updates;
+
+    # add '1;' to make require( ) happy
+    $content .= "\n1;";
+
+    # keep the dummy result in $res so it won't complain
+    eval {my $res = $content};
+    if ($@) {
+        print qq{Warning! Something went wrong with config file
+                 generation!&lt;p&gt; The error was :&lt;/p&gt; &lt;br&gt;&lt;pre&gt;$@&lt;/pre&gt;};
+        return;
+    }
+
+    print $q-&gt;hr;
+
+    # overwrite the dynamic config file
+    my $fh = Apache::gensym( );
+    open $fh, "&gt;$dynamic_config_file.bak"
+        or die "Can't open $dynamic_config_file.bak for writing: $!";
+    flock $fh, 2; # exclusive lock
+    seek $fh, 0, 0; # rewind to the start
+    truncate $fh, 0; # the file might shrink!
+    print $fh $content;
+    close $fh;
+
+    # OK, now we make a real file
+    rename "$dynamic_config_file.bak", $dynamic_config_file
+        or die "Failed to rename: $!";
+
+    # rerun it to update variables in the current process! Note that
+    # it won't update the variables in other processes. Special
+    # code that watches the timestamps on the config file will do this
+    # work for each process. Since the next invocation will update the
+    # configuration anyway, why do we need to load it here? The reason
+    # is simple: we are going to fill the form's input fields with
+    # the updated data.
+    do $dynamic_config_file;
+
+}
+
+sub show_modification_form {
+
+    print $q-&gt;center($q-&gt;h3("Update Form"));
+  
+    print $q-&gt;hr,
+        $q-&gt;p(qq{This form allows you to dynamically update the current
+           configuration. You don't need to restart the server in
+           order for changes to take an effect}
+             );
+  
+    # set the previous settings in the form's hidden fields, so we
+    # know whether we have to do some changes or not
+    $q-&gt;param("prev_$_", $c{$_}) for keys %vars_to_change;
+  
+    # rows for the table, go into the form
+    my @configs = ( );
+  
+    # prepare text field entries
+    push @configs,
+        map {
+          $q-&gt;td( $q-&gt;b("$vars_to_change{$_}:") ),
+          $q-&gt;td(
+           $q-&gt;textfield(
+                 -name      =&gt; $_,
+                 -default   =&gt; $c{$_},
+                 -override  =&gt; 1,
+                 -size      =&gt; 20,
+                 -maxlength =&gt; 50,
+                )
+          ),
+        } qw(name release);
+  
+    # prepare multiline textarea entries
+    push @configs,
+        map {
+          $q-&gt;td( $q-&gt;b("$vars_to_change{$_}:") ),
+          $q-&gt;td(
+           $q-&gt;textarea(
+                -name     =&gt; $_,
+                -default  =&gt; $c{$_},
+                -override =&gt; 1,
+                -rows     =&gt; 10,
+                -columns  =&gt; 50,
+                -wrap     =&gt; "HARD",
+                )
+          ),
+        } qw(comments);
+  
+    print $q-&gt;startform(POST =&gt; $q-&gt;url), "\n",
+          $q-&gt;center(
+              $q-&gt;table(map {$q-&gt;Tr($_), "\n",} @configs),
+              $q-&gt;submit('', 'Update!'), "\n",
+          ),
+          map ({$q-&gt;hidden("prev_" . $_, $q-&gt;param("prev_".$_)) . "\n" }
+               keys %vars_to_change), # hidden previous values
+          $q-&gt;br, "\n",
+          $q-&gt;endform, "\n",
+          $q-&gt;hr, "\n",
+          $q-&gt;end_html;
+  
+}</pre></blockquote>
+</div>
+
+<p>For example, on July 19 2002, Perl 5.8.0 was released. On that date,
+Jarkko Hietaniemi exclaimed:</p>
+
+<blockquote><pre class="code">The pumpking is dead! Long live the pumpking!</pre></blockquote>
+
+<p>Hugo van der Sanden is the new pumpking for Perl 5.10. Therefore, we
+run <em class="emphasis">manage_conf.pl</em> and update the data. Once
+updated, the script overwrites the previous
+<em class="emphasis">config.pl</em> file with the following content:</p>
+
+<blockquote><pre class="code">$c{release}  =  '5.10';
+
+$c{name}  =  'Hugo van der Sanden';
+
+$c{comments}  =  'Perl rules the world!';
+
+1;</pre></blockquote>
+
+<p>Instead of crafting your own code, you can use the
+<tt class="literal">CGI::QuickForm</tt> module from CPAN to make the coding
+less tedious. See <a href="ch06_08.html#pmodperl-CHP-6-EX-27">Example 6-27</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-27" /><div class="example">
+<h4 class="objtitle">Example 6-27. manage_conf.pl</h4>
+<blockquote><pre class="code">use strict;
+use CGI qw( :standard :html3 ) ;
+use CGI::QuickForm;
+use lib qw(.);
+use Book::MainConfig ( );
+*c = \%Book::MainConfig::c;
+
+my $TITLE = 'Update Configuration';
+show_form(
+    -HEADER =&gt; header . start_html( $TITLE ) . h3( $TITLE ),
+    -ACCEPT =&gt; \&amp;on_valid_form,
+    -FIELDS =&gt; [
+        {
+            -LABEL      =&gt; "Patch Pumpkin's Name",
+            -VALIDATE   =&gt; sub { $_[0] =~ /^[\w\s\.]+$/;   },
+            -default    =&gt; $c{name},
+        },
+        {
+            -LABEL      =&gt; "Current Perl Release",
+            -VALIDATE   =&gt; sub { $_[0] =~ /^\d+\.[\d_]+$/; },
+            -default    =&gt; $c{release},
+        },
+        {
+            -LABEL      =&gt; "Release Comments",
+            -default    =&gt; $c{comments},
+        },
+        ],
+    );
+
+sub on_valid_form {
+    # save the form's values
+}</pre></blockquote>
+</div>
+
+<p>That's it. <tt class="literal">show_form( )</tt> creates
+and displays a form with a submit button. When the user submits, the
+values are checked. If all the fields are valid,
+<tt class="literal">on_valid_form( )</tt> is called; otherwise, the form is
+re-presented with the <a name="pmodperl-CHP-6-ITERM-4552" /><a name="pmodperl-CHP-6-ITERM-4553" />errors <a name="pmodperl-CHP-6-ITERM-4554" /><a name="pmodperl-CHP-6-ITERM-4555" /><a name="pmodperl-CHP-6-ITERM-4556" /><a name="pmodperl-CHP-6-ITERM-4557" />highlighted.</p>
+
+</div>
+</div>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">6.7. Transition from mod_cgi Scripts to Apache Handlers</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.9. Handling the "User Pressed Stop Button" Case</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

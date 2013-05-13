@@ -1,0 +1,246 @@
+<html><head><title>Getting Help and Online Resources (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch22_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch23_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 23. Getting Help and Online Resources</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch23_01.html#pmodperl-CHP-23-SECT-1">How to Report Problems</a><br />
+<a href="ch23_02.html">Mailing List Etiquette</a><br />
+<a href="ch23_03.html">Resources</a><br /></p></div><p>In this chapter, we propose a way to solve your mod_perl-related
+problems and provide starting points for information resources
+related to mod_perl.</p><p>If you have any problem with mod_perl itself, be it a build problem
+or a runtime problem, you should follow the steps below. But before
+you follow them, think carefully about whether the problem you are
+experiencing is mod_perl-related. It's quite
+possible that the problem is in the Perl code, SQL code, Apache
+itself, or something else entirely. In such cases, you should refer
+to other resources presented later in this chapter. Remember that
+although mod_perl resources might help you with many related things,
+they will never be as detailed as resources devoted to the topic at
+hand.</p><p>If you still think that the problem has something to do with
+mod_perl, these are the steps to follow:</p><ol><li>
+<p>Try to tackle the problem
+<a name="pmodperl-CHP-23-ITERM-5801" /><a name="pmodperl-CHP-23-ITERM-5802" />by yourself for a while. Check that you
+have the right permissions, that there is enough disk space, etc. Do
+sanity checks: try to remove the mod_perl source tree, unpack it
+again, and build from fresh.</p>
+
+<p>When trying to figure out what the problem is, always run under
+single-server mode (<em class="emphasis">httpd -X</em>) and always check
+the <em class="emphasis">error_log</em> file.</p>
+
+<p>If you still have problems, proceed to step 2.</p>
+</li><li>
+<p>Reread the
+<a name="pmodperl-CHP-23-ITERM-5803" /><a name="pmodperl-CHP-23-ITERM-5804" />documentation (or if you
+didn't read it yet, do it now). Try to follow the
+build and usage steps as explained there. This book,
+<em class="emphasis">Writing Apache Modules with Perl and C</em>
+(O'Reilly), and the documentation distributed with
+the mod_perl sources provide in-depth details on this topic. Also,
+make sure to read <a href="ch22_01.html">Chapter 22</a> thoroughly. If you are
+still in trouble, proceed to step 3.</p>
+</li><li>
+<p>Go to the
+<a name="pmodperl-CHP-23-ITERM-5805" /><a name="pmodperl-CHP-23-ITERM-5806" />mod_perl list archives (at
+<a href="http://perl.apache.org/maillist/">http://perl.apache.org/maillist/</a>)
+and see whether someone has already reported the same problem. If
+someone did, chances are that a cure to the problem has been posted
+to the list, be it a source patch or a workaround. If after doing an
+exhaustive search you haven't come up with any
+solution, proceed to step 4.</p>
+
+<p>Notice that sometimes doing this step before step 2 can be a good
+idea as well&#8212;you may happen to have encountered a well-known
+bug, and if that's the case doing a quick lookup in
+the mailing-list archives will save you time and frustration.</p>
+</li><li>
+<p>This step is <a name="pmodperl-CHP-23-ITERM-5807" /><a name="pmodperl-CHP-23-ITERM-5808" />the last resort. Contact the mod_perl mailing
+list. You should never abuse this step, and use it only when you have
+already been through the previous three steps. If you ask FAQ
+questions unnecessarily, chances are that people will not reply to
+you. And if you ask more FAQ questions, you might get onto
+people's blacklists and they will not answer your
+future questions even if they are relevant. Remember that all the
+answers that you get are coming from volunteers who, instead of
+having fun outdoors, try to have fun answering challenging questions.
+FAQ questions aren't challenging, and few people
+have fun answering them. See more details about mod_perl list
+etiquette in the next section.</p>
+
+<p>It's not enough to just contact the list and ask for
+help. You have to provide as many details as possible. The next
+section covers the details you have to provide.</p>
+
+<p>However, don't be afraid. The mod_perl mailing list
+is filled with only nice people who can provide much help and
+guidance, so if you can't figure something out after
+having followed the above steps, your question is welcome.</p>
+
+<p>You cannot post to the list without first subscribing to it. To
+subscribe, send an email to
+<em class="email">
+<a href="mailto:modperl-subscribe@perl.apache.org">modperl-subscribe@perl.apache.org</a>
+</em>. After you receive a
+confirmation email, you can start posting to the list. Send your
+emails to 
+<em><a href="mailto:modperl@perl.apache.org">
+modperl@perl.apache.org</a>
+</em>.</p>
+
+<p>There are other related mailing lists you might want to be on too.
+See the list of these and subscription instructions in <a href="ch23_03.html#pmodperl-CHP-23-SECT-3">Section 23.3</a>.</p>
+</li></ol><div class="sect1"><a name="pmodperl-CHP-23-SECT-1" />
+<h2 class="sect1">23.1. How to Report Problems</h2>
+
+<p>When reporting a problem <a name="pmodperl-CHP-23-ITERM-5809" /><a name="pmodperl-CHP-23-ITERM-5810" />to the
+mod_perl mailing list, always send these details:</p>
+
+<ul><li>
+<p>Anything in the <em class="emphasis">error_log</em> file that looks
+suspicious and possibly related to the problem</p>
+</li><li>
+<p>Output of <em class="emphasis">perl -V</em></p>
+</li><li>
+<p>Version of mod_perl</p>
+</li><li>
+<p>Version of Apache</p>
+</li><li>
+<p>Options given to mod_perl's
+<em class="emphasis">Makefile.PL</em> file</p>
+</li><li>
+<p>Server configuration details</p>
+</li><li>
+<p>If <em class="emphasis">make test</em> fails, the output of <em class="emphasis">make
+test TEST_VERBOSE=1</em></p>
+</li></ul>
+<p>Also check whether:</p>
+
+<ul><li>
+<p><em class="emphasis">make test</em> passes 100%</p>
+</li><li>
+<p>The script works under mod_cgi, if applicable</p>
+</li></ul>
+<p>You should try to isolate the problem and send the smallest possible
+code snippet that reproduces the problem.</p>
+
+<a name="pmodperl-CHP-23-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">23.1.1. Getting the Backtrace from Core Dumps</h3>
+
+<p>If you get a <em class="emphasis">core</em> dump (segmentation fault),
+send a <a name="pmodperl-CHP-23-ITERM-5811" /><a name="pmodperl-CHP-23-ITERM-5812" />backtrace if possible. Before you try to
+produce it, rebuild mod_perl with:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_DEBUG=1</pre></blockquote>
+
+<p>which will:</p>
+
+<ul><li>
+<p>Add <em class="emphasis">-g</em> to <tt class="literal">EXTRA_CFLAGS</tt></p>
+</li><li>
+<p>Turn on <tt class="literal">PERL_TRACE</tt></p>
+</li><li>
+<p>Set <tt class="literal">PERL_DESTRUCT_LEVEL=2</tt> (additional checks
+during Perl cleanup)</p>
+</li><li>
+<p>Link against <em class="emphasis">libperld</em>, if it exists</p>
+</li></ul>
+<p>You can read a full explanation in <a href="ch21_01.html">Chapter 21</a>, but
+here is a summary of how to get a backtrace:</p>
+
+<blockquote><pre class="code">panic% cd mod_perl-1.xx
+panic% gdb ../apache_1.3.xx/src/httpd
+(gdb) run -X -f `pwd`/t/conf/httpd.conf -d `pwd`/t
+[now make request that causes core dump]
+(gdb) bt</pre></blockquote>
+
+<p>In English: <em class="emphasis">cd</em> to the mod_perl source directory
+and start <em class="emphasis">gdb</em> with a path to the
+<em class="emphasis">httpd</em> binary, which is located in the Apache
+source tree. (Of course, replace <em class="emphasis">x</em> with real
+version numbers.) Next, start the <em class="emphasis">httpd</em> process
+from within <em class="emphasis">gdb</em> and issue a request that causes
+a core dump. When the code has died with the
+<tt class="literal">SIGSEGV</tt>signal, run <em class="emphasis">bt</em> to get
+the backtrace.</p>
+
+<p>Alternatively, you can also attach to an already running process like
+so:</p>
+
+<blockquote><pre class="code">panic% gdb httpd &lt;process id number&gt;</pre></blockquote>
+
+<p>If the dump is happening in <em class="emphasis">libperl</em>, you have to
+rebuild Perl with <em class="emphasis">-DDEBUGGING</em> enabled during the
+<em class="emphasis">./Configure</em> stage. A quick way to this is to go
+to your Perl source tree and run these commands:</p>
+
+<blockquote><pre class="code">panic% rm *.[oa]
+panic% make LIBPERL=libperld.a
+panic% cp libperld.a $Config{archlibexp}/CORE</pre></blockquote>
+
+<p>where <tt class="literal">$Config{archlibexp}</tt> is:</p>
+
+<blockquote><pre class="code">% perl -V:archlibexp</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-23-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">23.1.2. Spinning Processes</h3>
+
+<p>The <em class="emphasis">gdb</em> attaching to the live process approach
+<a name="pmodperl-CHP-23-ITERM-5813" /><a name="pmodperl-CHP-23-ITERM-5814" /><a name="pmodperl-CHP-23-ITERM-5815" /><a name="pmodperl-CHP-23-ITERM-5816" />is helpful when
+debugging a <em class="emphasis">spinning</em> process. You can also get a
+Perl stack trace of a spinning process by installing a
+<tt class="literal">$SIG{USR1}</tt> handler in your code:</p>
+
+<blockquote><pre class="code">use Carp ( );
+$SIG{USR1} = \&amp;Carp::confess;</pre></blockquote>
+
+<p>While the process is spinning, send it a <tt class="literal">USR1</tt>
+signal:</p>
+
+<blockquote><pre class="code">panic% kill -USR1 &lt;process id number&gt;</pre></blockquote>
+
+<p>and the Perl stack trace will be printed.</p>
+
+<p>Alternatively, you can use <em class="emphasis">gdb</em> to find which
+Perl code is causing the spin:</p>
+
+<blockquote><pre class="code">panic% gdb httpd &lt;pid of spinning process&gt;
+(gdb) where
+(gdb) source mod_perl-x.xx/.gdbinit
+(gdb) curinfo</pre></blockquote>
+
+<p>After loading the special macros file
+(<em class="emphasis">.gdbinit</em>), you can use the
+<em class="emphasis">curinfo</em> <em class="emphasis">gdb</em> macro to figure
+out the file and line number in which the code stuck. <a href="ch21_01.html">Chapter 21</a> talks in more detail about tracing techniques.</p>
+
+<p>Finally, send all these details to
+<em class="email">
+<a href="mailto:modperl@perl.apache.org">
+modperl@perl.apache.org</a>
+</em>.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch22_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch23_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">22.4. Shutdown and Restart</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">23.2. Mailing List Etiquette</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

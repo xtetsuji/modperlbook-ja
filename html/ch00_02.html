@@ -1,0 +1,99 @@
+<html><head><title>Who This Book Is For (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch00_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">0.2. Who This Book Is For</h2>
+
+<p>This book is not solely about mod_perl web development. It covers two
+main topics: server administration and programming under mod_perl.</p>
+
+<p>At first, you might think these two topics are unrelated. But in real
+life, the programmer often needs to know how to build and maintain
+the server, and the administrator ends up doing much of the
+programming and tweaking himself.</p>
+
+<p>In this book, administrators will learn:</p>
+
+<ul><li>
+<p>How to build and configure the server, with emphasis on improving
+server performance while keeping memory usage low.</p>
+</li><li>
+<p>How to make sure the server is operating nonstop and, in case of
+malfunction, how to get it back online in no time.</p>
+</li><li>
+<p>How to maximize performance by using multiple servers and additional
+tools such as proxies.</p>
+</li><li>
+<p>How to choose the right machine and components. Often the most
+expensive machine isn't much faster than a cheaper
+one with more carefully chosen components.</p>
+</li><li>
+<p>How to allow users to run custom scripts on a mod_perl server.</p>
+</li></ul>
+<p>As for programmers, the good news is that you can be a capable
+mod_perl programmer while knowing very little about it. But most of
+us don't want to stop at being simply capable: we
+want to develop code that's robust, scalable, and
+blindingly fast. Here's a taste of the sort of
+things we cover in this book:</p>
+
+<ul><li>
+<p>In CGI, it's often hard to find
+what's wrong with a CGI script that returns a
+nondescriptive error message to your browser. You can try the
+<em class="filename">error_log</em> file, but with a complex script you
+have to use the <tt class="literal">-d</tt>switch and call the Perl
+debugger, which can be difficult for CGI scripts that
+can't be run from the shell. In <a href="ch22_01.html">Chapter 22</a>, we'll show you how you can
+run the script in debug mode and control it.</p>
+</li><li>
+<p>Alas, mod_perl is picky about coding style&#8212;for example, it
+doesn't like it when you forget to close a file
+after opening it. But if you ask nicely, it might enter a special
+mode where it will clean up for you. In <a href="ch06_01.html">Chapter 6</a>,
+we'll show you how to keep mod_perl happy and keep
+the <em class="filename">error_log</em> file small.</p>
+</li><li>
+<p>As you may already know, mod_perl is very fast. But with a little
+effort you can make it even faster. The idea is simple: the more
+memory (RAM) you have, the more requests you will be able to serve.
+However, you may be able to serve more requests using the same amount
+of RAM, thanks to memory sharing. For more information, see <a href="ch10_01.html">Chapter 10</a>.</p>
+</li><li>
+<p>With mod_perl, you never need to reinvent the wheel. If you need a
+so-called "shelf solution," this
+book includes quite a few copy-and-paste scenarios to inspire you.</p>
+</li><li>
+<p>Many programmers use mod_perl in conjunction with databases. We start
+with the simplest and most basic databases (flat files), continue to
+Database Management (DBM) implementations, and finally do an in-depth
+study of relational databases with SQL.</p>
+</li></ul>
+<p>Of course, there's lots more, as you can tell from
+just the sheer size and weight of the book. This book is filled with
+gems of information that, taken together, provide a wealth of
+information on how to work effectively with mod_perl.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">Preface</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.3. How This Book Is Organized</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

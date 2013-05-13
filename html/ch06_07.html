@@ -1,0 +1,507 @@
+<html><head><title>Transition from mod_cgi Scripts to Apache Handlers (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">6.7. Transition from mod_cgi Scripts to Apache Handlers</h2>
+
+<p>If you don't need to preserve backward compatibility
+with mod_cgi, you can port mod_cgi scripts to use mod_perl-specific
+APIs. This allows you to benefit from features not available under
+mod_cgi and gives you better performance for the features available
+under both. We have already seen how easily
+<tt class="literal">Apache::Registry</tt> turns scripts into handlers
+before they get executed. The transition to handlers is
+straightforward in most cases.</p>
+
+<p>Let's see a transition example. We will start with a
+mod_cgi-compatible script running under
+<tt class="literal">Apache::Registry</tt>, transpose it into a Perl content
+handler without using any mod_perl-specific modules, and then convert
+it to use the <tt class="literal">Apache::Request</tt> and
+<tt class="literal">Apache::Cookie</tt> modules that are available only in
+the mod_perl environment.</p>
+
+<a name="pmodperl-CHP-6-SECT-7.1" /><div class="sect2">
+<h3 class="sect2">6.7.1. Starting with a mod_cgi-Compatible Script</h3>
+
+<p><a href="ch06_07.html#pmodperl-CHP-6-EX-18">Example 6-18</a> shows the original
+script's code.</p>
+
+<a name="pmodperl-CHP-6-EX-18" /><div class="example">
+<h4 class="objtitle">Example 6-18. cookie_script.pl</h4>
+<blockquote><pre class="code">use strict;
+use CGI;
+use CGI::Cookie;
+use vars qw($q $switch $status $sessionID);
+
+init( );
+print_header( );
+print_status( );
+
+sub init {
+    $q = new CGI;
+    $switch = $q-&gt;param("switch") ? 1 : 0;
+    my %cookies = CGI::Cookie-&gt;fetch;
+    $sessionID = exists $cookies{'sessionID'} 
+        ? $cookies{'sessionID'}-&gt;value
+        : '';
+
+    # 0 = not running, 1 = running
+    $status = $sessionID ? 1 : 0;
+    # switch status if asked to
+    $status = !$status if $switch;
+
+    if ($status) {
+        # preserve sessionID if it exists or create a new one
+        $sessionID ||= generate_sessionID( ) if $status;
+    } else {
+        # delete the sessionID
+        $sessionID = '';
+    }
+} 
+
+sub print_header {
+    my $c = CGI::Cookie-&gt;new(
+         -name    =&gt; 'sessionID',
+         -value   =&gt; $sessionID,
+         -expires =&gt; '+1h'
+    );
+
+    print $q-&gt;header(
+         -type   =&gt; 'text/html',
+         -cookie =&gt; $c
+    );
+}
+
+# print the current Session status and a form to toggle the status
+sub print_status {
+  
+    print qq{&lt;html&gt;&lt;head&gt;&lt;title&gt;Cookie&lt;/title&gt;&lt;/head&gt;&lt;body&gt;};
+
+    print "&lt;B&gt;Status:&lt;/B&gt; ",
+        $status
+          ? "Session is running with ID: $sessionID"
+          : "No session is running";
+  
+  
+    # change status form
+    my $button_label = $status ? "Stop" : "Start";
+    print qq{&lt;hr&gt;
+       &lt;form&gt;
+         &lt;input type=submit name=switch value=" $button_label "&gt; 
+       &lt;/form&gt;
+            };
+  
+    print qq{&lt;/body&gt;&lt;/html&gt;};
+    
+} 
+
+# A dummy ID generator
+# Replace with a real session ID generator
+########################
+sub generate_sessionID {
+    return scalar localtime;
+}</pre></blockquote>
+</div>
+
+<p>The code is very simple. It creates a session when you press the
+Start button and deletes it when you pressed the Stop button. The
+session is stored and retrieved using cookies.</p>
+
+<p>We have split the code into three subroutines. <tt class="literal">init(
+)</tt> initializes global variables and parses incoming data.
+<tt class="literal">print_header( )</tt> prints the HTTP headers, including
+the cookie header. Finally, <tt class="literal">print_status( )</tt>
+generates the output. Later, we will see that this logical separation
+will allow an easy conversion to Perl content-handler code.</p>
+
+<p>We have used a few global variables, since we didn't
+want to pass them from function to function. In a big project, you
+should be very restrictive about what variables are allowed to be
+global, if any. In any case, the <tt class="literal">init( )</tt>
+subroutine makes sure all these variables are reinitialized for each
+code reinvocation.</p>
+
+<p>We have used a very simple <tt class="literal">generate_sessionID( )</tt>
+function that returns a current date-time string (e.g., Wed Apr 12
+15:02:23 2000) as a session ID. You'll want to
+replace this with code that generates a unique and unpredictable
+session ID each time it is called.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-7.2" /><div class="sect2">
+<h3 class="sect2">6.7.2. Converting into a Perl Content Handler</h3>
+
+<p>Let's now <a name="pmodperl-CHP-6-ITERM-4496" /><a name="pmodperl-CHP-6-ITERM-4497" /><a name="pmodperl-CHP-6-ITERM-4498" />convert
+<a name="pmodperl-CHP-6-ITERM-4499" /><a name="pmodperl-CHP-6-ITERM-4500" />this script into a content
+handler. There are two parts to this task: first configure Apache to
+run the new code as a Perl handler, then modify the code itself.</p>
+
+<p>First we add the following snippet to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Book::Cookie
+&lt;Location /test/cookie&gt;
+    SetHandler perl-script
+    PerlHandler Book::Cookie
+&lt;/Location&gt;</pre></blockquote>
+
+<p>and restart the server.</p>
+
+<p>When a request whose URI starts with
+<em class="emphasis">/test/cookie</em> is received, Apache will execute
+the <tt class="literal">Book::Cookie::handler( )</tt>subroutine (which we
+will look at presently) as a content handler. We made sure we
+preloaded the <tt class="literal">Book::Cookie</tt> module at server
+startup with the <tt class="literal">PerlModule</tt> directive.</p>
+
+<p>Now we modify the script itself. We copy its contents to the file
+<em class="emphasis">Cookie.pm</em> and place it into one of the
+directories listed in <tt class="literal">@INC</tt>. In this example,
+we'll use <em class="emphasis">/home/httpd/perl</em>,
+which we added to <tt class="literal">@INC</tt>. Since we want to call this
+package <tt class="literal">Book::Cookie</tt>, we'll put
+<em class="emphasis">Cookie.pm</em> into the
+<em class="emphasis">/home/httpd/perl/Book/</em> directory.</p>
+
+<p>The changed code is in <a href="ch06_07.html#pmodperl-CHP-6-EX-19">Example 6-19</a>. As the
+subroutines were left unmodified from the original script, they
+aren't reproduced here (so you'll
+see the differences more clearly.)</p>
+
+<a name="pmodperl-CHP-6-EX-19" /><div class="example">
+<h4 class="objtitle">Example 6-19. Book/Cookie.pm</h4>
+<blockquote><pre class="code">package Book::Cookie;
+use Apache::Constants qw(:common);
+
+use strict;
+use CGI;
+use CGI::Cookie;
+use vars qw($q $switch $status $sessionID);
+
+sub handler {
+    my $r = shift;
+         
+    init( );
+    print_header( );
+    print_status( );
+    
+    return OK;
+}
+
+# all subroutines unchanged
+
+1;</pre></blockquote>
+</div>
+
+<p>Two lines have been added to the beginning of the code:</p>
+
+<blockquote><pre class="code">package Book::Cookie;
+use Apache::Constants qw(:common);</pre></blockquote>
+
+<p>The first line declares the package name, and the second line imports
+constants commonly used in mod_perl handlers to return status codes.
+In our case, we use the <tt class="literal">OK</tt> constant only when
+returning from the <tt class="literal">handler( )</tt>subroutine.</p>
+
+<p>The following code is left unchanged:</p>
+
+<blockquote><pre class="code">use strict;
+use CGI;
+use CGI::Cookie;
+use vars qw($q $switch $status $sessionID);</pre></blockquote>
+
+<p>We add some new code around the subroutine calls:</p>
+
+<blockquote><pre class="code">sub handler {
+    my $r = shift;
+
+    init( );
+    print_header( );
+    print_status( );
+
+    return OK;
+}</pre></blockquote>
+
+<p>Each content handler (and any other handler) should begin with a
+subroutine called <tt class="literal">handler( )</tt>. This subroutine is
+called when a request's URI starts with
+<em class="emphasis">/test/cookie</em>, as per our configuration. You can
+choose a different subroutine name&#8212;for example,
+<tt class="literal">execute( )</tt>&#8212;but then you must explicitly
+specify that name in the configuration directives in the following
+way:</p>
+
+<blockquote><pre class="code">PerlModule Book::Cookie
+&lt;Location /test/cookie&gt;
+    SetHandler perl-script
+    PerlHandler Book::Cookie::execute
+&lt;/Location&gt;</pre></blockquote>
+
+<p>We will use the default name, <tt class="literal">handler( )</tt>.</p>
+
+<p>The <tt class="literal">handler( )</tt>subroutine is just like any other
+subroutine, but generally it has the following structure:</p>
+
+<blockquote><pre class="code">sub handler {
+    my $r = shift;
+
+    # the code
+
+    # status (OK, DECLINED or else)
+    return OK;
+}</pre></blockquote>
+
+<p>First, we retrieve a reference to the request object by shifting it
+from <tt class="literal">@_</tt> and assigning it to the
+<tt class="literal">$r</tt> variable. We'll need this a
+bit later.</p>
+
+<p>Second, we write the code that processes the request.</p>
+
+<p>Third, we return the status of the execution. There are many possible
+statuses; the most commonly used are <tt class="literal">OK</tt> and
+<tt class="literal">DECLINED</tt>. <tt class="literal">OK</tt> tells the server
+that the handler has completed the request phase to which it was
+assigned. <tt class="literal">DECLINED</tt> means the opposite, in which
+case another handler will process this request.
+<tt class="literal">Apache::Constants</tt> exports these and other commonly
+used status codes.</p>
+
+<p>In our example, all we had to do was to wrap the three calls:</p>
+
+<blockquote><pre class="code">init( );
+print_header( );
+print_status( );</pre></blockquote>
+
+<p>inside the <tt class="literal">handler( )</tt>skeleton:</p>
+
+<blockquote><pre class="code">sub handler {
+    my $r = shift;
+
+    return OK;
+}</pre></blockquote>
+
+<p>Last, we need to add <tt class="literal">1;</tt> at the end of the module,
+as we do with any Perl module. This ensures that
+<tt class="literal">PerlModule</tt> doesn't fail when it
+tries to load <tt class="literal">Book::Cookie</tt>.</p>
+
+<p>To summarize, we took the original script's code and
+added the following seven lines:</p>
+
+<blockquote><pre class="code">package Book::Cookie;
+use Apache::Constants qw(:common);
+
+sub handler {
+    my $r = shift;
+
+    return OK;
+}
+1;</pre></blockquote>
+
+<p>and we now have a fully-fledged Perl <a name="pmodperl-CHP-6-ITERM-4501" /><a name="pmodperl-CHP-6-ITERM-4502" />content<a name="pmodperl-CHP-6-ITERM-4503" /><a name="pmodperl-CHP-6-ITERM-4504" /><a name="pmodperl-CHP-6-ITERM-4505" /> handler.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-7.3" /><div class="sect2">
+<h3 class="sect2">6.7.3. Converting to use the mod_perl API and mod_perl-Specific Modules</h3>
+
+<p>Now that we<a name="pmodperl-CHP-6-ITERM-4506" /><a name="pmodperl-CHP-6-ITERM-4507" /><a name="pmodperl-CHP-6-ITERM-4508" /> have a complete
+<tt class="literal">PerlHandler</tt>, let's convert it to
+use the mod_perl API and mod_perl-specific modules. First, this may
+give us better performance where the internals of the API are
+implemented in C. Second, this unleashes the full power of Apache
+provided by the mod_perl API, which is only partially available in
+the mod_cgi-compatible modules.</p>
+
+<p>We are going to replace
+<tt class="literal">CGI.pm</tt><a name="pmodperl-CHP-6-ITERM-4509" /><a name="pmodperl-CHP-6-ITERM-4510" />
+and <tt class="literal">CGI::Cookie</tt><a name="pmodperl-CHP-6-ITERM-4511" /><a name="pmodperl-CHP-6-ITERM-4512" /> with their mod_perl-specific
+equivalents: <tt class="literal">Apache::Request</tt> and
+<tt class="literal">Apache::Cookie</tt>, respectively. These two modules
+are written in C with the <tt class="literal">XS</tt> interface to Perl, so
+code that uses these modules heavily runs much faster.</p>
+
+<p><tt class="literal">Apache::Request</tt> has an API similar to
+<tt class="literal">CGI</tt>'s, and
+<tt class="literal">Apache::Cookie</tt> has an API similar to
+<tt class="literal">CGI::Cookie</tt>'s. This makes porting
+straightforward. Essentially, we just replace:</p>
+
+<blockquote><pre class="code">use CGI;
+$q = new CGI;</pre></blockquote>
+
+<p>with:</p>
+
+<blockquote><pre class="code">use Apache::Request ( );
+$q = Apache::Request-&gt;new($r);</pre></blockquote>
+
+<p>And we replace:</p>
+
+<blockquote><pre class="code">use CGI::Cookie ( );
+my $cookie = CGI::Cookie-&gt;new(...)</pre></blockquote>
+
+<p>with:</p>
+
+<blockquote><pre class="code">use Apache::Cookie ( );
+my $cookie = Apache::Cookie-&gt;new($r, ...);</pre></blockquote>
+
+<p><a href="ch06_07.html#pmodperl-CHP-6-EX-20">Example 6-20</a> is the new code for
+<tt class="literal">Book::Cookie2</tt>.</p>
+
+<a name="pmodperl-CHP-6-EX-20" /><div class="example">
+<h4 class="objtitle">Example 6-20. Book/Cookie2.pm</h4>
+<blockquote><pre class="code">package Book::Cookie2;
+use Apache::Constants qw(:common);
+
+use strict;
+use Apache::Request ( );
+use Apache::Cookie ( );
+use vars qw($r $q $switch $status $sessionID);
+
+sub handler {
+    $r = shift;
+
+    init( );
+    print_header( );
+    print_status( );
+
+    return OK;
+}
+
+sub init {
+
+    $q = Apache::Request-&gt;new($r);
+    $switch = $q-&gt;param("switch") ? 1 : 0;
+  
+    my %cookies = Apache::Cookie-&gt;fetch;
+    $sessionID = exists $cookies{'sessionID'} 
+        ? $cookies{'sessionID'}-&gt;value : '';
+  
+    # 0 = not running, 1 = running
+    $status = $sessionID ? 1 : 0;
+    # switch status if asked to
+    $status = !$status if $switch;
+  
+    if ($status) {
+        # preserve sessionID if it exists or create a new one
+        $sessionID ||= generate_sessionID( ) if $status;
+    } else {
+        # delete the sessionID
+        $sessionID = '';
+    }
+} 
+
+sub print_header {
+    my $c = Apache::Cookie-&gt;new(
+         $r,
+         -name    =&gt; 'sessionID',
+         -value   =&gt; $sessionID,
+         -expires =&gt; '+1h');
+    
+    # Add a Set-Cookie header to the outgoing headers table
+    $c-&gt;bake;
+
+    $r-&gt;send_http_header('text/html');
+} 
+
+# print the current Session status and a form to toggle the status
+sub print_status {
+    
+    print qq{&lt;html&gt;&lt;head&gt;&lt;title&gt;Cookie&lt;/title&gt;&lt;/head&gt;&lt;body&gt;};
+    
+    print "&lt;B&gt;Status:&lt;/B&gt; ",
+        $status
+            ? "Session is running with ID: $sessionID"
+            : "No session is running";
+  
+    # change status form
+    my $button_label = $status ? "Stop" : "Start";
+    print qq{&lt;hr&gt;
+       &lt;form&gt;
+         &lt;input type=submit name=switch value=" $button_label "&gt; 
+       &lt;/form&gt;
+            };
+  
+    print qq{&lt;/body&gt;&lt;/html&gt;};
+
+} 
+ 
+# replace with a real session ID generator
+sub generate_sessionID {
+    return scalar localtime;
+}
+
+1;</pre></blockquote>
+</div>
+
+<p>The only other changes are in the <tt class="literal">print_header( )</tt>
+function. Instead of passing the cookie code to
+<tt class="literal">CGI</tt>'s <tt class="literal">header(
+)</tt> function to return a proper HTTP header, like this:</p>
+
+<blockquote><pre class="code">print $q-&gt;header(
+   -type   =&gt; 'text/html',
+   -cookie =&gt; $c);</pre></blockquote>
+
+<p>we do it in two stages. First, the following line adds a
+<tt class="literal">Set-Cookie</tt> header to the outgoing headers table:</p>
+
+<blockquote><pre class="code">$c-&gt;bake;</pre></blockquote>
+
+<p>Then this line sets the <tt class="literal">Content-Type</tt> header to
+<em class="emphasis">text/html</em> and sends out the whole HTTP header:</p>
+
+<blockquote><pre class="code">$r-&gt;send_http_header('text/html');</pre></blockquote>
+
+<p>The rest of the code is unchanged.</p>
+
+<p>The last thing we need to do is add the following snippet to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Book::Cookie2
+&lt;Location /test/cookie2&gt;
+    SetHandler perl-script
+    PerlHandler Book::Cookie2
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now the magic URI that will trigger the above code execution will be
+one starting with <em class="emphasis">/test/cookie2</em>. We save the
+code in the file
+<em class="emphasis">/home/httpd/perl/Book/Cookie2.pm</em>, since we have
+called this package <tt class="literal">Book::Cookie2</tt>.</p>
+
+<p>As you've seen, converting well-written CGI code
+into mod_perl handler code is straightforward. Taking advantage of
+mod_perl-specific features and modules is also generally simple. Very
+little code needs to be changed to convert a script.</p>
+
+<p>Note that to make the demonstration simple to follow, we
+haven't changed the style of the original package.
+But by all means consider doing that when porting real code: use
+lexicals instead of globals, apply mod_perl API functions where
+<a name="pmodperl-CHP-6-ITERM-4513" /><a name="pmodperl-CHP-6-ITERM-4514" /><a name="pmodperl-CHP-6-ITERM-4515" />applicable, etc.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">6.6. Apache::Registry Specifics</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.8. Loading and Reloading Modules</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

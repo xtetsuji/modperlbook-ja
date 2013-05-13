@@ -1,0 +1,91 @@
+<html><head><title>Symbolic Links Lookup (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch11_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch11_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">11.7. Symbolic Links Lookup</h2>
+
+<p>The two options<a name="pmodperl-CHP-11-ITERM-4906" /><a name="pmodperl-CHP-11-ITERM-4907" />
+<tt class="literal">FollowSymLinks</tt><a name="pmodperl-CHP-11-ITERM-4908" />
+and
+<tt class="literal">SymLinksIfOwnerMatch</tt><a name="pmodperl-CHP-11-ITERM-4909" />
+are designed for the user's security. Unless
+<tt class="literal">FollowSymLinks</tt> is enabled, symbolic links will not
+be followed by the server. If <tt class="literal">SymLinksIfOwnerMatch</tt>
+is enabled, the server will follow symbolic links only when the
+target file or directory is owned by the same user as the link. Note
+that the two options are ignored if set within a
+<tt class="literal">&lt;Location&gt;</tt> block.</p>
+
+<p>This protection costs a little overhead for each request. Wherever in
+your URL-space you <em class="emphasis">do not</em> have this setting:</p>
+
+<blockquote><pre class="code">Options FollowSymLinks</pre></blockquote>
+
+<p>or you <em class="emphasis">do</em> have this setting:</p>
+
+<blockquote><pre class="code">Options SymLinksIfOwnerMatch</pre></blockquote>
+
+<p>Apache will have to issue an extra call to <tt class="literal">lstat(
+)</tt> per directory segment in the path to the file. For
+example, if you have:</p>
+
+<blockquote><pre class="code">DocumentRoot /home/httpd/docs
+&lt;Directory /&gt;
+    Options SymLinksIfOwnerMatch
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>and a request is made for the URI <em class="emphasis">/index.html</em>,
+Apache will perform <tt class="literal">lstat( )</tt> on these three
+directories and one file:</p>
+
+<blockquote><pre class="code">/home
+/home/httpd
+/home/httpd/docs
+/home/httpd/docs/index.html</pre></blockquote>
+
+<p>The deeper the file is located in the filesystem, the more
+<tt class="literal">lstat( )</tt>system calls will be made. The results of
+these <tt class="literal">lstat( )</tt> calls are never cached, so they
+will occur for every single request. If you really want the
+symbolic-links security checking, you can do something like this:</p>
+
+<blockquote><pre class="code">DocumentRoot /home/httpd/docs
+&lt;Directory /&gt;
+    Options FollowSymLinks
+&lt;/Directory&gt;
+&lt;Directory /home/httpd/docs&gt;
+    Options -FollowSymLinks +SymLinksIfOwnerMatch
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>This at least avoids the extra checks for the
+<tt class="literal">DocumentRoot</tt> path. Note that
+you'll need to add similar sections if you have any
+<tt class="literal">Alias</tt> or <tt class="literal">RewriteRule</tt> paths
+outside of your document root. For highest performance, and no
+symbolic link protection, set the <tt class="literal">FollowSymLinks</tt>
+option everywhere, and never set the
+<tt class="literal">SymLinksIfOwnerMatch</tt> option.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch11_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch11_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">11.6. Reducing the Number of stat( ) Calls Made by Apache</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">11.8. Disabling DNS Resolution</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

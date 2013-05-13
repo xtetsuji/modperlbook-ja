@@ -1,0 +1,241 @@
+<html><head><title>Putting Everything Together (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appe_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appe_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">E.6. Putting Everything Together</h2>
+
+<p>The last key piece to AxKit is how everything is tied together. We
+have a clean separation of logic, presentation, and content, but
+we've only briefly introduced using processing
+instructions for setting up the way a file gets processed through the
+AxKit engine. A generally better and more scalable way to work is to
+use the AxKit configuration directives to specify how to process
+files through the system.</p>
+
+<p>Before introducing the configuration directives in detail, it is
+worth looking at how the W3C sees the evolving
+<a name="pmodperl-APP-E-ITERM-6591" />web of new media
+types. The HTML 4.0 specification defines eight media types:</p>
+
+<dl>
+<dt><i><em class="emphasis">screen</em></tt></i></dt>
+<dd>
+The default media type, for <a name="pmodperl-APP-E-ITERM-6592" />normal web browsers.</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">tty</em></tt></i></dt>
+<dd>
+For <em class="emphasis">tty</em>-based <a name="pmodperl-APP-E-ITERM-6593" />devices (e.g., the Lynx web browser).</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">printer</em></tt></i></dt>
+<dd>
+For printers <a name="pmodperl-APP-E-ITERM-6594" />requesting content directly (rather than
+for printable versions of a HTML page). Also for PDF or other
+paginated content.</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">handheld</em></tt></i></dt>
+<dd>
+For handheld devices. You <a name="pmodperl-APP-E-ITERM-6595" />need to distinguish between WAP, cHTML, and
+other handheld formats using styles, because the W3C did not make
+this distinction when it defined the media types.</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">braille</em></tt></i></dt>
+<dd>
+For braille <a name="pmodperl-APP-E-ITERM-6596" />interpreters.</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">tv</em></tt></i></dt>
+<dd>
+For devices with a TV-based <a name="pmodperl-APP-E-ITERM-6597" />browser, such as
+Microsoft's WebTV and Sega's
+Dreamcast.</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">projection</em></tt></i></dt>
+<dd>
+For projectors or <a name="pmodperl-APP-E-ITERM-6598" />presentations.</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">aural</em></tt></i></dt>
+<dd>
+For devices that can <a name="pmodperl-APP-E-ITERM-6599" />convert the output to spoken words, such as
+VoiceXML.</p>
+</dd>
+
+</dl>
+
+<p>AxKit allows you to plug in modules that can detect these different
+media types, so you can deliver the same content in different ways.
+For finer control, you can use named stylesheets. In named
+stylesheets, you might have a printable page output to the
+<em class="emphasis">screen</em> media type. Named stylesheets are
+<a name="pmodperl-APP-E-ITERM-6600" />seen on many magazine sites (e.g.,
+<a href="http://take23.org/">http://take23.org/</a>) for
+displaying multi-page articles.</p>
+
+<p>For example, to map all files with the extension
+<em class="emphasis">.dkb</em> to a DocBook stylesheet, you would use the
+following directives:</p>
+
+<blockquote><pre class="code">&lt;Files *.dkb&gt;
+AxAddProcessor text/xsl /stylesheet/docbook.xsl
+&lt;/Files&gt;</pre></blockquote>
+
+<p>Now if you wanted to display those DocBook files on WebTV as well as
+ordinary web browsers, but you wanted to use a different stylesheet
+for WebTV, you would use:</p>
+
+<blockquote><pre class="code">&lt;Files *.dkb&gt;
+  &lt;AxMediaType tv&gt;
+    AxAddProcessor text/xsl /stylesheets/docbook_tv.xsl
+  &lt;/AxMediaType&gt;
+  &lt;AxMediaType screen&gt;
+    AxAddProcessor text/xsl /stylesheets/docbook_screen.xsl
+  &lt;/AxMediaType&gt;
+&lt;/Files&gt;</pre></blockquote>
+
+<p>Now let's extend that to chained transformations.
+Let's say you want to build up a table of contents
+the same way in both views. One way you can do it is to modularize
+the stylesheet. However, it's also possible to chain
+transformations in AxKit, simply by defining more than one processor
+for a particular resource:</p>
+
+<blockquote><pre class="code">&lt;Files *.dkb&gt;
+  AxAddProcessor text/xsl /stylesheets/docbook_toc.xsl
+  &lt;AxMediaType tv&gt;
+    AxAddProcessor text/xsl /stylesheets/docbook_tv.xsl
+  &lt;/AxMediaType&gt;
+  &lt;AxMediaType screen&gt;
+    AxAddProcessor text/xsl /stylesheets/docbook_screen.xsl
+  &lt;/AxMediaType&gt;
+&lt;/Files&gt;</pre></blockquote>
+
+<p>Now the TV-based browsers will see the DocBook files transformed by
+<em class="emphasis">docbook_toc.xsl</em>, with the output of that
+transformation processed by <em class="emphasis">docbook_tv.xsl</em>.</p>
+
+<p>This is exactly how we would build up an application using XSP:</p>
+
+<blockquote><pre class="code">&lt;Files *.xsp&gt;
+  AxAddProcessor application/x-xsp .
+  &lt;AxMediaType tv&gt;
+    AxAddProcessor text/xsl /stylesheets/page2tv.xsl
+  &lt;/AxMediaType&gt;
+  &lt;AxMediaType screen&gt;
+    AxAddProcessor text/xsl /stylesheets/page2html.xsl
+  &lt;/AxMediaType&gt;
+&lt;/Files&gt;</pre></blockquote>
+
+<p>This resolves the earlier issue we had where the XSP did not output
+HTML, but something entirely different. Now we can see
+why&#8212;because this way we can build dynamic web applications that
+work easily on different devices!</p>
+
+<p>There are four other configuration directives similar to
+<tt class="literal">AxAddProcessor</tt>. They take two additional
+parameters: one that specifies a particular way to examine the file
+being processed and one to <a name="pmodperl-APP-E-ITERM-6601" /><a name="pmodperl-APP-E-ITERM-6602" />facilitate
+the match. The directives are:</p>
+
+<dl>
+<dt><b><tt class="literal">AxAddRootProcessor</tt></b></dt>
+<dd>
+Takes a root element name to match the first (root) element in the
+XML document. For example:</p>
+<blockquote><pre class="code">AxAddRootProcessor text/xsl article.xsl article</pre></blockquote>
+
+<p>processes all XML files with a root element of
+<tt class="literal">&lt;article&gt;</tt> with the
+<em class="emphasis">article.xsl</em> stylesheet.</p>
+
+</dd>
+
+
+<dt><b><tt class="literal">AxAddDocTypeProcessor</tt></b></dt>
+<dd>
+Processes XML documents<a name="pmodperl-APP-E-ITERM-6603" /><a name="pmodperl-APP-E-ITERM-6604" />
+with the given XML public identifier.</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">AxAddDTDProcessor</tt></b></dt>
+<dd>
+Processes all XML documents <a name="pmodperl-APP-E-ITERM-6605" /><a name="pmodperl-APP-E-ITERM-6606" />that
+use the DTD given as the third option.</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">AxAddURIProcessor</tt></b></dt>
+<dd>
+Processes all resources at<a name="pmodperl-APP-E-ITERM-6607" /><a name="pmodperl-APP-E-ITERM-6608" />
+the matching URI (which is a Perl regex).</p>
+
+<p>This option was added for two reasons: because the
+<tt class="literal">&lt;LocationMatch&gt;</tt> directive is not allowed in
+an <em class="emphasis">.htaccess</em> file, and because the built-in
+Apache regular expressions are not powerful enough&#8212;for example,
+they cannot do negative matches.</p>
+</dd>
+
+</dl>
+
+<p>Finally, the <tt class="literal">&lt;AxStyleName&gt;</tt> block allows you
+to specify named stylesheets. An example that implements
+printable/default views of a document might be:</p>
+
+<blockquote><pre class="code">&lt;AxMediaType screen&gt;
+  &lt;AxStyleName #default&gt;
+    AxAddProcessor text/xsl /styles/article_html.xsl
+  &lt;/AxStyleName&gt;
+  &lt;AxStyleName printable&gt;
+    AxAddProcessor text/xsl /styles/article_html_print.xsl
+  &lt;/AxStyleName&gt;
+&lt;/AxMediaType&gt;</pre></blockquote>
+
+
+<p>By mixing the various embedded tags, it is possible to build up a
+very feature-rich site map of how your files get processed.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appe_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appe_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">E.5. XSLT</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">E.7. More Reasons to Use AxKit</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

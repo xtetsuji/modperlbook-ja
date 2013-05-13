@@ -1,0 +1,550 @@
+<html><head><title>Three-Tier Server Scheme: Development, Staging, and Production (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch05_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">5.9. Three-Tier Server Scheme: Development, Staging, and Production</h2>
+
+<p>To facilitate<a name="pmodperl-CHP-5-ITERM-4156" /><a name="pmodperl-CHP-5-ITERM-4157" /><a name="pmodperl-CHP-5-ITERM-4158" /> transfer from the development
+server to the production server, the code should be free of any
+server-dependent variables. This will ensure that modules and scripts
+can be moved from one directory on the development machine to another
+directory (possibly in a different path) on the production machine
+without problems.</p>
+
+<p>If two simple rules are followed, <a name="pmodperl-CHP-5-ITERM-4159" />server dependencies can
+be safely isolated and, as far as the code goes, effectively ignored.
+First, never use the server name (since development and production
+machines have different names), and second, never use explicit base
+directory names in the code. Of course, the code will often need to
+refer to the server name and directory names, but we can centralize
+them in server-wide configuration files (as seen in a moment).</p>
+
+<p>By trial and error, we have found that a three-tier (development,
+staging, and production) scheme works best:</p>
+
+<dl>
+<dt><i><em class="emphasis">Development</em></tt> </i></dt>
+<dd>
+The development <a name="pmodperl-CHP-5-ITERM-4160" />tier
+might include a single machine or several machines (for example, if
+there are many developers and each one prefers to develop on his own
+machine).</p>
+</dd>
+
+
+
+<dt><i><em class="emphasis">Staging</em></tt></i></dt>
+<dd>
+The <a name="pmodperl-CHP-5-ITERM-4161" />staging
+tier is generally a single machine that is basically identical to the
+production machine and serves as a backup machine in case the
+production machine needs an immediate replacement (for example,
+during maintenance). This is the last station where the code is
+staged before it is uploaded to the production machine.</p>
+
+<p>The staging machine does not have to be anywhere near as powerful as
+the production server if finances are stretched. The staging machine
+is generally used only for staging; it does not require much
+processor power or memory since only a few developers are likely to
+use it simultaneously. Even if several developers are using it at the
+same time, the load will be very low, unless of course benchmarks are
+being run on it along with programs that create a load similar to
+that on the production server (in which case the staging machine
+should have hardware identical to that of the production machine).</p>
+
+</dd>
+
+
+<dt><i><em class="emphasis">Production</em></tt></i></dt>
+<dd>
+The <a name="pmodperl-CHP-5-ITERM-4162" />production
+tier might include a single machine or a huge cluster comprising many
+machines.</p>
+</dd>
+
+</dl>
+
+<p>You can also have the staging and production servers running on the
+same machine. This is not ideal, especially if the production server
+needs every megabyte of memory and every CPU cycle so that it can
+cope with high request rates. But when a dedicated machine just for
+staging purposes is prohibitively expensive, using the production
+server for staging purposes is better than having no staging area at
+all.</p>
+
+<p>Another possibility is to have the staging environment on the
+development machine.</p>
+
+<p>So how does this three-tier scheme work?</p>
+
+<ul><li>
+<p>Developers write the code on their machines (development tier) and
+test that it works as expected. These machines should be set up with
+an environment as similar to the production server as possible. A
+manageable and simple approach is to have each developer running his
+own local Apache server on his own machine. If the code relies on a
+database, the ideal scenario is for each developer to have access to
+a development database account and server, possibly even on their own
+machines.</p>
+</li><li>
+<p>The pre-release manager installs the code on the staging tier machine
+and stages it. Whereas developers can change their own
+<em class="emphasis">httpd.conf</em></tt> files on their own machines, the
+pre-release manager will make the necessary changes on the staging
+machine in accordance with the instructions provided by the
+developers.</p>
+</li><li>
+<p>The release manager installs the code on the production tier
+machine(s), tests it, and monitors for a while to ensure that things
+work as expected.</p>
+</li></ul>
+<p>Of course, on some projects, the developers, the pre-release
+managers, and the release managers can actually be the same person.
+On larger projects, where different people perform these roles and
+many machines are involved, preparing upgrade packages with a
+packaging tool such as RPM becomes even more important, since it
+makes it far easier to keep every machine's
+configuration and software in sync.</p>
+
+<p>Now that we have described the theory behind the three-tier approach,
+let us see how to have all the code independent of the machine and
+base directory names.</p>
+
+<p>Although the example shown below is simple, the real configuration
+may be far more complex; however, the principles apply regardless of
+complexity, and it is straightforward to build a simple initial
+configuration into a configuration that is sufficient for more
+complex environments.</p>
+
+<p>Basically, what we need is the name of the machine, the port on which
+the server is running (assuming that the port number is not hidden
+with the help of a proxy server), the root directory of the web
+server-specific files, the base directories of static objects and
+Perl scripts, the appropriate relative and full URIs for these base
+directories, and a support email address. This amounts to 10
+variables.</p>
+
+<p>We prepare a minimum of three <tt class="literal">Local::Config</tt>
+packages, one per tier, each suited to a particular
+tier's environment. As mentioned earlier, there can
+be more than one machine per tier and even more than one web server
+running on the same machine. In those cases, each web server will
+have its own <tt class="literal">Local::Config</tt> package. The total
+number of <tt class="literal">Local::Config</tt> packages will be equal to
+the number of web servers.</p>
+
+<p>For example, for the
+<a name="pmodperl-CHP-5-ITERM-4163" /><a name="pmodperl-CHP-5-ITERM-4164" />development tier, the configuration
+package might look like <a href="ch05_09.html#pmodperl-CHP-5-EX-3">Example 5-3</a>.</p>
+
+<a name="pmodperl-CHP-5-EX-3" /><div class="example">
+<h4 class="objtitle">Example 5-3. Local/Config.pm</h4>
+<blockquote><pre class="code">package Local::Config;
+use strict;
+use constant SERVER_NAME      =&gt; 'dev.example.com';
+use constant SERVER_PORT      =&gt; 8000;
+use constant ROOT_DIR         =&gt; '/home/userfoo/www';
+use constant CGI_BASE_DIR     =&gt; '/home/userfoo/www/perl';
+use constant DOC_BASE_DIR     =&gt; '/home/userfoo/www/docs';
+use constant CGI_BASE_URI     =&gt; 'http://dev.example.com:8000/perl';
+use constant DOC_BASE_URI     =&gt; 'http://dev.example.com:8000';
+use constant CGI_RELATIVE_URI =&gt; '/perl';
+use constant DOC_RELATIVE_URI =&gt; '';
+use constant SUPPORT_EMAIL    =&gt; 'stas@example.com';
+1;</pre></blockquote>
+</div>
+
+<p>The constants have uppercase names, in accordance with Perl
+convention.</p>
+
+<p>The configuration shows that the name of the development machine is
+<em class="emphasis">dev.example.com</em></tt>, listening to port 8000. Web
+server-specific files reside under the
+<em class="emphasis">/home/userfoo/www</em></tt> directory. Think of this as a
+directory <em class="emphasis">www</em></tt> that resides under user
+<em class="emphasis">userfoo</em></tt>'s home directory,
+<em class="emphasis">/home/userfoo</em></tt>. A developer whose username is
+<em class="emphasis">userbar</em></tt> might use
+<em class="emphasis">/home/userbar/www</em></tt> as the development root
+directory.</p>
+
+<p>If there is another web server running on the same machine, create
+another <tt class="literal">Local::Config</tt> with a different port number
+and probably a different root directory.</p>
+
+<p>To avoid duplication of identical parts of the configuration, the
+package can be rewritten as shown in <a href="ch05_09.html#pmodperl-CHP-5-EX-4">Example 5-4</a>.</p>
+
+<a name="pmodperl-CHP-5-EX-4" /><div class="example">
+<h4 class="objtitle">Example 5-4. Local/Config.pm</h4>
+<blockquote><pre class="code">package Local::Config;
+use strict;
+use constant DOMAIN_NAME      =&gt; 'example.com';
+use constant SERVER_NAME      =&gt; 'dev.' . DOMAIN_NAME;
+use constant SERVER_PORT      =&gt; 8000;
+use constant ROOT_DIR         =&gt; '/home/userfoo/www';
+use constant CGI_BASE_DIR     =&gt; ROOT_DIR . '/perl';
+use constant DOC_BASE_DIR     =&gt; ROOT_DIR . '/docs';
+use constant CGI_BASE_URI     =&gt; 'http://' . SERVER_NAME . ':' . SERVER_PORT
+                                 . '/perl';
+use constant DOC_BASE_URI     =&gt; 'http://' . SERVER_NAME . ':' . SERVER_PORT;
+use constant CGI_RELATIVE_URI =&gt; '/perl';
+use constant DOC_RELATIVE_URI =&gt; '';
+use constant SUPPORT_EMAIL    =&gt; 'stas@' . DOMAIN_NAME;
+1;</pre></blockquote>
+</div>
+
+<p>Reusing constants that were previously defined reduces the risk of
+making a mistake. In the original file, several lines need to be
+edited if the server name is changed, but in this new version only
+one line requires editing, eliminating the risk of your forgetting to
+change a line further down the file. All the <tt class="literal">use
+constant</tt>statements are executed at compile time, in the
+order in which they are specified. The <tt class="literal">constant</tt>
+pragma ensures that any attempt to change these variables in the code
+leads to an error, so they can be relied on to be correct. (Note that
+in certain contexts&#8212;e.g., when they're used as
+hash keys&#8212;Perl can misunderstand the use of constants. The
+solution is to either prepend <tt class="literal">&amp;</tt> or append
+<tt class="literal">( )</tt>, so <tt class="literal">ROOT_DIR</tt> would become
+either <tt class="literal">&amp;ROOT_DIR</tt> or <tt class="literal">ROOT_DIR(
+)</tt>.)</p>
+
+<p>Now, when the code needs to access the server's
+global configuration, it needs to refer only to the variables in this
+module. For example, in an application's
+configuration file, you can create a dynamically generated
+configuration, which will change from machine to machine without your
+needing to touch any code (see <a href="ch05_09.html#pmodperl-CHP-5-EX-5">Example 5-5</a>).</p>
+
+<a name="pmodperl-CHP-5-EX-5" /><div class="example">
+<h4 class="objtitle">Example 5-5. App/Foo/Config.pm</h4>
+<blockquote><pre class="code">package App::Foo::Config;
+
+use Local::Config ( );
+use strict;
+use vars qw($CGI_URI $CGI_DIR);
+
+# directories and URIs of the App::Foo CGI project
+$CGI_URI = $Local::Config::CGI_BASE_URI . '/App/Foo';
+$CGI_DIR = $Local::Config::CGI_BASE_DIR . '/App/Foo';
+1;</pre></blockquote>
+</div>
+
+<p>Notice that we used fully qualified variable names instead of
+importing these global configuration variables into the
+caller's namespace. This saves a few bytes of
+memory, and since <tt class="literal">Local::Config</tt> will be loaded by
+many modules, these savings will quickly add up. Programmers used to
+programming Perl outside the mod_perl environment might be tempted to
+add Perl's exporting mechanism to
+<tt class="literal">Local::Config</tt> and thereby save themselves some
+typing. We prefer not to use <tt class="literal">Exporter.pm</tt> under
+mod_perl, because we want to save as much memory as possible. (Even
+though the amount of memory overhead for using an exported name is
+small, this must be multiplied by the number of concurrent users of
+the code, which could be hundreds or even thousands on a busy site
+and could turn a small memory overhead into a large one.)</p>
+
+<p>For the <a name="pmodperl-CHP-5-ITERM-4165" /><a name="pmodperl-CHP-5-ITERM-4166" />staging tier, a similar
+<tt class="literal">Local::Config</tt> module with just a few changes (as
+shown in <a href="ch05_09.html#pmodperl-CHP-5-EX-6">Example 5-6</a>) is necessary.</p>
+
+<a name="pmodperl-CHP-5-EX-6" /><div class="example">
+<h4 class="objtitle">Example 5-6. Local/Config.pm</h4>
+<blockquote><pre class="code">package Local::Config;
+use strict;
+use constant DOMAIN_NAME      =&gt; 'example.com';
+use constant SERVER_NAME      =&gt; 'stage.' . DOMAIN_NAME;
+use constant SERVER_PORT      =&gt; 8000;
+use constant ROOT_DIR         =&gt; '/home';
+use constant CGI_BASE_DIR     =&gt; ROOT_DIR . '/perl';
+use constant DOC_BASE_DIR     =&gt; ROOT_DIR . '/docs';
+use constant CGI_BASE_URI     =&gt; 'http://' . SERVER_NAME . ':' . SERVER_PORT
+                                 . '/perl';
+use constant DOC_BASE_URI     =&gt; 'http://' . SERVER_NAME . ':' . SERVER_PORT;
+use constant CGI_RELATIVE_URI =&gt; '/perl';
+use constant DOC_RELATIVE_URI =&gt; '';
+use constant SUPPORT_EMAIL    =&gt; 'stage@' . DOMAIN_NAME;
+1;</pre></blockquote>
+</div>
+
+<p>We have named our staging tier machine
+<em class="emphasis">stage.example.com</em></tt>. Its root directory is
+<em class="emphasis">/home</em></tt>.</p>
+
+<p>The production<a name="pmodperl-CHP-5-ITERM-4167" /><a name="pmodperl-CHP-5-ITERM-4168" /> tier version of
+<tt class="literal">Local/Config.pm</tt> is shown in <a href="ch05_09.html#pmodperl-CHP-5-EX-7">Example 5-7</a>.</p>
+
+<a name="pmodperl-CHP-5-EX-7" /><div class="example">
+<h4 class="objtitle">Example 5-7. Local/Config.pm</h4>
+<blockquote><pre class="code">package Local::Config;
+use strict;
+use constant DOMAIN_NAME      =&gt; 'example.com';
+use constant SERVER_NAME      =&gt; 'www.' . DOMAIN_NAME;
+use constant SERVER_PORT      =&gt; 8000;
+use constant ROOT_DIR         =&gt; '/home/';
+use constant CGI_BASE_DIR     =&gt; ROOT_DIR . '/perl';
+use constant DOC_BASE_DIR     =&gt; ROOT_DIR . '/docs';
+use constant CGI_BASE_URI     =&gt; 'http://' . SERVER_NAME . ':' . SERVER_PORT
+                                 . '/perl';
+use constant DOC_BASE_URI     =&gt; 'http://' . SERVER_NAME . ':' . SERVER_PORT;
+use constant CGI_RELATIVE_URI =&gt; '/perl';
+use constant DOC_RELATIVE_URI =&gt; '';
+use constant SUPPORT_EMAIL    =&gt; 'support@' . DOMAIN_NAME;</pre></blockquote>
+</div>
+
+<p>You can see that the setups of the staging and production machines
+are almost identical. This is only in our example; in reality, they
+can be very different.</p>
+
+<p>The most important point is that the <tt class="literal">Local::Config</tt>
+module from a machine on one tier must <em class="emphasis">never</em></tt> be
+moved to a machine on another tier, since it will break the code. If
+locally built packages are used, the <tt class="literal">Local::Config</tt>
+file can simply be excluded&#8212;this will help to reduce the risk
+of inadvertently copying it.</p>
+
+<p>From now on, when modules and scripts are moved between machines, you
+shouldn't need to worry about having to change
+variables to accomodate the different machines'
+server names and directory layouts. All this is accounted for by the
+<tt class="literal">Local::Config</tt> files.</p>
+
+<p>Some developers prefer to run conversion scripts on the moved code
+that adjust all variables to the local machine. This approach is
+error-prone, since variables can be written in different ways, and it
+may result in incomplete adjustment and broken code. Therefore, the
+conversion approach is not <a name="pmodperl-CHP-5-ITERM-4169" /><a name="pmodperl-CHP-5-ITERM-4170" /><a name="pmodperl-CHP-5-ITERM-4171" />recommended.</p>
+
+<a name="pmodperl-CHP-5-SECT-9.1" /><div class="sect2">
+<h3 class="sect2">5.9.1. Starting a Personal Server for Each Developer</h3>
+
+<p>When just <a name="pmodperl-CHP-5-ITERM-4172" /><a name="pmodperl-CHP-5-ITERM-4173" />one developer is
+working on a specific server, there are fewer problems, because she
+can have complete control over the server. However, often a group of
+developers need to develop mod_perl scripts and modules concurrently
+on the same machine. Each developer wants to have control over the
+server: to be able to stop it, run it in single-server mode, restart
+it, etc. They also want control over the location of log files,
+configuration settings such as <tt class="literal">MaxClients</tt>, and so
+on.</p>
+
+<p>Each developer might have her own desktop machine, but all
+development and staging might be done on a single central development
+machine (e.g., if the developers' personal desktop
+machines run a different operating system from the one running on the
+development and production machines).</p>
+
+<p>One workaround for this problem involves having a few versions of the
+<em class="emphasis">httpd.conf</em></tt> file (each having different
+<tt class="literal">Port</tt>, <tt class="literal">ErrorLog</tt>, etc.
+directives) and forcing each developer's server to
+be started with:</p>
+
+<blockquote><pre class="code">panic% httpd_perl -f /path/to/httpd.conf</pre></blockquote>
+
+<p>However, this means that these files must be kept synchronized when
+there are global changes affecting all developers. This can be quite
+difficult to manage. The solution we use is to have a single
+<em class="emphasis">httpd.conf</em></tt> file and use the
+<em class="emphasis">-Dparameter</em></tt>server startup option to enable a
+specific section of <em class="emphasis">httpd.conf</em></tt> for each
+developer. Each developer starts the server with his or her username
+as an argument. As a result, a server uses both the global settings
+and the developer's private settings.</p>
+
+<p>For example, user <em class="emphasis">stas</em></tt> would start his server
+with:</p>
+
+<blockquote><pre class="code">panic% httpd_perl -Dstas</pre></blockquote>
+
+<p>In <em class="emphasis">httpd.conf</em></tt>, we write:</p>
+
+<blockquote><pre class="code"># Personal development server for stas
+# stas uses the server running on port 8000
+&lt;IfDefine stas&gt;
+    Port 8000
+    PidFile /home/httpd/httpd_perl/logs/httpd.pid.stas
+    ErrorLog /home/httpd/httpd_perl/logs/error_log.stas
+    Timeout 300
+    KeepAlive On
+    MinSpareServers 2
+    MaxSpareServers 2
+    StartServers 1
+    MaxClients 3
+    MaxRequestsPerChild 15
+    # let developers to add their own configuration
+    # so they can override the defaults
+    Include /home/httpd/httpd_perl/conf/stas.conf
+&lt;/IfDefine&gt;
+
+# Personal development server for eric
+# eric uses the server running on port 8001
+&lt;IfDefine eric&gt;
+    Port 8001
+    PidFile /home/httpd/httpd_perl/logs/httpd.pid.eric
+    ErrorLog /home/httpd/httpd_perl/logs/error_log.eric
+    Timeout 300
+    KeepAlive Off
+    MinSpareServers 1
+    MaxSpareServers 2
+    StartServers 1
+    MaxClients 5
+    MaxRequestsPerChild 0
+    Include /home/httpd/httpd_perl/conf/eric.conf
+&lt;/IfDefine&gt;</pre></blockquote>
+
+<p>With this technique, we have separate
+<em class="emphasis">error_log</em></tt><a name="pmodperl-CHP-5-ITERM-4174" /> files and full control over server
+starting and stopping, the number of child processes, and port
+selection for each server. This saves Eric from having to call Stas
+several times a day just to warn, "Stas,
+I'm restarting the server" (a
+ritual in development shops where all developers are using the same
+mod_perl server).</p>
+
+<p>With this technique, developers will need to learn the
+<a name="pmodperl-CHP-5-ITERM-4175" />PIDs of their parent
+<em class="emphasis">httpd_perl</em></tt> processes. For user
+<em class="emphasis">stas</em></tt>, this can be found in
+<em class="emphasis">/home/httpd/httpd_perl/logs/httpd.pid.stas</em></tt>. To
+make things even easier, we change the <em class="emphasis">apachectl</em></tt>
+script to do the work for us. We make a copy for each developer,
+called <em class="emphasis">apachectl.username</em></tt>, and change two lines
+in each script:</p>
+
+<blockquote><pre class="code">PIDFILE=/home/httpd/httpd_perl/logs/httpd.pid.username
+HTTPD='/home/httpd/httpd_perl/bin/httpd_perl -Dusername'</pre></blockquote>
+
+<p>For user <em class="emphasis">stas</em></tt>, we prepare a startup script
+called <em class="emphasis">apachectl.stas</em></tt> and change these two lines
+in the standard <em class="emphasis">apachectl</em></tt>script:</p>
+
+<blockquote><pre class="code">PIDFILE=/home/httpd/httpd_perl/logs/httpd.pid.stas
+HTTPD='/home/httpd/httpd_perl/bin/httpd_perl -Dstas'</pre></blockquote>
+
+<p>Now when user <em class="emphasis">stas</em></tt> wants to stop the server, he
+executes:</p>
+
+<blockquote><pre class="code">panic% apachectl.stas stop</pre></blockquote>
+
+<p>And to start the server, he executes:</p>
+
+<blockquote><pre class="code">panic% apachectl.stas start</pre></blockquote>
+
+<p>And so on, for all other <em class="emphasis">apachectl</em></tt> arguments.</p>
+
+<p>It might seem that we could have used just one
+<em class="emphasis">apachectl</em></tt> and have it determine for itself who
+executed it by checking the UID. But the setuid bit must be enabled
+on this script, because starting the server requires
+<em class="emphasis">root</em></tt> privileges. With the setuid bit set, a
+single <em class="emphasis">apachectl</em></tt>script can be used for all
+developers, but it will have to be modified to include code to read
+the UID of the user executing it and to use this value when setting
+developer-specific paths and variables.</p>
+
+<p>The last thing you need to do is to provide developers with an option
+to run in <a name="pmodperl-CHP-5-ITERM-4176" />single-process mode. For example:</p>
+
+<blockquote><pre class="code">panic% /home/httpd/httpd_perl/bin/httpd_perl -Dstas -X</pre></blockquote>
+
+<p>In addition to making the development process easier, we decided to
+use relative links in all static documents, including calls to
+dynamically generated documents. Since each
+developer's server is running on a different port,
+we have to make it possible for these relative links to reach the
+correct port number.</p>
+
+<p>When typing the URI by hand, it's easy. For example,
+when user <em class="emphasis">stas</em></tt>, whose server is running on port
+8000, wants to access the relative URI
+<em class="emphasis">/test/example</em></tt>, he types
+<em class="emphasis">http://www.example.com:8000/test/example</em></tt> to get
+the generated HTML page. Now if this document includes a link to the
+relative URI <em class="emphasis">/test/example2</em></tt> and
+<em class="emphasis">stas</em></tt> clicks on it, the browser will
+automatically generate a full request
+(<em class="emphasis">http://www.example.com:8000/test/example2</em></tt>) by
+reusing the <em class="emphasis">server:port</em></tt> combination from the
+previous request.</p>
+
+<p>Note that all static objects will be served from the same server as
+well. This may be an acceptable situation for the development
+environment, but if it is not, a slightly more complicated solution
+involving the mod_rewrite Apache module will have to be devised.</p>
+
+<p>To use mod_rewrite, we have to configure our
+<em class="emphasis">httpd_docs</em></tt> (light) server with
+<em class="emphasis">&#8212;enable-module=rewrite</em></tt> and recompile, or
+use DSOs and load and enable the module in
+<em class="emphasis">httpd.conf</em></tt>. In the
+<em class="emphasis">httpd.conf</em></tt> file of our
+<em class="emphasis">httpd_docs</em></tt>server, we have the following code:</p>
+
+<blockquote><pre class="code">RewriteEngine on
+
+# stas's server
+# port = 8000
+RewriteCond  %{REQUEST_URI} ^/perl
+RewriteCond  %{REMOTE_ADDR} 123.34.45.56
+RewriteRule ^(.*)           http://example.com:8000/$1 [P,L]
+
+# eric's server
+# port = 8001
+RewriteCond  %{REQUEST_URI} ^/perl
+RewriteCond  %{REMOTE_ADDR} 123.34.45.57
+RewriteRule ^(.*)           http://example.com:8001/$1 [P,L]
+
+# all the rest
+RewriteCond  %{REQUEST_URI} ^/perl
+RewriteRule ^(.*)           http://example.com:81/$1 [P]</pre></blockquote>
+
+<p>The IP addresses are those of the developer desktop machines (i.e.,
+where they run their web browsers). If an HTML file includes a
+relative URI such as <em class="emphasis">/perl/test.pl</em></tt> or even
+<em class="emphasis">http://www.example.com/perl/test.pl</em></tt>, requests
+for those URIs from user <em class="emphasis">stas</em></tt>'s
+machine will be internally proxied to
+<em class="emphasis">http://www.example.com:8000/perl/test.pl</em></tt>, and
+requests generated from user
+<em class="emphasis">eric</em></tt>'s machine will be proxied
+to <em class="emphasis">http://www.example.com:8001/perl/test.pl</em></tt>.</p>
+
+<p>Another possibility is to use the <tt class="literal">REMOTE_USER</tt>
+variable. This requires that all developers be authenticated when
+they access the server. To do so, change the
+<tt class="literal">RewriteRule</tt>s to match
+<tt class="literal">REMOTE_USER</tt> in the above example.</p>
+
+<p>Remember, the above setup will work only with relative URIs in the
+HTML code. If the HTML output by the code uses full URIs including a
+port other than 80, the requests originating from this HTML code will
+bypass the light server listening on the default port 80 and go
+directly to the server and port <a name="pmodperl-CHP-5-ITERM-4177" /><a name="pmodperl-CHP-5-ITERM-4178" />of the full URI.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch05_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">5.8. Upgrading a Live Server</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">5.10. Web Server Monitoring</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

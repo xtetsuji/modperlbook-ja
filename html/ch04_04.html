@@ -1,0 +1,886 @@
+<html><head><title>Apache Configuration in Perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch04_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch04_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">4.4. Apache Configuration in Perl</h2>
+
+<p>With <tt class="literal">&lt;Perl&gt;</tt> ...
+<tt class="literal">&lt;/Perl&gt;</tt>sections,<a name="pmodperl-CHP-4-ITERM-3956" /><a name="pmodperl-CHP-4-ITERM-3957" />
+you <a name="pmodperl-CHP-4-ITERM-3958" /><a name="pmodperl-CHP-4-ITERM-3959" />can
+configure your server entirely in Perl. It's
+probably not worth it if you have simple configuration files, but if
+you run many virtual hosts or have complicated setups for any other
+reason, <tt class="literal">&lt;Perl&gt;</tt>sections become very handy.
+With <tt class="literal">&lt;Perl&gt;</tt>sections you can easily create
+the configuration on the fly, thus reducing duplication and easing
+maintenance.<a href="#FOOTNOTE-27">[27]</a></p> <blockquote><a name="FOOTNOTE-27" /><p> [27]You may also find that mod_macro is
+useful to simplify the configuration if you have to insert many
+repetitive configuration snippets.</p> </blockquote>
+
+<p>To enable <tt class="literal">&lt;Perl&gt;</tt>sections, build mod_perl
+with:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_SECTIONS=1 [ ... ]</pre></blockquote>
+
+<p>or with <tt class="literal">EVERYTHING=1</tt>.</p>
+
+<a name="pmodperl-CHP-4-SECT-4.1" /><div class="sect2">
+<h3 class="sect2">4.4.1. Constructing &lt;Perl&gt; Sections</h3>
+
+<p><tt class="literal">&lt;Perl&gt;</tt>sections<a name="pmodperl-CHP-4-ITERM-3960" /><a name="pmodperl-CHP-4-ITERM-3961" /><a name="pmodperl-CHP-4-ITERM-3962" /> can contain
+any and as much Perl code as you wish.
+<tt class="literal">&lt;Perl&gt;</tt>sections are compiled into a special
+package called <tt class="literal">Apache::ReadConfig</tt>. mod_perl looks
+through the symbol table for <tt class="literal">Apache::ReadConfig</tt>
+for Perl variables and structures to grind through the Apache core
+configuration gears. Most of the configuration directives can be
+represented as scalars (<tt class="literal">$scalar</tt>) or arrays
+(<tt class="literal">@array</tt>). A few directives become hashes.</p>
+
+<p>How do you know which Perl global variables to use? Just take the
+Apache directive name and prepend either <tt class="literal">$</tt>,
+<tt class="literal">@</tt>, or <tt class="literal">%</tt> (as shown in the
+following examples), depending on what the directive accepts. If you
+misspell the directive, it is silently ignored, so
+it's a good idea to check your settings.</p>
+
+<p>Since Apache directives are case-insensitive, their Perl equivalents
+are case-insensitive as well. The following statements are
+equivalent:</p>
+
+<blockquote><pre class="code">$User = 'stas';
+$user = 'stas'; # the same</pre></blockquote>
+
+<p>Let's look at all possible cases we might encounter
+while configuring Apache in Perl:</p>
+
+<ul><li>
+<p>Directives that accept zero or one argument are represented as
+scalars. For example, <tt class="literal">CacheNegotiatedDocs</tt> is a
+directive with no arguments. In Perl, we just assign it an empty
+string:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $CacheNegotiatedDocs = '';
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Directives that accept a single value are simple to handle. For
+example, to configure Apache so that child processes run as user
+<em class="emphasis">httpd</em> and group <em class="emphasis">httpd</em>, use:</p>
+
+<blockquote><pre class="code">User  = httpd
+Group = httpd</pre></blockquote>
+
+<p>What if we don't want user and group definitions to
+be hardcoded? Instead, what if we want to define them on the fly
+using the user and group with which the server is started? This is
+easily done with <tt class="literal">&lt;Perl&gt;</tt>sections:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $User  = getpwuid($&gt;) || $&gt;;
+    $Group = getgrgid($)) || $);
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>We use the power of the Perl API to retrieve the data on the fly.
+<tt class="literal">$User</tt> is set to the name of the effective user ID
+with which the server was started or, if the name is not defined, the
+numeric user ID. Similarly, <tt class="literal">$Group</tt> is set to
+either the symbolic value of the effective group ID or the numeric
+group ID.</p>
+
+<p>Notice that we've just taken the Apache directives
+and prepended a <tt class="literal">$</tt>, as they represent scalars.</p>
+</li>
+
+<li>
+<p>Directives that accept more than one argument are represented as
+arrays or as a space-delimited string. For example, this directive:</p>
+
+<blockquote><pre class="code">PerlModule Mail::Send Devel::Peek</pre></blockquote>
+
+<p>becomes:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    @PerlModule = qw(Mail::Send Devel::Peek);
+&lt;/Perl&gt;</pre></blockquote>
+
+<p><tt class="literal">@PerlModule</tt> is an array variable, and we assign it
+a list of modules. Alternatively, we can use the scalar notation and
+pass all the arguments as a space-delimited string:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $PerlModule = "Mail::Send Devel::Peek";
+&lt;/Perl&gt;</pre></blockquote>
+</li>
+
+<li>
+<p>Directives that can be repeated more than once with different values
+are represented as arrays of arrays. For example, this configuration:</p>
+
+<blockquote><pre class="code">AddEncoding x-compress Z
+AddEncoding x-gzip gz tgz</pre></blockquote>
+
+<p>becomes:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    @AddEncoding = (
+        ['x-compress' =&gt; qw(Z)],
+        ['x-gzip'     =&gt; qw(gz tgz)],
+    );
+&lt;/Perl&gt;</pre></blockquote>
+</li>
+
+<li>
+<p>Directives that implement a container block, with beginning and
+ending delimiters such as <tt class="literal">&lt;Location&gt;</tt> ...
+<tt class="literal">&lt;/Location&gt;</tt>, are represented as Perl hashes.
+In these hashes, the keys are the arguments of the opening directive,
+and the values are the contents of the block. For example:</p>
+<blockquote><pre class="code">Alias /private /home/httpd/docs/private
+&lt;Location /private&gt;
+    DirectoryIndex  index.html index.htm
+    AuthType        Basic
+    AuthName        "Private Area"
+    AuthUserFile    /home/httpd/docs/private/.htpasswd
+    Require         valid-user
+&lt;/Location&gt;</pre></blockquote>
+
+<p>These settings tell Apache that URIs starting with
+<em class="emphasis">/private</em> are mapped to the physical directory
+<em class="emphasis">/home/httpd/docs/private/</em> and will be processed
+according to the following rules:</p>
+
+<ul><li>
+<p>The users are to be authenticated using basic authentication.</p>
+</li><li>
+<p><em class="emphasis">PrivateArea</em> will be used as the title of the
+pop-up box displaying the login and password entry form.</p>
+</li><li>
+<p>Only valid users listed in the password file
+<em class="emphasis">/home/httpd/docs/private/.htpasswd</em> and who
+provide a valid password may access the resources under
+<em class="emphasis">/private/</em>.</p>
+</li><li>
+<p>If the filename is not provided, Apache will attempt to respond with
+the <em class="emphasis">index.html</em> or <em class="emphasis">index.htm</em>
+directory index file, if found.</p>
+</li></ul>
+
+<p>Now let's see the equivalent
+<tt class="literal">&lt;Perl&gt;</tt>section:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    push @Alias, qw(/private /home/httpd/docs/private);
+    $Location{"/private"} = {
+        DirectoryIndex =&gt; [qw(index.html index.htm)],
+        AuthType       =&gt; 'Basic',
+        AuthName       =&gt; '"Private Area"',
+        AuthUserFile   =&gt; '/home/httpd/docs/private/.htpasswd',
+        Require        =&gt; 'valid-user',
+    };
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>First, we convert the <tt class="literal">Alias</tt> directive into an
+array <tt class="literal">@Alias</tt>. Instead of assigning, however, we
+push the values at the end. We do this because it's
+possible that we have assigned values earlier, and we
+don't want to overwrite them. Alternatively, you may
+want to push references to lists, like this:</p>
+<blockquote><pre class="code">push @Alias, [qw(/private /home/httpd/docs/private)];</pre></blockquote>
+
+<p>Second, we convert the <tt class="literal">Location</tt> block, using
+<em class="emphasis">/private</em> as a key to the hash
+<tt class="literal">%Location</tt> and the rest of the block as its value.
+When the structures are nested, the normal Perl rules
+apply&#8212;that is, arrays and hashes turn into references.
+Therefore, <tt class="literal">DirectoryIndex</tt> points to an array
+reference. As shown earlier, we can always replace this array with a
+space-delimited string:</p>
+
+<blockquote><pre class="code">$Location{"/private"} = {
+    DirectoryIndex =&gt; 'index.html index.htm',
+    ...
+};</pre></blockquote>
+
+<p>Also notice how we specify the value of the
+<tt class="literal">AuthName</tt> attribute:</p>
+<blockquote><pre class="code">AuthName =&gt; '"Private Area"',</pre></blockquote>
+
+<p>The value is quoted twice because Apache expects a single value for
+this argument, and if we write:</p>
+
+<blockquote><pre class="code">AuthName =&gt; 'Private Area',</pre></blockquote>
+
+<p><tt class="literal">&lt;Perl&gt;</tt> will pass two values to Apache,
+"Private" and
+"Area", and Apache will refuse to
+start, with the following complaint:</p>
+
+<blockquote><pre class="code">[Thu May 16 17:01:20 2002] [error] &lt;Perl&gt;: AuthName takes one
+argument, The authentication realm (e.g. "Members Only")</pre></blockquote>
+</li>
+
+<li>
+<p>If a block section accepts two or more identical keys (as the
+<tt class="literal">&lt;VirtualHost&gt;</tt> ...
+<tt class="literal">&lt;/VirtualHost&gt;</tt>section does), the same rules
+as in the previous case apply, but a reference to an array of hashes
+is used instead.</p>
+
+<p>In one company, we had to run an Intranet machine behind a
+NAT/firewall (using the 10.0.0.10 IP address). We decided up front to
+have two virtual hosts to make both the management and the
+programmers happy. We had the following simplistic setup:</p>
+
+<blockquote><pre class="code">NameVirtualHost 10.0.0.10
+
+&lt;VirtualHost 10.0.0.10&gt;
+    ServerName  tech.intranet
+    DocumentRoot /home/httpd/docs/tech
+    ServerAdmin webmaster@tech.intranet
+&lt;/VirtualHost&gt;
+
+&lt;VirtualHost 10.0.0.10&gt;
+    ServerName   suit.intranet
+    DocumentRoot /home/httpd/docs/suit
+    ServerAdmin  webmaster@suit.intranet
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+<p>In Perl, we wrote it as follows:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $NameVirtualHost =&gt; '10.0.0.10';
+    my $doc_root = "/home/httpd/docs";
+    $VirtualHost{'10.0.0.10'} = [
+        {
+         ServerName   =&gt; 'tech.intranet',
+         DocumentRoot =&gt; "$doc_root/tech",
+         ServerAdmin  =&gt; 'webmaster@tech.intranet',
+        },
+        {
+         ServerName   =&gt; 'suit.intranet',
+         DocumentRoot =&gt; "$doc_root/suit",
+         ServerAdmin  =&gt; 'webmaster@suit.intranet',
+        },
+    ];
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Because normal Perl rules apply, more entries can be added as needed
+using <tt class="literal">push( )</tt>.<a href="#FOOTNOTE-28">[28]</a> Let's say we want to create a special
+virtual host for the company's president to show off
+to his golf partners, but his fancy vision doesn't
+really fit the purpose of the Intranet site. We just let him handle
+his own site:</p> <blockquote><a name="FOOTNOTE-28" /><p> [28]For complex
+configurations with multiple entries, consider using the module
+<tt class="literal">Tie::DxHash</tt>, which implements a hash that
+preserves insertion order and allows duplicate keys.</p>
+</blockquote>
+
+<blockquote><pre class="code">push @{ $VirtualHost{'10.0.0.10'} },
+    {
+     ServerName   =&gt; 'president.intranet',
+     DocumentRoot =&gt; "$doc_root/president",
+     ServerAdmin  =&gt; 'webmaster@president.intranet',
+    };</pre></blockquote>
+</li>
+
+<li>
+<p>Nested block directives naturally become Perl nested data structures.
+Let's extend an example from the previous section:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    my $doc_root = "/home/httpd/docs";
+    push @{ $VirtualHost{'10.0.0.10'} },
+        {
+         ServerName   =&gt; 'president.intranet',
+         DocumentRoot =&gt; "$doc_root/president",
+         ServerAdmin  =&gt; 'webmaster@president.intranet',
+         Location     =&gt; {
+             "/private"    =&gt; {
+                 Options       =&gt; 'Indexes',
+                 AllowOverride =&gt; 'None',
+                 AuthType      =&gt; 'Basic',
+                 AuthName      =&gt; '"Do Not Enter"',
+                 AuthUserFile  =&gt; 'private/.htpasswd',
+                 Require       =&gt; 'valid-user',
+             },
+             "/perlrun" =&gt; {
+                 SetHandler     =&gt; 'perl-script',
+                 PerlHandler    =&gt; 'Apache::PerlRun',
+                 PerlSendHeader =&gt; 'On',
+                 Options        =&gt; '+ExecCGI',
+             },
+         },
+        };
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>We have added two <tt class="literal">Location</tt> blocks. The first,
+<em class="emphasis">/private</em>, is for the juicy stuff and accessible
+only to users listed in the president's password
+file. The second, <em class="emphasis">/perlrun</em>, is for running dirty
+Perl CGI scripts, to be handled by the
+<tt class="literal">Apache::PerlRun</tt> handler.</p>
+</li>
+
+<li>
+<p><tt class="literal">&lt;Perl&gt;</tt>sections don't
+provide equivalents for <tt class="literal">&lt;IfModule&gt;</tt> and
+<tt class="literal">&lt;IfDefine&gt;</tt> containers. Instead, you can use
+the <tt class="literal">module( )</tt> and <tt class="literal">define( )</tt>
+methods from the <tt class="literal">Apache</tt> package. For example:</p>
+
+<blockquote><pre class="code">&lt;IfModule mod_ssl.c&gt;
+    Include ssl.conf
+&lt;/IfModule&gt;</pre></blockquote>
+
+<p>can be written as:</p>
+
+<blockquote><pre class="code">if (Apache-&gt;module("mod_ssl.c")) {
+    push @Include, "ssl.conf";
+}</pre></blockquote>
+
+<p>And this configuration example:</p>
+
+<blockquote><pre class="code">&lt;IfDefine SSL&gt;
+    Include ssl.conf
+&lt;/IfDefine&gt;</pre></blockquote>
+
+<p>can be written as:</p>
+
+<blockquote><pre class="code">if (Apache-&gt;define("SSL")) {
+    push @Include, "ssl.conf";
+}</pre></blockquote>
+
+<p>Now that you know how to convert the usual configuration directives
+to Perl code, there's no limit to what you can do
+with it. For example, you can put environment variables in an array
+and then pass them all to the children with a single configuration
+directive, rather than listing each one via
+<tt class="literal">PassEnv</tt> or <tt class="literal">PerlPassEnv</tt>:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    my @env = qw(MYSQL_HOME CVS_RSH);
+    push @PerlPassEnv, \@env;
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Or suppose you have a cluster of machines with similar configurations
+and only small distinctions between them. Ideally, you would want to
+maintain a single configuration file, but because the configurations
+aren't <em class="emphasis">exactly</em> the same (for
+example, the <tt class="literal">ServerName</tt> directive will have to
+differ), it's not quite that simple.</p>
+
+<p><tt class="literal">&lt;Perl&gt;</tt>sections come to the rescue. Now you
+can have a single configuration file and use the full power of Perl
+to tweak the local configuration. For example, to solve the problem
+of the <tt class="literal">ServerName</tt> directive, you might have this
+<tt class="literal">&lt;Perl&gt;</tt>section:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    use Sys::Hostname;
+    $ServerName = hostname( );
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>and the right machine name will be assigned automatically.</p>
+
+<p>Or, if you want to allow personal directories on all machines except
+the ones whose names start with <em class="emphasis">secure</em>, you
+can<a name="pmodperl-CHP-4-ITERM-3963" /><a name="pmodperl-CHP-4-ITERM-3964" /><a name="pmodperl-CHP-4-ITERM-3965" /> use:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    use Sys::Hostname;
+    $ServerName = hostname( );
+    if ($ServerName !~ /^secure/) {
+        $UserDir = "public.html";
+    }
+&lt;/Perl&gt;</pre></blockquote>
+</li></ul>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-4.2" /><div class="sect2">
+<h3 class="sect2">4.4.2. Breaking Out of &lt;Perl&gt; Sections</h3>
+
+<p>Behind
+the<a name="pmodperl-CHP-4-ITERM-3966" /><a name="pmodperl-CHP-4-ITERM-3967" /><a name="pmodperl-CHP-4-ITERM-3968" />
+scenes, mod_perl defines a package called
+<tt class="literal">Apache::ReadConfig</tt> in which it keeps all the
+variables that you define inside the <tt class="literal">&lt;Perl&gt;</tt>
+sections. So <tt class="literal">&lt;Perl&gt;</tt>sections
+aren't the only way to use mod_perl to configure the
+server: you can also place the Perl code in a separate file that will
+be called during the configuration parsing with either
+<tt class="literal">PerlModule</tt> or <tt class="literal">PerlRequire</tt>
+directives, or from within the startup file. All you have to do is to
+declare the package <tt class="literal">Apache::ReadConfig</tt> before
+writing any code in this file.</p>
+
+<p>Using the last example from the previous section, we place the code
+into a file named <em class="emphasis">apache_config.pl</em>, shown in
+<em class="emphasis"><a href="ch04_04.html#pmodperl-CHP-4-EX-4">Example 4-4</a></em>.</p>
+
+<a name="pmodperl-CHP-4-EX-4" /><div class="example">
+<h4 class="objtitle">Example 4-4. apache_config.pl</h4>
+<blockquote><pre class="code">package Apache::ReadConfig;
+
+use Sys::Hostname;
+$ServerName = hostname( );
+if ($ServerName !~ /^secure/) {
+    $UserDir = "public.html";
+}
+1;</pre></blockquote>
+</div>
+
+<p>Then we execute it either from <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlRequire /home/httpd/perl/lib/apache_config.pl</pre></blockquote>
+
+<p>or from the <em class="emphasis">startup.pl</em> file:</p>
+
+<blockquote><pre class="code">require "/home/httpd/perl/lib/apache_config.pl";</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-4.3" /><div class="sect2">
+<h3 class="sect2">4.4.3. Cheating with Apache-&gt;httpd_conf</h3>
+
+<p>In fact, <a name="pmodperl-CHP-4-ITERM-3969" /><a name="pmodperl-CHP-4-ITERM-3970" />you can create a complete
+configuration file in Perl. For example, instead of putting the
+following lines in <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">NameVirtualHost         10.0.0.10
+
+&lt;VirtualHost 10.0.0.10&gt;
+    ServerName  tech.intranet
+    DocumentRoot /home/httpd/httpd_perl/docs/tech
+    ServerAdmin webmaster@tech.intranet
+&lt;/VirtualHost&gt;
+
+&lt;VirtualHost 10.0.0.10&gt;
+    ServerName   suit.intranet
+    DocumentRoot /home/httpd/httpd_perl/docs/suit
+    ServerAdmin webmaster@suit.intranet
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+<p>You can write it in Perl:</p>
+
+<blockquote><pre class="code">use Socket;
+use Sys::Hostname;
+my $hostname = hostname( );
+(my $domain = $hostname) =~ s/[^.]+\.//;
+my $ip = inet_ntoa(scalar gethostbyname($hostname || 'localhost'));
+my $doc_root = '/home/httpd/docs';
+
+Apache-&gt;httpd_conf(qq{
+NameVirtualHost $ip
+
+&lt;VirtualHost $ip&gt;
+  ServerName  tech.$domain
+  DocumentRoot $doc_root/tech
+  ServerAdmin webmaster\@tech.$domain
+&lt;/VirtualHost&gt;
+
+&lt;VirtualHost $ip&gt;
+  ServerName   suit.$domain
+  DocumentRoot $doc_root/suit
+  ServerAdmin  webmaster\@suit.$domain
+&lt;/VirtualHost&gt;
+ });</pre></blockquote>
+
+<p>First, we prepare the data, such as deriving the domain name and IP
+address from the hostname. Next, we construct the configuration file
+in the "usual" way, but using the
+variables that were created on the fly. We can reuse this
+configuration file on many machines, and it will work anywhere
+without any need for adjustment.</p>
+
+<p>Now consider that you have many more virtual hosts with a similar
+configuration. You have probably already guessed what we are going to
+do next:</p>
+
+<blockquote><pre class="code">use Socket;
+use Sys::Hostname;
+my $hostname = hostname( );
+(my $domain = $hostname) =~ s/[^.]+\.//;
+my $ip = inet_ntoa(scalar gethostbyname($hostname || 'localhost'));
+my $doc_root = '/home/httpd/docs';
+my @vhosts = qw(suit tech president);
+
+Apache-&gt;httpd_conf("NameVirtualHost $ip");
+
+for my $vh (@vhosts) {
+  Apache-&gt;httpd_conf(qq{
+&lt;VirtualHost $ip&gt;
+  ServerName  $vh.$domain
+  DocumentRoot $doc_root/$vh
+  ServerAdmin webmaster\@$vh.$domain
+&lt;/VirtualHost&gt;
+ });
+}</pre></blockquote>
+
+<p>In the loop, we create new virtual hosts. If we need to create 100
+hosts, it doesn't take a long time&#8212;just adjust
+the <tt class="literal">@vhosts</tt> array.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-4.4" /><div class="sect2">
+<h3 class="sect2">4.4.4. Declaring Package Names in Perl Sections</h3>
+
+<p>Be <a name="pmodperl-CHP-4-ITERM-3971" />careful when you
+declare package names inside <tt class="literal">&lt;Perl&gt;</tt>
+sections. For example, this code has a problem:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    package Book::Trans;
+    use Apache::Constants qw(:common);
+    sub handler { OK }
+
+    $PerlTransHandler = "Book::Trans";
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>When you put code inside a <tt class="literal">&lt;Perl&gt;</tt>section,
+by default it goes into the <tt class="literal">Apache::ReadConfig</tt>
+package, which is already declared for you. This means that the
+<tt class="literal">PerlTransHandler</tt> we tried to define will be
+ignored, since it's not a global variable in the
+<tt class="literal">Apache::ReadConfig</tt> package.</p>
+
+<p>If you define a different package name within a
+<tt class="literal">&lt;Perl&gt;</tt>section, make sure to close the scope
+of that package and return to the
+<tt class="literal">Apache::ReadConfig</tt> package when you want to define
+the configuration directives. You can do this by either explicitly
+declaring the <tt class="literal">Apache::ReadConfig</tt> package:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    package Book::Trans;
+    use Apache::Constants qw(:common);
+    sub handler { OK }
+
+    package Apache::ReadConfig;
+    $PerlTransHandler = "Book::Trans";
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>or putting the code that resides in a different package into a block:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    {
+        package Book::Trans;
+        use Apache::Constants qw(:common);
+        sub handler { OK }
+    }
+
+    $PerlTransHandler = "Book::Trans";
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>so that when the block is over, the <tt class="literal">Book::Trans</tt>
+package's scope is over, and you can use the
+configuration variables again.</p>
+
+<p>However, it's probably a good idea to use
+<tt class="literal">&lt;Perl&gt;</tt>sections only to create or adjust
+configuration directives. If you need to run some other code not
+related to configuration, it might be better to place it in the
+startup file or in its own module. Your mileage may vary, of course.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-4.5" /><div class="sect2">
+<h3 class="sect2">4.4.5. Verifying &lt;Perl&gt; Sections</h3>
+
+<p>How do we <a name="pmodperl-CHP-4-ITERM-3972" />know whether the
+configuration made inside <tt class="literal">&lt;Perl&gt;</tt>sections
+was correct?</p>
+
+<p>First we need to check the validity of the Perl syntax. To do that,
+we should turn it into a Perl script, by adding
+<tt class="literal">#!perl</tt> at the top of the section:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+#!perl
+# ... code here ...
+_ _END_ _
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Notice that <tt class="literal">#!perl</tt> and <tt class="literal">_ _END_
+_</tt> must start from the column zero. Also, the same rules as
+we saw earlier with validation of the startup file apply: if the
+<tt class="literal">&lt;Perl&gt;</tt>section includes some modules that
+can be loaded only when mod_perl is running, this validation is not
+applicable.</p>
+
+<p>Now we may run:</p>
+
+<blockquote><pre class="code">perl -cx httpd.conf</pre></blockquote>
+
+<p>If the Perl code doesn't compile, the server
+won't start. If the Perl code is syntactically
+correct, but the generated Apache configuration is invalid,
+<tt class="literal">&lt;Perl&gt;</tt>sections will just log a warning and
+carry on, since there might be globals in the section that are not
+intended for the configuration at all.</p>
+
+<p>If you have more than one <tt class="literal">&lt;Perl&gt;</tt>section,
+you will have to repeat this procedure for each section, to make sure
+they all work.</p>
+
+<p>To check the Apache configuration syntax, you can use the variable
+<tt class="literal">$Apache::Server::StrictPerlSections</tt><a name="pmodperl-CHP-4-ITERM-3973" />,
+added in mod_perl Version 1.22. If you set this variable to a true
+value:</p>
+
+<blockquote><pre class="code">$Apache::Server::StrictPerlSections = 1;</pre></blockquote>
+
+<p>then mod_perl will not tolerate invalid Apache configuration syntax
+and will <tt class="literal">croak</tt> (die) if it encounters invalid
+syntax. The default value is <tt class="literal">0</tt>. If you
+don't set
+<tt class="literal">$Apache::Server::StrictPerlSections</tt> to
+<tt class="literal">1</tt>, you should localize variables unrelated to
+configuration with <tt class="literal">my( )</tt> to avoid errors.</p>
+
+<p>If the syntax is correct, the next thing we need to look at is the
+parsed configuration as seen by Perl. There are two ways to see it.
+First, we can dump it at the end of the section:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    use Apache::PerlSections ( );
+    # code goes here
+    print STDERR Apache::PerlSections-&gt;dump( );
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Here, we load the <tt class="literal">Apache::PerlSections</tt> module at
+the beginning of the section, and at the end we can use its
+<tt class="literal">dump( )</tt> method to print out the configuration as
+seen by Perl. Notice that only the configuration created in the
+section will be seen in the dump. No plain Apache configuration can
+be found there.</p>
+
+<p>For example, if we adjust this section (parts of which we have seen
+before) to dump the parsed contents:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    use Apache::PerlSections ( );
+    $User  = getpwuid($&gt;) || $&gt;;
+    $Group = getgrgid($)) || $);
+    push @Alias, [qw(/private /home/httpd/docs/private)];
+    my $doc_root = "/home/httpd/docs";
+    push @{ $VirtualHost{'10.0.0.10'} },
+        {
+         ServerName   =&gt; 'president.intranet',
+         DocumentRoot =&gt; "$doc_root/president",
+         ServerAdmin  =&gt; 'webmaster@president.intranet',
+         Location     =&gt; {
+             "/private"    =&gt; {
+                 Options       =&gt; 'Indexes',
+                 AllowOverride =&gt; 'None',
+                 AuthType      =&gt; 'Basic',
+                 AuthName      =&gt; '"Do Not Enter"',
+                 AuthUserFile  =&gt; 'private/.htpasswd',
+                 Require       =&gt; 'valid-user',
+             },
+             "/perlrun" =&gt; {
+                 SetHandler     =&gt; 'perl-script',
+                 PerlHandler    =&gt; 'Apache::PerlRun',
+                 PerlSendHeader =&gt; 'On',
+                 Options        =&gt; '+ExecCGI',
+             },
+         },
+        };
+    print STDERR Apache::PerlSections-&gt;dump( );
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>This is what we get as a dump:</p>
+
+<blockquote><pre class="code">package Apache::ReadConfig;
+#hashes:
+
+%VirtualHost = (
+  '10.0.0.10' =&gt; [
+    {
+      'Location' =&gt; {
+        '/private' =&gt; {
+          'AllowOverride' =&gt; 'None',
+          'AuthType' =&gt; 'Basic',
+          'Options' =&gt; 'Indexes',
+          'AuthUserFile' =&gt; 'private/.htpasswd',
+          'AuthName' =&gt; '"Do Not Enter"',
+          'Require' =&gt; 'valid-user'
+        },
+        '/perlrun' =&gt; {
+          'PerlHandler' =&gt; 'Apache::PerlRun',
+          'Options' =&gt; '+ExecCGI',
+          'PerlSendHeader' =&gt; 'On',
+          'SetHandler' =&gt; 'perl-script'
+        }
+      },
+      'DocumentRoot' =&gt; '/home/httpd/docs/president',
+      'ServerAdmin' =&gt; 'webmaster@president.intranet',
+      'ServerName' =&gt; 'president.intranet'
+    }
+  ]
+);
+
+#arrays:
+
+@Alias = (
+  [
+    '/private',
+    '/home/httpd/docs/private'
+  ]
+);
+
+#scalars:
+
+$Group = 'stas';
+
+$User = 'stas';
+
+1;
+_ _END_ _</pre></blockquote>
+
+<p>You can see that the configuration was created properly. The dump
+places the output into three groups: arrays, hashes, and scalars. The
+server was started as user <em class="emphasis">stas</em>, so the
+<tt class="literal">$User</tt> and <tt class="literal">$Group</tt>settings were
+dynamically assigned to the user <em class="emphasis">stas</em>.</p>
+
+<p>A different approach to seeing the dump at any time (not only during
+startup) is to use the <tt class="literal">Apache::Status</tt> module (see
+<a href="ch09_01.html">Chapter 9</a>). First we store the Perl configuration:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $Apache::Server::SaveConfig = 1;
+    # the actual configuration code
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Now the <tt class="literal">Apache::ReadConfig</tt> namespace (in which the
+configuration data is stored) will not be flushed, making
+configuration data available to Perl modules at request time. If the
+<tt class="literal">Apache::Status</tt> module is configured, you can view
+it by going to the <em class="emphasis">/perl-status</em> URI (or another
+URI that you have chosen) in your browser and selecting
+"Perl Section Configuration" from
+the menu. The configuration data should look something like that
+shown in <a href="ch04_04.html#pmodperl-CHP-4-FIG-1">Figure 4-1</a>.</p>
+
+<a name="pmodperl-CHP-4-FIG-1" /><div class="figure"><img src="figs/pmp_0401.gif" alt="Figure 4-1" width="481" /></div><h4 class="objtitle">Figure 4-1. &lt;Perl&gt; sections configuration dump</h4>
+
+<p>Since the <tt class="literal">Apache::ReadConfig</tt> namespace is not
+flushed when the server is started, you can access the configuration
+values from your code&#8212;the data resides in the
+<tt class="literal">Apache::ReadConfig</tt> package. So if you had the
+following Perl configuration:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $Apache::Server::SaveConfig = 1;
+    $DocumentRoot = "/home/httpd/docs/mine";
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>at request time, you could access the value of
+<tt class="literal">$DocumentRoot</tt> with the fully qualified name
+<tt class="literal">$Apache::ReadConfig::DocumentRoot</tt>. But usually you
+don't need to do this, because mod_perl provides you
+with an API to access to the most interesting and useful server
+configuration <a name="pmodperl-CHP-4-ITERM-3974" />bits.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-4.6" /><div class="sect2">
+<h3 class="sect2">4.4.6. Saving the Perl Configuration</h3>
+
+<p>Instead of
+<a name="pmodperl-CHP-4-ITERM-3975" /><a name="pmodperl-CHP-4-ITERM-3976" />dumping the generated Perl
+configuration, you may decide to store it in a file. For example, if
+you want to store it in <em class="emphasis">httpd_config.pl</em>, you can
+do the following:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    use Apache::PerlSections ( );
+    # code goes here
+    Apache::PerlSections-&gt;store("httpd_config.pl");
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>You can then <tt class="literal">require( )</tt> that file in some other
+<tt class="literal">&lt;Perl&gt;</tt>section. If you have the whole server
+configuration in Perl, you can start the server using the following
+trick:</p>
+
+<blockquote><pre class="code">panic% httpd -C "PerlRequire httpd_config.pl"</pre></blockquote>
+
+<p>Apache will fetch all the configuration directives from
+<em class="emphasis">httpd_config.pl</em>, so you don't
+need <em class="emphasis">httpd.conf</em> at all.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-4.7" /><div class="sect2">
+<h3 class="sect2">4.4.7. Debugging</h3>
+
+<p>If your
+<a name="pmodperl-CHP-4-ITERM-3977" /><a name="pmodperl-CHP-4-ITERM-3978" />configuration
+doesn't seem to do what it's
+supposed to do, you should debug it. First, build mod_perl with:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_TRACE=1 [...]</pre></blockquote>
+
+<p>Next, set the environment variable <tt class="literal">MOD_PERL_TRACE</tt>
+to <tt class="literal">s</tt> (as explained in <a href="ch21_01.html">Chapter 21</a>). Now you should be able to see how the
+<tt class="literal">&lt;Perl&gt;</tt>section globals are converted into
+directive string values. For example, suppose you have the following
+Perl section:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $DocumentRoot = "/home/httpd/docs/mine";
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>If you start the server in single-server mode (e.g., under
+<em class="emphasis">bash</em>):</p>
+
+<blockquote><pre class="code">panic% MOD_PERL_TRACE=s httpd -X</pre></blockquote>
+
+<p>you will see these lines among the printed trace:</p>
+
+<blockquote><pre class="code">...
+SVt_PV: $DocumentRoot = `/home/httpd/docs/mine'
+handle_command (DocumentRoot /home/httpd/docs/mine): OK
+...</pre></blockquote>
+
+<p>But what if you mistype the directory name and pass two values
+instead of a single value? When you start the server,
+you'll see the following error:</p>
+
+<blockquote><pre class="code">...
+SVt_PV: $DocumentRoot = `/home/httpd/docs/ mine'
+handle_command (DocumentRoot /home/httpd/docs/ mine):
+DocumentRoot takes one argument,
+Root directory of the document tree
+...</pre></blockquote>
+
+<p>and of course the error will be logged in the<a name="pmodperl-CHP-4-ITERM-3979" /><a name="pmodperl-CHP-4-ITERM-3980" />
+<em class="emphasis">error_log</em> file:</p>
+
+<blockquote><pre class="code">[Wed Dec 20 23:47:31 2000] [error]
+(2)No such file or directory: &lt;Perl&gt;:
+DocumentRoot takes one argument,
+Root directory of the document tree</pre></blockquote>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch04_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch04_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">4.3. The Startup File</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">4.5. Validating the Configuration Syntax</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

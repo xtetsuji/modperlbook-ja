@@ -1,0 +1,162 @@
+<html><head><title>Sharing Data Between Various Handlers (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch18_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch18_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">18.2. Sharing Data Between Various Handlers</h2>
+
+<p>Sometimes you want to set some data in one of the early handler
+phases and make it available in the latter handlers. For example, say
+you set some data in a <tt class="literal">TransHandler</tt> and you want
+the <tt class="literal">PerlHandler</tt> to be able to access it as well.</p>
+
+<p>To accomodate this, Apache maintains a
+"notes" table (tables are
+implemented by the <tt class="literal">Apache::Table</tt> module) in the
+request record. This table is simply a list of key/value pairs. One
+handler can add its own key/value entry to the notes table, and later
+the handler for a subsequent phase can retrieve the stored data.
+Notes are maintained for the life of the current request and are
+deleted when the transaction is finished. The <tt class="literal">notes(
+)</tt> method is used to manipulate the notes table, and a note
+set in one Apache module (e.g., mod_perl) can later be accessed in
+another Apache module (e.g., mod_php).</p>
+
+<p>The <tt class="literal">notes( )</tt> method accepts only non-reference
+scalars as its values, which makes this method unfit for storing
+non-scalar variables. To solve this limitation mod_perl provides a
+special method, called <tt class="literal">pnotes( )</tt>, that can accept
+any kind of data structure as its values. However, the data set by
+<tt class="literal">pnotes( )</tt> is accessible only by mod_perl.</p>
+
+<p>The note gets set when the key/value pair is provided. For example,
+let's set a scalar value with a key
+<em class="emphasis">foo</em>:</p>
+
+<blockquote><pre class="code">$r-&gt;notes("foo" =&gt; 10);</pre></blockquote>
+
+<p>and a reference to a list as a value for the key
+<em class="emphasis">bar</em>:</p>
+
+<blockquote><pre class="code">$r-&gt;pnotes("bar" =&gt; [1..10]);</pre></blockquote>
+
+<p>Notes can be retrieved in two ways. The first way is to ask for the
+value of the given key:</p>
+
+<blockquote><pre class="code">$foo = $r-&gt;notes("foo");</pre></blockquote>
+
+<p>and:</p>
+
+<blockquote><pre class="code">@bar = @{ $r-&gt;pnotes("bar") || [  ] };</pre></blockquote>
+
+<p>Note that we expect the note keyed as <em class="emphasis">bar</em> to be
+a reference to a list.</p>
+
+<p>The second method is to retrieve the whole notes table, which returns
+a hash reference blessed into the <tt class="literal">Apache::Table</tt>
+class:</p>
+
+<blockquote><pre class="code">$notes = $r-&gt;notes( );
+$foo   = $notes-&gt;{foo};</pre></blockquote>
+
+<p>and:</p>
+
+<blockquote><pre class="code">$pnotes = $r-&gt;pnotes( );
+@bar    = @{ $pnotes-&gt;{bar} || [  ] };</pre></blockquote>
+
+<p>Apache modules can pass information to each other via the notes
+table. Here is an example of how a mod_perl authentication handler
+can pass data to a mod_php content handler:</p>
+
+<blockquote><pre class="code">package Book::Auth;
+...
+sub handler {
+    my $r = shift;
+...
+    $r-&gt;notes('answer',42);
+...
+}
+1;</pre></blockquote>
+
+<p>The mod_php content handler can retrieve this data as follows:</p>
+
+<blockquote><pre class="code">...
+$answer = apache_note("answer");
+...</pre></blockquote>
+
+<p>You can use notes along with the subrequest methods
+<tt class="literal">lookup_uri( )</tt> and <tt class="literal">lookup_filename(
+)</tt>, too. To make it work, you need to set notes in the
+subrequest object. For example, if you want to call a PHP subrequest
+from within mod_perl and pass it a note, you can do it in the
+following way:</p>
+
+<blockquote><pre class="code">my $subr = $r-&gt;lookup_uri('wizard.php');
+$subr-&gt;notes('answer' =&gt; 42);
+$subr-&gt;run;</pre></blockquote>
+
+<p>As of the time of this writing you cannot access the parent request
+tables from a PHP handler; therefore, you must set this note for the
+subrequest. If the subrequest is running in the mod_perl domain,
+however, you can always keep the notes in the parent request notes
+table and access them via the <tt class="literal">main( )</tt> method:</p>
+
+<blockquote><pre class="code">$r-&gt;main-&gt;notes('answer');</pre></blockquote>
+
+<p>Similarly to the notes, you may want or need to use the Apache
+environment variables table to pass the information between different
+handlers.</p>
+
+<p>If you know what environment variables you want to set before the
+server starts and you know their respective values, you can use
+<tt class="literal">SetEnv</tt> and <tt class="literal">PerlSetEnv</tt> in
+<em class="emphasis">httpd.conf</em>, as explained in <a href="ch04_01.html">Chapter 4</a>. These settings will always be the same for
+all requests.</p>
+
+<p>However, if you want to change or add some of the environment
+variables during the processing of a request, because some other
+handler that will be executed later relies on them, you should use
+the <tt class="literal">subprocess_env( )</tt> method.</p>
+
+<blockquote><pre class="code">&lt;!--#if expr="$hour &gt; 6 &amp;&amp; $hour &lt; 12" --&gt;
+Good morning!
+&lt;!--#elif expr="$hour &gt;= 12 &amp;&amp; $hour &lt;= 18" --&gt;
+Good afternoon!
+&lt;!--#elif expr="$hour &gt; 18 &amp;&amp; $hour &lt; 22" --&gt;
+Good evening!
+&lt;!--#else --&gt;
+Good night!
+&lt;!--#endif --&gt;</pre></blockquote>
+
+<p>and you have the following code in your mod_perl handler:</p>
+
+<blockquote><pre class="code">my $hour = (localtime)[2];
+$r-&gt;subprocess_env(hour =&gt; $hour);</pre></blockquote>
+
+<p>The page will nicely greet the surfer, picking the greeting based on
+the current time. Of course, the greeting will be correct only for
+users located in the same time zone as the server, but this is just a
+simple example.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch18_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch18_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">18. mod_perl Data-Sharing Techniques</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">18.3. References</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

@@ -1,0 +1,662 @@
+<html><head><title>Introducing CGI and mod_perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part1.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch01_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 1. Introducing CGI and mod_perl</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch01_01.html#pmodperl-CHP-1-SECT-1">A Brief History of CGI</a><br />
+<a href="ch01_02.html">The Apache 1.3 Server Model</a><br />
+<a href="ch01_03.html">The Development of mod_perl 1.0</a><br />
+<a href="ch01_04.html">Apache 1.3 Request Processing Phases</a><br />
+<a href="ch01_05.html">References</a><br /></p></div><p>This chapter provides the foundations on which the rest of the book
+builds. In this chapter, we give you:</p><ul><li>
+<p>A history of CGI and the HTTP protocol.</p>
+</li><li>
+<p>An explanation of the Apache 1.3 Unix model, which is crucial to
+understanding how mod_perl 1.0 works.</p>
+</li><li>
+<p>An overall picture of mod_perl 1.0 and its development.</p>
+</li><li>
+<p>An overview of the difference between the Apache C API, the Apache
+Perl API (i.e., the mod_perl API), and CGI compatibility. We will
+also introduce the <tt class="literal">Apache::Registry</tt> and
+<tt class="literal">Apache::PerlRun</tt> modules.</p>
+</li><li>
+<p>An introduction to the mod_perl API and handlers.</p>
+</li></ul><div class="sect1"><a name="pmodperl-CHP-1-SECT-1" />
+<h2 class="sect1">1.1. A Brief History of CGI</h2>
+
+<p>When
+<a name="pmodperl-CHP-1-ITERM-3246" /><a name="pmodperl-CHP-1-ITERM-3247" />the
+World Wide Web was born, there was only one web server and one web
+client. The <em class="emphasis">httpd</em>
+<a name="pmodperl-CHP-1-ITERM-3248" /><a name="pmodperl-CHP-1-ITERM-3249" /><a name="pmodperl-CHP-1-ITERM-3250" />web
+server was developed by the Centre d'Etudes et de
+Recherche Nucl&#xE9;aires (CERN) in Geneva, Switzerland.
+<em class="emphasis">httpd</em> has since become the generic name of the
+binary executable of many web servers. When CERN stopped funding the
+development of <em class="emphasis">httpd</em>, it was taken over by the
+Software Development Group of the National Center for Supercomputing
+Applications (NCSA). The NCSA also produced Mosaic, the first web
+browser, whose developers later went on to write the Netscape client.</p>
+
+<p>Mosaic
+<a name="pmodperl-CHP-1-ITERM-3251" /><a name="pmodperl-CHP-1-ITERM-3252" /><a name="pmodperl-CHP-1-ITERM-3253" />could
+fetch and view <a name="pmodperl-CHP-1-ITERM-3254" /><a name="pmodperl-CHP-1-ITERM-3255" />static documents<a href="#FOOTNOTE-2">[2]</a>
+and images served by the <em class="emphasis">httpd</em> server. This
+provided a far better means of disseminating information to large
+numbers of people than sending each person an email. However, the
+glut of online resources soon made search engines necessary, which
+meant that users needed to be able to submit data (such as a search
+string) and servers needed to process that data and return
+appropriate content.</p> <blockquote><a name="FOOTNOTE-2" /><p> [2]A
+static document is one that exists in a constant state, such as a
+text file that doesn't change.</p> </blockquote>
+
+<p>Search <a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />engines were first
+implemented by extending the web server, modifying its source code
+directly. Rewriting the source was not very practical, however, so
+the NCSA developed the <em class="emphasis">Common Gateway Interface</em>
+(CGI) specification. CGI became a standard for interfacing external
+applications with web servers and other information servers and
+generating dynamic information.</p>
+
+<p>A CGI program can be written in virtually any language that can read
+from <tt class="literal">STDIN</tt> and write to <tt class="literal">STDOUT</tt>,
+regardless of whether it is interpreted (e.g., the Unix shell),
+compiled (e.g., C or C++), or a combination of both (e.g., Perl). The
+first CGI programs were written in C and needed to be compiled into
+binary executables. For this reason, the directory from which the
+compiled CGI programs were executed was named
+<em class="emphasis">cgi-bin</em>, and the source files directory was
+named <em class="emphasis">cgi-src</em>. Nowadays most servers come with a
+preconfigured directory for CGI programs called, as you have probably
+guessed, <em class="emphasis">cgi-bin</em>.</p>
+
+<a name="pmodperl-CHP-1-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">1.1.1. The HTTP Protocol</h3>
+
+<p>Interaction between <a name="pmodperl-CHP-1-ITERM-3258" /><a name="pmodperl-CHP-1-ITERM-3259" />the
+browser and the server is governed by the <em class="emphasis">HyperText
+Transfer Protocol</em> (HTTP), now an official Internet
+standard maintained by the World Wide Web Consortium (W3C). HTTP uses
+a simple request/response model: the client establishes a
+TCP<a href="#FOOTNOTE-3">[3]</a>
+connection to the server and sends a request, the server sends a
+response, and the connection is closed. Requests and responses take
+the form of <em class="emphasis">messages</em>. A message is a simple
+sequence of text lines.</p> <blockquote><a name="FOOTNOTE-3" /><p> [3]TCP/IP is a low-level Internet protocol for
+transmitting bits of data, regardless of its use.</p> </blockquote>
+
+<p>HTTP messages have two parts. First come the
+<a name="pmodperl-CHP-1-ITERM-3260" /><em class="emphasis">headers</em>,
+which hold descriptive information about the request or response. The
+various types of headers and their possible content are fully
+specified by the HTTP protocol. Headers are followed by a blank line,
+then by the message <a name="pmodperl-CHP-1-ITERM-3261" /><em class="emphasis">body</em>. The body is
+the actual content of the message, such as an HTML page or a GIF
+image. The HTTP protocol does not define the content of the body;
+rather, specific headers are used to describe the content type and
+its encoding. This enables new content types to be incorporated into
+the Web without any fanfare.</p>
+
+<p>HTTP is a <a name="pmodperl-CHP-1-ITERM-3262" />stateless<a name="pmodperl-CHP-1-ITERM-3263" /> protocol. This means that requests
+are not related to each other. This makes life simple for CGI
+programs: they need worry about only the current request.</p>
+
+</div>
+<a name="pmodperl-CHP-1-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">1.1.2. The Common Gateway Interface Specification</h3>
+
+<p>If you are new to the CGI world, there's no need to
+worry&#8212;basic CGI programming is very easy. Ninety percent of
+CGI-specific code is concerned with reading data submitted by a user
+through an HTML form, processing it, and returning some response,
+usually as an HTML document.</p>
+
+<p>In this section, we will show you how easy basic CGI programming is,
+rather than trying to teach you the entire CGI specification. There
+are many books and <a name="pmodperl-CHP-1-ITERM-3264" /><a name="pmodperl-CHP-1-ITERM-3265" /><a name="pmodperl-CHP-1-ITERM-3266" />online tutorials that cover CGI in
+great detail (see <a href="http://hoohoo.ncsa.uiuc.edu/">http://hoohoo.ncsa.uiuc.edu/</a>). Our aim is to
+demonstrate that if you know Perl, you can start writing CGI scripts
+almost immediately. You need to learn only two things: how to accept
+data and how to generate output.</p>
+
+<p>The HTTP protocol makes
+<a name="pmodperl-CHP-1-ITERM-3267" />clients and servers understand each
+other by transferring all the information between them using headers,
+where each header is a key-value pair. When you submit a form, the
+CGI program looks for the headers that contain the input information,
+processes the received data (e.g., queries a database for the
+keywords supplied through the form), and&#8212;when it is ready to
+return a response to the client&#8212;sends a special header that
+tells the client what kind of information it should expect, followed
+by the information itself. The server can send additional headers,
+but these are optional. <a href="ch01_01.html#pmodperl-CHP-1-FIG-1">Figure 1-1</a> depicts a
+typical request-response cycle.</p>
+
+<a name="pmodperl-CHP-1-FIG-1" /><div class="figure"><img src="figs/pmp_0101.gif" alt="Figure 1-1" width="374" /></div><h4 class="objtitle">Figure 1-1. Request-response cycle</h4>
+
+<p>Sometimes CGI programs can generate a response without needing any
+input data from the client. For example, a news service may respond
+with the latest stories without asking for any input from the client.
+But if you want stories for a specific day, you have to tell the
+script which day's stories you want. Hence, the
+script will need to retrieve some input from you.</p>
+
+<p>To get your feet wet with CGI scripts, let's look at
+the classic<a name="pmodperl-CHP-1-ITERM-3268" /><a name="pmodperl-CHP-1-ITERM-3269" /><a name="pmodperl-CHP-1-ITERM-3270" /> "Hello
+world" script for CGI, shown in <a href="ch01_01.html#pmodperl-CHP-1-EX-1">Example 1-1</a>.</p>
+
+<a name="pmodperl-CHP-1-EX-1" /><div class="example">
+<h4 class="objtitle">Example 1-1. "Hello world" script</h4>
+<blockquote><pre class="code">  #!/usr/bin/perl -Tw
+  
+  print "Content-type: text/plain\n\n";
+  print "Hello world!\n";</pre></blockquote>
+</div>
+
+<p>We start by sending a
+<tt class="literal">Content-type</tt><a name="pmodperl-CHP-1-ITERM-3271" /><a name="pmodperl-CHP-1-ITERM-3272" />
+header, which tells the client that the data that follows is of
+plain-text type. <em class="emphasis">text/plain</em> is a
+<a name="pmodperl-CHP-1-ITERM-3273" />Multipurpose
+Internet Mail Extensions (MIME) type. You can find a list of widely
+used <a name="pmodperl-CHP-1-ITERM-3274" />MIME types in the
+<em class="emphasis">mime.types</em> file, which is usually located in the
+directory where your web server's configuration
+files are stored.<a href="#FOOTNOTE-4">[4]</a> Other examples of MIME types are
+<em class="emphasis">text/html</em> (text in HTML format) and
+<em class="emphasis">video/mpeg</em> (an MPEG stream).</p> <blockquote><a name="FOOTNOTE-4" /><p> [4]For more information about Internet
+media types, refer to RFCs 2045, 2046, 2047, 2048, and 2077,
+accessible from <a href="http://www.rfc-editor.org/">http://www.rfc-editor.org/</a>.</p>
+</blockquote>
+
+<p>According to the HTTP protocol, an empty line must be sent after all
+headers have been sent. This empty line indicates that the actual
+response data will start at the next line.<a href="#FOOTNOTE-5">[5]</a></p> <blockquote><a name="FOOTNOTE-5" /><p> [5]The
+protocol specifies the end<a name="pmodperl-CHP-1-ITERM-3275" /><a name="pmodperl-CHP-1-ITERM-3276" /><a name="pmodperl-CHP-1-ITERM-3277" /> of a line as the
+character sequence <tt class="literal">Ctrl-M</tt> and
+<tt class="literal">Ctrl-J</tt> (carriage return and newline). On Unix and
+Windows systems, this sequence is expressed in a Perl string as
+<tt class="literal">\015\012</tt>, but Apache also honors
+<tt class="literal">\n</tt>, which we will use throughout this book. On
+EBCDIC machines, an explicit <tt class="literal">\r\n</tt>should be used
+instead.</p> </blockquote>
+
+<p>Now save the code in <em class="filename">hello.pl</em>, put it into a
+<em class="filename">cgi-bin</em> directory on your server, make the
+script executable, and test the script by pointing your favorite
+browser to:</p>
+
+<blockquote><pre class="code">http://localhost/cgi-bin/hello.pl</pre></blockquote>
+
+<p>It should display the same output as <a href="ch01_01.html#pmodperl-CHP-1-FIG-2">Figure 1-2</a>.</p>
+
+<a name="pmodperl-CHP-1-FIG-2" /><div class="figure"><img src="figs/pmp_0102.gif" alt="Figure 1-2" width="481" /></div><h4 class="objtitle">Figure 1-2. Hello world</h4>
+
+<p>A more complicated script involves parsing input data. There are a
+few ways to pass data to the scripts, but the most commonly used are
+the <tt class="literal">GET</tt> and <tt class="literal">POST</tt> methods.
+Let's write a script that expects as input the
+user's name and prints this name in its response.
+We'll use the
+<tt class="literal">GET</tt><a name="pmodperl-CHP-1-ITERM-3278" />
+<a name="pmodperl-CHP-1-ITERM-3279" />method,
+which passes data in the request URI (uniform resource indicator):</p>
+
+<blockquote><pre class="code">http://localhost/cgi-bin/hello.pl?username=Doug</pre></blockquote>
+
+<p>When the server accepts this request, it knows to split the URI into
+two parts: a path to the script
+(<em class="emphasis">http://localhost/cgi-bin/hello.pl</em>) and the
+"data"
+part<a name="pmodperl-CHP-1-ITERM-3280" />
+(<tt class="literal">username=Doug</tt>, called the
+<tt class="literal">QUERY_STRING</tt>). All we have to do is parse the data
+portion of the URI and extract the key <tt class="literal">username</tt>
+and value <tt class="literal">Doug</tt>. The <tt class="literal">GET</tt> method
+is used mostly for hardcoded queries, where no interactive input is
+needed. Assuming that portions of your site are dynamically
+generated, your site's menu might include the
+following HTML code:</p>
+
+<blockquote><pre class="code">&lt;a href="/cgi-bin/display.pl?section=news"&gt;News&lt;/a&gt;&lt;br&gt;
+&lt;a href="/cgi-bin/display.pl?section=stories"&gt;Stories&lt;/a&gt;&lt;br&gt;
+&lt;a href="/cgi-bin/display.pl?section=links"&gt;Links&lt;/a&gt;&lt;br&gt;</pre></blockquote>
+
+<p>Another approach is to use an <a name="pmodperl-CHP-1-ITERM-3281" />HTML form, where the user fills in
+some parameters. The HTML form for the "Hello
+user" script that we will look at in this section
+can be either:</p>
+
+<blockquote><pre class="code">&lt;form action="/cgi-bin/hello_user.pl" method="POST"&gt;
+&lt;input type="text" name="username"&gt;
+&lt;input type="submit"&gt;
+&lt;/form&gt;</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">&lt;form action="/cgi-bin/hello_user.pl" method="GET"&gt;
+&lt;input type="text" name="username"&gt;
+&lt;input type="submit"&gt;
+&lt;/form&gt;</pre></blockquote>
+
+<p>Note that you can use either the <tt class="literal">GET</tt> or
+<tt class="literal">POST</tt><a name="pmodperl-CHP-1-ITERM-3282" /><a name="pmodperl-CHP-1-ITERM-3283" />
+method in an HTML form. However, <tt class="literal">POST</tt>should be
+used when the query has side effects, such as changing a record in a
+database, while <tt class="literal">GET</tt>should be used in simple
+queries like this one (simple URL links are <tt class="literal">GET</tt>
+requests).<a href="#FOOTNOTE-6">[6]</a></p> <blockquote><a name="FOOTNOTE-6" /><p> [6]See <em class="emphasis">Axioms of Web
+Architecture</em> at <a href="http://www.w3.org/DesignIssues/Axioms.html#state">http://www.w3.org/DesignIssues/Axioms.html#state</a>.</p>
+</blockquote>
+
+<p>Formerly, reading input data required different code, depending on
+the method used to submit the data. We can now use Perl modules that
+do all the work for us. The most widely used CGI library is the
+<tt class="literal">CGI.pm</tt><a name="pmodperl-CHP-1-ITERM-3284" /><a name="pmodperl-CHP-1-ITERM-3285" />
+module, written by Lincoln Stein, which is included in the Perl
+distribution. Along with parsing input data, it provides an easy API
+to generate the HTML response.</p>
+
+<p>Our sample<a name="pmodperl-CHP-1-ITERM-3286" /><a name="pmodperl-CHP-1-ITERM-3287" /><a name="pmodperl-CHP-1-ITERM-3288" /> "Hello
+user" script is shown in <a href="ch01_01.html#pmodperl-CHP-1-EX-2">Example 1-2</a>.</p>
+
+<a name="pmodperl-CHP-1-EX-2" /><div class="example">
+<h4 class="objtitle">Example 1-2. "Hello user" script</h4>
+<blockquote><pre class="code">  #!/usr/bin/perl
+  
+  use CGI qw(:standard);
+  my $username = param('username') || "unknown";
+  
+  print "Content-type: text/plain\n\n";
+  print "Hello $username!\n";</pre></blockquote>
+</div>
+
+<p>Notice that this script is only slightly different from the previous
+one. We've pulled in the <tt class="literal">CGI.pm</tt>
+module, importing a group of functions called
+<tt class="literal">:standard</tt>. We then used its <tt class="literal">param(
+)</tt> function to retrieve the value of the
+<tt class="literal">username</tt> key. This call will return the name
+submitted by any of the three ways described above (a form using
+either <tt class="literal">POST</tt>, <tt class="literal">GET</tt>, or a
+hardcoded name with <tt class="literal">GET</tt>; the last two are
+essentially the same). If no value was supplied in the request,
+<tt class="literal">param( )</tt> returns <tt class="literal">undef</tt>.</p>
+
+<blockquote><pre class="code">my $username = param('username') || "unknown";</pre></blockquote>
+
+<p><tt class="literal">$username</tt> will contain either the submitted
+username or the string "<tt class="literal">unknown</tt>" if no value was
+submitted. The rest of the script is unchanged&#8212;we send the MIME
+header and print the "<tt class="literal">Hello $username!</tt>"
+string.<a href="#FOOTNOTE-7">[7]</a></p> <blockquote><a name="FOOTNOTE-7" /><p> [7]All scripts shown here generate plain text,
+not HTML. If you generate HTML<a name="pmodperl-CHP-1-ITERM-3289" /><a name="pmodperl-CHP-1-ITERM-3290" /><a name="pmodperl-CHP-1-ITERM-3291" /> output, you have to protect the
+incoming data from cross-site scripting. For more information, refer
+to the CERT advisory at <a href="http://www.cert.org/advisories/CA-2000-02.html">http://www.cert.org/advisories/CA-2000-02.html</a>.</p>
+</blockquote>
+
+<p>As we've just mentioned, <tt class="literal">CGI.pm</tt>
+can help us with <a name="pmodperl-CHP-1-ITERM-3292" /><a name="pmodperl-CHP-1-ITERM-3293" /><a name="pmodperl-CHP-1-ITERM-3294" />output generation as well. We can
+use it to generate <a name="pmodperl-CHP-1-ITERM-3295" /><a name="pmodperl-CHP-1-ITERM-3296" />MIME headers by rewriting the
+original script as shown in <a href="ch01_01.html#pmodperl-CHP-1-EX-3">Example 1-3</a>.</p>
+
+<a name="pmodperl-CHP-1-EX-3" /><div class="example">
+<h4 class="objtitle">Example 1-3. "Hello user" script using CGI.pm</h4>
+<blockquote><pre class="code">  #!/usr/bin/perl
+  
+  use CGI qw(:standard);
+  my $username = param('username') || "unknown";
+  
+  print header("text/plain");
+  print "Hello $username!\n";</pre></blockquote>
+</div>
+
+<p>To help you learn how <tt class="literal">CGI.pm</tt> copes with more than
+one <a name="pmodperl-CHP-1-ITERM-3297" /><a name="pmodperl-CHP-1-ITERM-3298" />parameter, consider the code in <a href="ch01_01.html#pmodperl-CHP-1-EX-4">Example 1-4</a>.</p>
+
+<a name="pmodperl-CHP-1-EX-4" /><div class="example">
+<h4 class="objtitle">Example 1-4. CGI.pm and param( ) method</h4>
+<blockquote><pre class="code">  #!/usr/bin/perl
+  
+  use CGI qw(:standard);
+  print header("text/plain");
+  
+  print "The passed parameters were:\n";
+  for my $key ( param( ) ) {
+      print "$key =&gt; ", param($key), "\n";
+  }</pre></blockquote>
+</div>
+
+<p>Now issue the following request:</p>
+
+<blockquote><pre class="code">http://localhost/cgi-bin/hello_user.pl?a=foo&amp;b=bar&amp;c=foobar</pre></blockquote>
+
+<a name="pmodperl-CHP-1-SIDEBAR-1" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Separating key=value Pairs</h4>
+
+<p>Note<a name="pmodperl-CHP-1-ITERM-3299" /><a name="pmodperl-CHP-1-ITERM-3300" /><a name="pmodperl-CHP-1-ITERM-3301" /><a name="pmodperl-CHP-1-ITERM-3302" />
+that <tt class="literal">&amp;</tt> or <tt class="literal">;</tt> usually is used
+to separate the <em class="emphasis">key=value</em> pairs. The former is
+less preferable, because if you end up with a
+<tt class="literal">QUERY_STRING</tt> of this format:</p>
+
+<blockquote><pre class="code">id=foo&amp;reg=bar</pre></blockquote>
+
+<p>some browsers will interpret <tt class="literal">&amp;reg</tt> as an SGML
+entity and encode it as <tt class="literal">&amp;reg;</tt>. This will
+result in a corrupted <tt class="literal">QUERY_STRING</tt>:</p>
+
+<blockquote><pre class="code">id=foo&amp;reg;=bar</pre></blockquote>
+
+<p>You have to encode <tt class="literal">&amp;</tt> as
+<tt class="literal">&amp;amp;</tt> if it is included in HTML. You
+don't have this problem if you use
+<tt class="literal">;</tt> as a separator:</p>
+
+<blockquote><pre class="code">id=foo;reg=bar</pre></blockquote>
+
+<p>Both separators are supported by <tt class="literal">CGI.pm</tt>,
+<tt class="literal">Apache::Request</tt>, and mod_perl's
+<tt class="literal">args( )</tt> method, which we will use in the examples
+to retrieve the request parameters.</p>
+
+<p>Of course, the code that builds <tt class="literal">QUERY_STRING</tt> has
+to ensure that the values don't include the chosen
+separator and encode it if it is used. (See RFC2854 for more
+details.)</p>
+</td></tr></table><p></blockquote>
+
+<p>The browser will display:</p>
+
+<blockquote><pre class="code">The passed parameters were:
+a =&gt; foo
+b =&gt; bar
+c =&gt; foobar</pre></blockquote>
+
+<p>Now generate this form:</p>
+
+<blockquote><pre class="code">&lt;form action="/cgi-bin/hello_user.pl" method="GET"&gt;
+&lt;input type="text" name="firstname"&gt;
+&lt;input type="text" name="lastname"&gt;
+&lt;input type="submit"&gt;
+&lt;/form&gt;</pre></blockquote>
+
+<p>If we fill in only the <tt class="literal">firstname</tt> field with the
+value <tt class="literal">Doug</tt>, the browser will display:</p>
+
+<blockquote><pre class="code">The passed parameters were:
+firstname =&gt; Doug
+lastname =&gt;</pre></blockquote>
+
+<p>If in addition the <tt class="literal">lastname</tt> field is
+<tt class="literal">MacEachern</tt>, you will see:</p>
+
+<blockquote><pre class="code">The passed parameters were:
+firstname =&gt; Doug
+lastname =&gt; MacEachern</pre></blockquote>
+
+<p>These are just a few of the many functions <tt class="literal">CGI.pm</tt>
+offers. Read its manpage for detailed information by typing
+<tt class="literal">perldoc CGI</tt> at your command prompt.</p>
+
+<p>We used this long <tt class="literal">CGI.pm</tt> example to demonstrate
+how simple basic CGI is. You shouldn't reinvent the
+wheel; use standard tools when writing your own scripts, and you will
+save a lot of time. Just as with Perl, you can start creating really
+cool and powerful code from the very beginning, gaining more advanced
+knowledge over time. There is much more to know about the CGI
+specification, and you will learn about some of its advanced features
+in the course of your web development practice. We will cover the
+most commonly used features in this book.</p>
+
+<p>For now, let <tt class="literal">CGI.pm</tt> or an equivalent library
+handle the intricacies of the CGI specification, and concentrate your
+efforts on the core functionality of your code.</p>
+
+</div>
+<a name="pmodperl-CHP-1-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">1.1.3. Apache CGI Handling with mod_cgi</h3>
+
+<p>The Apache <a name="pmodperl-CHP-1-ITERM-3303" /><a name="pmodperl-CHP-1-ITERM-3304" /><a name="pmodperl-CHP-1-ITERM-3305" />server
+processes CGI scripts via an Apache module called mod_cgi. (See later
+in this chapter for more information on request-processing phases and
+Apache modules.) mod_cgi is built by default with the Apache core,
+and the installation procedure also preconfigures a
+<em class="emphasis">cgi-bin</em> directory and populates it with a few
+sample CGI scripts. Write your script, move it into the
+<em class="emphasis">cgi-bin</em> directory, make it readable and
+executable by the web server, and you can start using it right away.</p>
+
+<p>Should you wish to alter the default
+<a name="pmodperl-CHP-1-ITERM-3306" />configuration, there are only a few
+configuration directives that you might want to modify. First, the
+<tt class="literal">ScriptAlias</tt><a name="pmodperl-CHP-1-ITERM-3307" /><a name="pmodperl-CHP-1-ITERM-3308" /> directive:</p>
+
+<blockquote><pre class="code">ScriptAlias /cgi-bin/ /home/httpd/cgi-bin/</pre></blockquote>
+
+<p><tt class="literal">ScriptAlias</tt> controls which directories contain
+server scripts. Scripts are run by the server when requested, rather
+than sent as documents.</p>
+
+<p>When a request is received with a path that starts with
+<em class="emphasis">/cgi-bin</em>, the server searches for the file in
+the <em class="emphasis">/home/httpd/cgi-bin</em> directory. It then runs
+the file as an executable program, returning to the client the
+generated output, not the source listing of the file.</p>
+
+<p>The other important part of <em class="emphasis">httpd.conf</em> specifies
+how the files in <em class="emphasis">cgi-bin</em> should be treated:</p>
+
+<blockquote><pre class="code">&lt;Directory /home/httpd/cgi-bin&gt;
+    Options FollowSymLinks
+    Order allow,deny
+    Allow from all
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>The above setting allows the use of symbolic links in the
+<em class="emphasis">/home/httpd/cgi-bin</em> directory. It also allows
+anyone to access the scripts from anywhere.</p>
+
+<p>mod_cgi provides access to <a name="pmodperl-CHP-1-ITERM-3309" /><a name="pmodperl-CHP-1-ITERM-3310" />various server parameters through
+environment variables. The script in <a href="ch01_01.html#pmodperl-CHP-1-EX-5">Example 1-5</a>
+will print these environment variables.</p>
+
+<a name="pmodperl-CHP-1-EX-5" /><div class="example">
+<h4 class="objtitle">Example 1-5. Checking environment variables</h4>
+<blockquote><pre class="code">  #!/usr/bin/perl
+  
+  print "Content-type: text/plain\n\n";
+  for (keys %ENV) {
+      print "$_ =&gt; $ENV{$_}\n";
+  }</pre></blockquote>
+</div>
+
+<p>Save this script as <em class="emphasis">env.pl</em> in the directory
+<em class="emphasis">cgi-bin</em> and make it executable and readable by
+the server (that is, by the username under which the server runs).
+Point your browser to
+<em class="emphasis">http://localhost/cgi-bin/env.pl</em> and you will see
+a list of parameters similar to this one:</p>
+
+<blockquote><pre class="code">SERVER_SOFTWARE =&gt; Server: Apache/1.3.24 (Unix) mod_perl/1.26 
+                   mod_ssl/2.8.8 OpenSSL/0.9.6
+GATEWAY_INTERFACE =&gt; CGI/1.1
+DOCUMENT_ROOT =&gt; /home/httpd/docs
+REMOTE_ADDR =&gt; 127.0.0.1
+SERVER_PROTOCOL =&gt; HTTP/1.0
+REQUEST_METHOD =&gt; GET
+QUERY_STRING =&gt;
+HTTP_USER_AGENT =&gt; Mozilla/5.0 Galeon/1.2.1 (X11; Linux i686; U;) Gecko/0
+SERVER_ADDR =&gt; 127.0.0.1
+SCRIPT_NAME =&gt; /cgi-bin/env.pl
+SCRIPT_FILENAME =&gt; /home/httpd/cgi-bin/env.pl</pre></blockquote>
+
+<p>Your code can access any of these variables with
+<tt class="literal">$ENV{"somekey"}</tt>. However, some variables can be
+spoofed by the client side, so you should be careful if you rely on
+them for handling sensitive information. Let's look
+at some of these environment variables.</p>
+
+<blockquote><pre class="code">SERVER_SOFTWARE =&gt; Server: Apache/1.3.24 (Unix) mod_perl/1.26 
+                   mod_ssl/2.8.8 OpenSSL/0.9.6</pre></blockquote>
+
+<p>The
+<tt class="literal">SERVER_SOFTWARE</tt><a name="pmodperl-CHP-1-ITERM-3311" /><a name="pmodperl-CHP-1-ITERM-3312" />
+variable tells us what components are compiled into the server, and
+their version numbers. In this example, we used Apache 1.3.24,
+mod_perl 1.26, mod_ssl 2.8.8, and OpenSSL 0.9.6.</p>
+
+<blockquote><pre class="code">GATEWAY_INTERFACE =&gt; CGI/1.1</pre></blockquote>
+
+<p>The
+<tt class="literal">GATEWAY_INTERFACE</tt><a name="pmodperl-CHP-1-ITERM-3313" /><a name="pmodperl-CHP-1-ITERM-3314" />
+variable is very important; in this example, it tells us that the
+script is running under mod_cgi. When running under mod_perl, this
+value changes to <tt class="literal">CGI-Perl/1.1</tt>.</p>
+
+<blockquote><pre class="code">REMOTE_ADDR =&gt; 127.0.0.1</pre></blockquote>
+
+<p>The <tt class="literal">REMOTE_ADDR</tt><a name="pmodperl-CHP-1-ITERM-3315" /><a name="pmodperl-CHP-1-ITERM-3316" />
+variable tells us the remote address of the client. In this example,
+both client and server were running on the same machine, so the
+client is <tt class="literal">localhost</tt> (whose IP is
+<tt class="literal">127.0.0.1</tt>).</p>
+
+<blockquote><pre class="code">SERVER_PROTOCOL =&gt; HTTP/1.0</pre></blockquote>
+
+<p>The
+<tt class="literal">SERVER_PROTOCOL</tt><a name="pmodperl-CHP-1-ITERM-3317" /><a name="pmodperl-CHP-1-ITERM-3318" />
+variable reports the HTTP protocol version upon which the client and
+the server have agreed. Part of the communication between the client
+and the server is a negotiation of which version of the HTTP protocol
+to use. The highest version the two can understand will be chosen as
+a result of this negotiation.</p>
+
+<blockquote><pre class="code">REQUEST_METHOD =&gt; GET</pre></blockquote>
+
+<p>The now-familiar
+<tt class="literal">REQUEST_METHOD</tt><a name="pmodperl-CHP-1-ITERM-3319" /><a name="pmodperl-CHP-1-ITERM-3320" />
+variable tells us which request method was used
+(<tt class="literal">GET</tt>, in this case).</p>
+
+<blockquote><pre class="code">QUERY_STRING =&gt;</pre></blockquote>
+
+<p>The
+<tt class="literal">QUERY_STRING</tt><a name="pmodperl-CHP-1-ITERM-3321" /><a name="pmodperl-CHP-1-ITERM-3322" />
+variable is also very important. It is used to pass the query
+parameters when using the <tt class="literal">GET</tt> method.
+<tt class="literal">QUERY_STRING</tt> is empty in this example, because we
+didn't pass any parameters.</p>
+
+<blockquote><pre class="code">HTTP_USER_AGENT =&gt; Mozilla/5.0 Galeon/1.2.1 (X11; Linux i686; U;) Gecko/0</pre></blockquote>
+
+<p>The
+<tt class="literal">HTTP_USER_AGENT</tt><a name="pmodperl-CHP-1-ITERM-3323" /><a name="pmodperl-CHP-1-ITERM-3324" />
+variable contains the user agent specifications. In this example, we
+are using Galeon on Linux. Note that this variable is very easily
+spoofed.</p>
+
+<a name="pmodperl-CHP-1-SIDEBAR-2" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Spoofing HTTP_USER_AGENT</h4>
+
+<p>If the client is a <a name="pmodperl-CHP-1-ITERM-3325" />custom program rather than a widely
+used browser, it can mimic its bigger brother's
+signature. Here is an example of a very simple client using the
+<tt class="literal">LWP</tt> library:</p>
+
+<blockquote><pre class="code">#!/usr/bin/perl -w
+use LWP::UserAgent;
+
+my $ua  = new LWP::UserAgent;
+$ua-&gt;agent("Mozilla/5.0 Galeon/1.2.1 (X11; Linux i686; U;) Gecko/0");
+my $req = new HTTP::Request('GET', 'http://localhost/cgi-bin/env.pl');
+
+my $res = $ua-&gt;request($req);
+print $res-&gt;content if $res-&gt;is_success;</pre></blockquote>
+
+<p>This script first creates an instance of a user agent, with a
+signature identical to Galeon's on Linux. It then
+creates a request object, which is passed to the user agent for
+processing. The response content is received and printed.</p>
+
+<p>When run from the command line, the output of this script is
+strikingly similar to what we obtained with the browser. It notably
+prints:</p>
+
+<blockquote><pre class="code">HTTP_USER_AGENT =&gt; Mozilla/5.0 Galeon/1.2.1 (X11; Linux i686; U;) Gecko/0</pre></blockquote>
+
+<p>So you can see how easy it is to fool a na&#xEF;ve CGI
+programmer into thinking we've used Galeon as our
+client program.</p>
+</td></tr></table><p></blockquote>
+
+<blockquote><pre class="code">SERVER_ADDR =&gt; 127.0.0.1
+SCRIPT_NAME =&gt; /cgi-bin/env.pl
+SCRIPT_FILENAME =&gt; /home/httpd/cgi-bin/env.pl</pre></blockquote>
+
+<p>The
+<tt class="literal">SERVER_ADDR</tt><a name="pmodperl-CHP-1-ITERM-3326" /><a name="pmodperl-CHP-1-ITERM-3327" />,
+<tt class="literal">SCRIPT_NAME</tt><a name="pmodperl-CHP-1-ITERM-3328" /><a name="pmodperl-CHP-1-ITERM-3329" />,
+and
+<tt class="literal">SCRIPT_FILENAME</tt><a name="pmodperl-CHP-1-ITERM-3330" /><a name="pmodperl-CHP-1-ITERM-3331" />
+variables tell us (respectively) the server address, the name of the
+script as provided in the request URI, and the real path to the
+script on the filesystem.</p>
+
+<p>Now let's get back to the
+<tt class="literal">QUERY_STRING</tt> parameter. If we submit a new request
+for
+<em class="emphasis">http://localhost/cgi-bin/env.pl?foo=ok&amp;bar=not_ok</em>,
+the new value of the query string is displayed:</p>
+
+<blockquote><pre class="code">QUERY_STRING =&gt; foo=ok&amp;bar=not_ok</pre></blockquote>
+
+<p>This is the variable used by <tt class="literal">CGI.pm</tt> and other
+modules to extract the input data.</p>
+
+<p>Keep in mind that the query string has a limited size. Although the
+HTTP protocol itself does not place a limit on the length of a
+<a name="pmodperl-CHP-1-ITERM-3332" /><a name="pmodperl-CHP-1-ITERM-3333" />URI, most server and client software
+does. Apache currently accepts a maximum size of 8K (8192) characters
+for the entire URI. Some older client or proxy implementations do not
+properly support URIs larger than 255 characters. This is true for
+some new clients as well&#8212;for example, some WAP phones have
+similar limitations.</p>
+
+<p>Larger chunks of information, such as complex forms, are passed to
+the script using the <tt class="literal">POST</tt><a name="pmodperl-CHP-1-ITERM-3334" /> method. Your CGI script should check
+the <tt class="literal">REQUEST_METHOD</tt> environment variable, which is
+set to <tt class="literal">POST</tt> when a request is submitted with the
+<tt class="literal">POST</tt> method. The script can retrieve all submitted
+data from the <tt class="literal">STDIN</tt>stream. But again, let
+<tt class="literal">CGI.pm</tt> or similar modules handle this process for
+you; whatever the request method, you won't have to
+worry about it because the key/value parameter pairs will always be
+handled in the right <a name="pmodperl-CHP-1-ITERM-3335" /><a name="pmodperl-CHP-1-ITERM-3336" /><a name="pmodperl-CHP-1-ITERM-3337" />way.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part1.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch01_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">I. mod_perl Administration</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">1.2. The Apache 1.3 Server Model</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

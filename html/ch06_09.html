@@ -1,0 +1,760 @@
+<html><head><title>Handling the "User Pressed Stop Button" Case (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">6.9. Handling the "User Pressed Stop Button" Case</h2>
+
+<p>When a user <a name="pmodperl-CHP-6-ITERM-4558" /><a name="pmodperl-CHP-6-ITERM-4559" /><a name="pmodperl-CHP-6-ITERM-4560" />presses
+the Stop or Reload button, the current socket connection is broken
+(aborted). It would be nice if Apache could always immediately detect
+this event. Unfortunately, there is no way to tell whether the
+connection is still valid unless an attempt to read from or write to
+the connection is made.</p>
+
+<p>Note that no detection technique will work if the connection to the
+backend mod_perl server is coming from a frontend mod_proxy (as
+discussed in <a href="ch12_01.html">Chapter 12</a>). This is because
+<a name="pmodperl-CHP-6-ITERM-4561" />mod_proxy
+doesn't break the connection to the backend when the
+user has aborted the connection.</p>
+
+<p>If the reading of the request's data is completed
+and the code does its processing without writing anything back to the
+client, the broken connection won't be noticed. When
+an attempt is made to send at least one character to the client, the
+broken connection will be noticed and the <tt class="literal">SIGPIPE</tt>
+signal (Broken Pipe) will be sent to the process. The program can
+then halt its execution and perform all its cleanup requirements.</p>
+
+<p>Prior to Apache 1.3.6, <tt class="literal">SIGPIPE</tt> was handled by
+Apache. Currently, Apache does not handle <tt class="literal">SIGPIPE</tt>,
+but mod_perl takes care of it.</p>
+
+<p>Under mod_perl, <tt class="literal">$r-&gt;print</tt> (or just
+<tt class="literal">print( )</tt>) returns a true value on success and a
+false value on failure. The latter usually happens when the
+connection is broken.</p>
+
+<p>If you want behavior similar to the old
+<tt class="literal">SIGPIPE</tt><a name="pmodperl-CHP-6-ITERM-4562" /> (as it was before Apache version
+1.3.6), add the following configuration directive:</p>
+
+<blockquote><pre class="code">PerlFixupHandler Apache::SIG</pre></blockquote>
+
+<p>When Apache's <tt class="literal">SIGPIPE</tt> handler is
+used, Perl may be left in the middle of its <tt class="literal">eval(
+)</tt> context, causing bizarre errors when subsequent requests
+are handled by that child. When
+<tt class="literal">Apache::SIG</tt><a name="pmodperl-CHP-6-ITERM-4563" /> is used, it installs a different
+<tt class="literal">SIGPIPE</tt> handler that rewinds the context to make
+sure Perl is in a normal state before the new request is served,
+preventing these bizarre errors. But in general, you
+don't need to use <tt class="literal">Apache::SIG</tt>.</p>
+
+<p>If you use <tt class="literal">Apache::SIG</tt> and you would like to log
+when a request was canceled by a <tt class="literal">SIGPIPE</tt> in your
+Apache <em class="emphasis">access_log</em>, you must define a custom
+<tt class="literal">LogFormat</tt> in your <em class="emphasis">httpd.conf</em>.
+For example:</p>
+
+<blockquote><pre class="code">PerlFixupHandler Apache::SIG
+LogFormat "%h %l %u %t \"%r\" %s %b %{SIGPIPE}e"</pre></blockquote>
+
+<p>If the server has noticed that the request was canceled via a
+<tt class="literal">SIGPIPE</tt>, the log line will end with
+<tt class="literal">1</tt>. Otherwise, it will just be a dash. For example:</p>
+
+<blockquote><pre class="code">127.0.0.1 - - [09/Jan/2001:10:27:15 +0100] 
+"GET /perl/stopping_detector.pl HTTP/1.0" 200 16 1
+127.0.0.1 - - [09/Jan/2001:10:28:18 +0100] 
+"GET /perl/test.pl HTTP/1.0"              200 10 -</pre></blockquote>
+
+<a name="pmodperl-CHP-6-SECT-9.1" /><div class="sect2">
+<h3 class="sect2">6.9.1. Detecting Aborted Connections</h3>
+
+<p>Now let's <a name="pmodperl-CHP-6-ITERM-4564" /><a name="pmodperl-CHP-6-ITERM-4565" /><a name="pmodperl-CHP-6-ITERM-4566" />use the knowledge we have acquired
+to trace the execution of the code and watch all the events as they
+happen. Let's take a simple
+<tt class="literal">Apache::Registry</tt>script that purposely hangs the
+server process, like the one in <a href="ch06_09.html#pmodperl-CHP-6-EX-28">Example 6-28</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-28" /><div class="example">
+<h4 class="objtitle">Example 6-28. stopping_detector.pl</h4>
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+print "PID = $$\n";
+$r-&gt;rflush;
+
+while (1) {
+    sleep 1;
+}</pre></blockquote>
+</div>
+
+<p>The script gets a request object <tt class="literal">$r</tt> by
+<tt class="literal">shift( )</tt> ing it from the <tt class="literal">@_</tt>
+argument list (passed by the <tt class="literal">handler( )</tt>subroutine
+that was created on the fly by <tt class="literal">Apache::Registry</tt>).
+Then the script sends a <tt class="literal">Content-Type</tt> header
+telling the client that we are going to send a plain-text response.</p>
+
+<p>Next, the script prints out a single line telling us the ID of the
+process that handled the request, which we need to know in order to
+run the tracing utility. Then we flush Apache's
+<tt class="literal">STDOUT</tt> buffer. If we don't flush
+the buffer, we will never see this information printed (our output is
+shorter than the buffer size used for <tt class="literal">print( )</tt>,
+and the script intentionally hangs, so the buffer
+won't be auto-flushed).<a href="#FOOTNOTE-31">[31]</a></p> <blockquote><a name="FOOTNOTE-31" /><p> [31]Buffering is
+used to reduce the number of system calls (which do the actual
+writing) and therefore improve performance. When the buffer (usually
+a few kilobytes in size) is getting full, it's
+flushed and the data is written.</p> </blockquote>
+
+<p>Then we enter an infinite <tt class="literal">while</tt> loop that does
+nothing but <tt class="literal">sleep( )</tt>, emulating code that
+doesn't generate any output. For example, it might
+be a long-running mathematical calculation, a database query, or a
+search for extraterrestrial life.</p>
+
+<p>Running <em class="emphasis">strace -p PID</em>, where
+<em class="emphasis">PID</em> is the process ID as printed on the browser,
+we see the following output printed every second:</p>
+
+<blockquote><pre class="code">rt_sigprocmask(SIG_BLOCK, [CHLD], [  ], 8)  = 0
+rt_sigaction(SIGCHLD, NULL, {SIG_DFL}, 8) = 0
+rt_sigprocmask(SIG_SETMASK, [  ], NULL, 8)  = 0
+nanosleep({1, 0}, {1, 0})                 = 0
+time([978969822])                         = 978969822
+time([978969822])                         = 978969822</pre></blockquote>
+
+<p>Alternatively, we can run the server in single-server mode. In
+single-server mode, we don't need to print the
+process ID, since the PID is the process of the single mod_perl
+process that we're running. When the process is
+started in the background, the shell program usually prints the PID
+of the process, as shown here:</p>
+
+<blockquote><pre class="code">panic% httpd -X &amp;
+ [1] 20107</pre></blockquote>
+
+<p>Now we know what process we have to attach to with
+<em class="emphasis">strace</em> (or a similar utility):</p>
+
+<blockquote><pre class="code">panic% strace -p 20107
+rt_sigprocmask(SIG_BLOCK, [CHLD], [  ], 8)  = 0
+rt_sigaction(SIGCHLD, NULL, {SIG_DFL}, 8) = 0
+rt_sigprocmask(SIG_SETMASK, [  ], NULL, 8)  = 0
+nanosleep({1, 0}, {1, 0})                 = 0
+time([978969822])                         = 978969822
+time([978969822])                         = 978969822</pre></blockquote>
+
+<p>We see the same output as before.</p>
+
+<p>Let's leave <em class="emphasis">strace</em> running and
+press the Stop button. Did anything change? No, the same system calls
+trace is printed every second, which means that Apache
+didn't detect the broken connection.</p>
+
+<p>Now we are going to write <tt class="literal">\0</tt>
+(<tt class="literal">NULL</tt>) characters to the client in an attempt to
+detect the broken connection as soon as possible after the Stop
+button is pressed. Since these are <tt class="literal">NULL</tt>
+characters, they won't be seen in the output.
+Therefore, we modify the loop code in the following way:</p>
+
+<blockquote><pre class="code">while (1) {
+    $r-&gt;print("\0");
+    last if $r-&gt;connection-&gt;aborted;
+    sleep 1;
+}</pre></blockquote>
+
+<p>We add a <tt class="literal">print( )</tt>statement to print a
+<tt class="literal">NULL</tt> character, then we check whether the
+connection was aborted, with the help of the
+<tt class="literal">$r-&gt;connection-&gt;aborted</tt> method. If the
+connection is broken, we break out of the loop.</p>
+
+<p>We run this script and run <em class="emphasis">strace</em> on it as
+before, but we see that it still doesn't
+work&#8212;the script doesn't stop when the Stop
+button is pressed.</p>
+
+<p>The problem is that we aren't flushing the buffer.
+The <tt class="literal">NULL</tt> characters won't be
+printed until the buffer is full and is autoflushed. Since we want to
+try writing to the connection pipe all the time, we add an
+<tt class="literal">$r-&gt;rflush( )</tt> call. <a href="ch06_09.html#pmodperl-CHP-6-EX-29">Example 6-29</a> is a new version of the code.</p>
+
+<a name="pmodperl-CHP-6-EX-29" /><div class="example">
+<h4 class="objtitle">Example 6-29. stopping_detector2.pl</h4>
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+print "PID = $$\n";
+$r-&gt;rflush;
+
+while (1) {
+    $r-&gt;print("\0");
+    $r-&gt;rflush;
+    last if $r-&gt;connection-&gt;aborted;
+    sleep 1;
+}</pre></blockquote>
+</div>
+
+<p>After starting the <em class="emphasis">strace</em> utility on the running
+process and pressing the Stop button, we see the following output:</p>
+
+<blockquote><pre class="code">rt_sigprocmask(SIG_BLOCK, [CHLD], [  ], 8)  = 0
+rt_sigaction(SIGCHLD, NULL, {SIG_DFL}, 8) = 0
+rt_sigprocmask(SIG_SETMASK, [  ], NULL, 8)  = 0
+nanosleep({1, 0}, {1, 0})               = 0
+time([978970895])                       = 978970895
+alarm(300)                              = 0
+alarm(0)                                = 300
+write(3, "\0", 1)                       = -1 EPIPE (Broken pipe)
+--- SIGPIPE (Broken pipe) ---
+chdir("/usr/src/httpd_perl")            = 0
+select(4, [3], NULL, NULL, {0, 0})      = 1 (in [3], left {0, 0})
+time(NULL)                              = 978970895
+write(17, "127.0.0.1 - - [08/Jan/2001:19:21"..., 92) = 92
+gettimeofday({978970895, 554755}, NULL) = 0
+times({tms_utime=46, tms_stime=5, tms_cutime=0, 
+  tms_cstime=0}) = 8425400
+close(3)                                = 0
+rt_sigaction(SIGUSR1, {0x8099524, [  ], SA_INTERRUPT|0x4000000}, 
+  {SIG_IGN}, 8) = 0alarm(0)                                = 0
+rt_sigprocmask(SIG_BLOCK, NULL, [  ], 8)  = 0
+rt_sigaction(SIGALRM, {0x8098168, [  ], SA_RESTART|0x4000000}, 
+  {0x8098168, [  ], SA_INTERRUPT|0x4000000}, 8) = 0
+fcntl(18, F_SETLKW, {type=F_WRLCK, whence=SEEK_SET, 
+  start=0, len=0}) = 0</pre></blockquote>
+
+<p>Apache detects the broken pipe, as you can see from this snippet:</p>
+
+<blockquote><pre class="code">write(3, "\0", 1)                       = -1 EPIPE (Broken pipe)
+--- SIGPIPE (Broken pipe) ---</pre></blockquote>
+
+<p>Then it stops the script and does all the cleanup work, such as
+access logging:</p>
+
+<blockquote><pre class="code">write(17, "127.0.0.1 - - [08/Jan/2001:19:21"..., 92) = 92</pre></blockquote>
+
+<p>where 17 is a file descriptor of the opened <a name="pmodperl-CHP-6-ITERM-4567" /><a name="pmodperl-CHP-6-ITERM-4568" /><a name="pmodperl-CHP-6-ITERM-4569" /><em class="emphasis">access_log</em> file.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-9.2" /><div class="sect2">
+<h3 class="sect2">6.9.2. The Importance of Cleanup Code</h3>
+
+<p>Cleanup<a name="pmodperl-CHP-6-ITERM-4570" /><a name="pmodperl-CHP-6-ITERM-4571" /><a name="pmodperl-CHP-6-ITERM-4572" /><a name="pmodperl-CHP-6-ITERM-4573" /> code
+is a critical issue with aborted scripts. For example, what happens
+to locked resources, if there are any? Will they be freed or not? If
+not, scripts using these resources and the same locking scheme might
+hang forever, waiting for these resources to be freed.</p>
+
+<p>And what happens if a file was opened and never closed? In some
+cases, this might lead to a file-descriptor leakage. In the long run,
+many leaks of this kind might make your system unusable: when all
+file descriptors are used, the system will be unable to open new
+files.</p>
+
+<p>First, let's take a step back and recall what the
+problems and solutions for these issues are under mod_cgi. Under
+mod_cgi, the resource-locking issue is a problem only if you use
+external lock files and use them for lock indication, instead of
+using <tt class="literal">flock( )</tt>. If the script running under
+mod_cgi is aborted between the lock and the unlock code, and you
+didn't bother to write cleanup code to remove old,
+dead locks, you're in big trouble.</p>
+
+<p>The solution is to place the cleanup code in an
+<tt class="literal">END</tt> block:</p>
+
+<blockquote><pre class="code">END {
+    # code that ensures that locks are removed
+}</pre></blockquote>
+
+<p>When the script is aborted, Perl will run the <tt class="literal">END</tt>
+block while shutting down.</p>
+
+<p>If you use <tt class="literal">flock( )</tt>, things are much simpler,
+since all opened files will be closed when the script exits. When the
+file is closed, the lock is removed as well&#8212;all the locked
+resources are freed. There are systems where <tt class="literal">flock(
+)</tt> is unavailable; on those systems, you can use
+Perl's emulation of this function.</p>
+
+<p>With mod_perl, things can be more complex when you use global
+variables as filehandles. Because processes don't
+exit after processing a request, files won't be
+closed unless you explicitly <tt class="literal">close( )</tt> them or
+reopen them with the <tt class="literal">open( )</tt> call, which first
+closes the file. Let's see what problems we might
+encounter and look at some possible solutions.</p>
+
+<a name="pmodperl-CHP-6-SECT-9.2.1" /><div class="sect3">
+<h3 class="sect3">6.9.2.1. Critical section</h3>
+
+<p>First, we <a name="pmodperl-CHP-6-ITERM-4574" /><a name="pmodperl-CHP-6-ITERM-4575" />want to take a little detour to
+discuss the "critical section"
+issue. Let's start with a resource-locking scheme. A
+schematic representation of a proper
+<a name="pmodperl-CHP-6-ITERM-4576" />locking technique is as follows:</p>
+
+<ol><li>
+<p>Lock a resource</p>
+
+<p>&lt;critical section starts&gt;</p>
+</li><li>
+<p>Do something with the resource</p>
+
+<p>&lt;critical section ends&gt;</p>
+</li><li>
+<p>Unlock the resource</p>
+</li></ol>
+<p>If the locking is exclusive, only one process can hold the resource
+at any given time, which means that all the other processes will have
+to wait. The code between the locking and unlocking functions cannot
+be interrupted and can therefore become a service bottleneck.
+That's why this code section is called critical. Its
+execution time should be as short as possible.</p>
+
+<p>Even if you use a shared locking scheme, in which many processes are
+allowed to concurrently access the resource, it's
+still important to keep the critical section as short as possible, in
+case a process requires an exclusive lock.</p>
+
+<p><a href="ch06_09.html#pmodperl-CHP-6-EX-30">Example 6-30</a> uses a shared lock but has a poorly
+designed critical section.</p>
+
+<a name="pmodperl-CHP-6-EX-30" /><div class="example">
+<h4 class="objtitle">Example 6-30. critical_section_sh.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+use Symbol;
+
+my $fh = gensym;
+open $fh, "/tmp/foo" or die $!;
+
+# start critical section
+flock $fh, LOCK_SH;  # shared lock, appropriate for reading
+seek $fh, 0, 0;
+my @lines = &lt;$fh&gt;;
+for (@lines) {
+    print if /foo/;
+}
+close $fh; # close unlocks the file
+# end critical section</pre></blockquote>
+</div>
+
+<p>The code opens the file for reading, locks and rewinds it to the
+beginning, reads all the lines from the file, and prints out the
+lines that contain the string
+"foo".</p>
+
+<p>The <tt class="literal">gensym( )</tt> function imported by the
+<tt class="literal">Symbol</tt> module creates an anonymous glob data
+structure and returns a reference to it. Such a glob reference can be
+used as a file or directory handle. Therefore, it allows lexically
+scoped variables to be used as filehandles.</p>
+
+<p><tt class="literal">Fcntl</tt> imports file-locking symbols, such as
+<tt class="literal">LOCK_SH</tt>, <tt class="literal">LOCK_EX</tt>, and others
+with the <tt class="literal">:flock</tt> group tag, into the
+script's namespace. Refer to the
+<tt class="literal">Fcntl</tt> manpage for more information about these
+symbols.</p>
+
+<p>If the file being read is big, it will take a relatively long time
+for this code to complete printing out the lines. During this time,
+the file remains open and locked with a shared lock. While other
+processes may access this file for reading, any process that wants to
+modify the file (which requires an exclusive lock) will be blocked
+waiting for this section to complete.</p>
+
+<p>We can optimize the
+critical<a name="pmodperl-CHP-6-ITERM-4577" /> section as follows. Once
+the file has been read, we have all the information we need from it.
+To make the example simpler, we've chosen to just
+print out the matching lines. In reality, the code might be much
+longer.</p>
+
+<p>We don't need the file to be open while the loop
+executes, because we don't access it inside the
+loop. Closing the file before we start the loop will allow other
+processes to obtain exclusive access to the file if they need it,
+instead of being blocked for no reason.</p>
+
+<p><a href="ch06_09.html#pmodperl-CHP-6-EX-31">Example 6-31</a> is an improved version of the previous
+example, in which we only read the contents of the file during the
+critical section and process it afterward, without creating a
+possible bottleneck.</p>
+
+<a name="pmodperl-CHP-6-EX-31" /><div class="example">
+<h4 class="objtitle">Example 6-31. critical_section_sh2.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+use Symbol;
+
+my $fh = gensym;
+open $fh, "/tmp/foo" or die $!;
+
+# start critical section
+flock $fh, LOCK_SH;
+seek $fh, 0, 0;
+my @lines = &lt;$fh&gt;;
+close $fh; # close unlocks the file
+# end critical section
+
+for (@lines) {
+    print if /foo/;
+}</pre></blockquote>
+</div>
+
+<p><a href="ch06_09.html#pmodperl-CHP-6-EX-32">Example 6-32</a> is a similar example that uses an
+exclusive lock. The script reads in a file and writes it back,
+prepending a number of new text lines to the head of the file.</p>
+
+<a name="pmodperl-CHP-6-EX-32" /><div class="example">
+<h4 class="objtitle">Example 6-32. critical_section_ex.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+use Symbol;
+
+my $fh = gensym;
+open $fh, "+&gt;&gt;/tmp/foo" or die $!;
+
+# start critical section
+flock $fh, LOCK_EX;
+seek $fh, 0, 0;
+my @add_lines =
+  (
+   qq{Complete documentation for Perl, including FAQ lists,\n},
+   qq{should be found on this system using 'man perl' or\n},
+   qq{'perldoc perl'. If you have access to the Internet, point\n},
+   qq{your browser at http://www.perl.com/, the Perl Home Page.\n},
+  );
+
+my @lines = (@add_lines, &lt;$fh&gt;);
+seek $fh, 0, 0;
+truncate $fh, 0;
+print $fh @lines;
+close $fh; # close unlocks the file
+# end critical section</pre></blockquote>
+</div>
+
+<p>Since we want to read the file, modify it, and write it back without
+anyone else changing it in between, we open it for reading and
+writing with the help of "<tt class="literal">+&gt;&gt;</tt>" and lock it
+with an exclusive lock. You cannot safely accomplish this task by
+opening the file first for reading and then reopening it for writing,
+since another process might change the file between the two events.
+(You could get away with "<tt class="literal">+&lt;</tt>" as well; please
+refer to the <em class="emphasis">perlfunc</em> manpage for more
+information about the <tt class="literal">open( )</tt> function.)</p>
+
+<p>Next, the code prepares the lines of text it wants to prepend to the
+head of the file and assigns them and the content of the file to the
+<tt class="literal">@lines</tt> array. Now we have our data ready to be
+written back to the file, so we <tt class="literal">seek( )</tt> to the
+start of the file and <tt class="literal">truncate( )</tt> it to zero size.
+Truncating is necessary when there's a chance the
+file might shrink. In our example, the file always grows, so in this
+case there is actually no need to truncate it; however,
+it's good practice to always use <tt class="literal">truncate(
+)</tt>, as you never know what changes your code might undergo
+in the future, and <tt class="literal">truncate( )</tt>
+doesn't significantly affect performance.</p>
+
+<p>Finally, we write the data back to the file and close it, which
+unlocks it as well.</p>
+
+<p>Did you notice that we created the text lines to be prepended as
+close to the place of usage as possible? This complies with good
+"locality of code" style, but it
+makes the critical section longer. In cases like this, you should
+sacrifice style in order to make the critical section as short as
+possible. An improved version of this script with a shorter critical
+section is shown in <a href="ch06_09.html#pmodperl-CHP-6-EX-33">Example 6-33</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-33" /><div class="example">
+<h4 class="objtitle">Example 6-33. critical_section_ex2.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+use Symbol;
+
+my @lines =
+  (
+   qq{Complete documentation for Perl, including FAQ lists,\n},
+   qq{should be found on this system using 'man perl' or\n},
+   qq{'perldoc perl'. If you have access to the Internet, point\n},
+   qq{your browser at http://www.perl.com/, the Perl Home Page.\n},
+  );
+
+my $fh = gensym;
+open $fh, "+&gt;&gt;/tmp/foo" or die $!;
+
+# start critical section
+flock $fh, LOCK_EX;
+seek $fh, 0, 0;
+push @lines, &lt;$fh&gt;;
+
+seek $fh, 0, 0;
+truncate $fh, 0;
+print $fh @lines;
+close $fh; # close unlocks the file
+# end critical section</pre></blockquote>
+</div>
+
+<p>There are two important differences. First, we prepared the text
+lines to be prepended <em class="emphasis">before</em> the file is locked.
+Second, rather than creating a new array and copying lines from one
+array to another, we appended the file directly to the<a name="pmodperl-CHP-6-ITERM-4578" /><a name="pmodperl-CHP-6-ITERM-4579" />
+<tt class="literal">@lines</tt> array.</p>
+
+</div>
+
+<a name="pmodperl-CHP-6-SECT-9.2.2" /><div class="sect3">
+<h3 class="sect3">6.9.2.2. Safe resource locking and cleanup code</h3>
+
+<p>Now let's get back to<a name="pmodperl-CHP-6-ITERM-4580" /><a name="pmodperl-CHP-6-ITERM-4581" /> this
+section's main issue, safe resource locking. If you
+don't make a habit of closing all files that you
+open, you may encounter many problems (unless you use the
+<tt class="literal">Apache::PerlRun</tt> handler, which does the cleanup
+for you). An open file that isn't closed can cause
+file-descriptor leakage. Since the number of file descriptors
+available is finite, at some point you will run out of them and your
+service will fail. This will happen quite fast on a heavily used
+server.</p>
+
+<p>You can use system utilities to observe the opened and locked files,
+as well as the processes that have opened (and locked) the files. On
+FreeBSD, use the <em class="emphasis">fstat</em> utility. On many other
+Unix flavors, use <em class="emphasis">lsof</em>. On systems with a
+<em class="emphasis">/proc</em> filesystem, you can see the opened file
+descriptors under <em class="emphasis">/proc/PID/fd/</em>, where PID is
+the actual process ID.</p>
+
+<p>However, file-descriptor leakage is nothing compared to the trouble
+you will give yourself if the code terminates and the file remains
+locked. Any other process requesting a lock on the same file (or
+resource) will wait indefinitely for it to become unlocked. Since
+this will not happen until the server reboots, all processes trying
+to use this resource will hang.</p>
+
+<p><a href="ch06_09.html#pmodperl-CHP-6-EX-34">Example 6-34</a> is an example of such a terrible mistake.</p>
+
+<a name="pmodperl-CHP-6-EX-34" /><div class="example">
+<h4 class="objtitle">Example 6-34. flock.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+open IN, "+&gt;&gt;filename" or die "$!";
+flock IN, LOCK_EX;
+# do something
+# quit without closing and unlocking the file</pre></blockquote>
+</div>
+
+<p>Is this safe code? No&#8212;we forgot to close the file. So
+let's add the <tt class="literal">close( )</tt>, as in
+<a href="ch06_09.html#pmodperl-CHP-6-EX-35">Example 6-35</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-35" /><div class="example">
+<h4 class="objtitle">Example 6-35. flock2.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+open IN, "+&gt;&gt;filename" or die "$!";
+flock IN, LOCK_EX;
+# do something
+close IN;</pre></blockquote>
+</div>
+
+<p>Is it safe code now? Unfortunately, it is not. If the user aborts the
+request (for example, by pressing the browser's Stop
+or Reload buttons) during the critical section, the script will be
+aborted before it has had a chance to <tt class="literal">close( )</tt> the
+file, which is just as bad as if we forgot to close it.</p>
+
+<p>In fact, if the same process runs the same code again, an
+<tt class="literal">open( )</tt> call will <tt class="literal">close( )</tt> the
+file first, which will unlock the resource. This is because
+<tt class="literal">IN</tt> is a global variable. But it's
+quite possible that the process that created the lock will not serve
+the same request for a while, since it might be busy serving other
+requests. During that time, the file will be locked for other
+processes, making them hang. So relying on the same process to reopen
+the file is a bad idea.</p>
+
+<p>This problem happens only if you use global variables as file
+handles. <a href="ch06_09.html#pmodperl-CHP-6-EX-36">Example 6-36</a> has the same problem.</p>
+
+<a name="pmodperl-CHP-6-EX-36" /><div class="example">
+<h4 class="objtitle">Example 6-36. flock3.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+use Symbol ( );
+use vars qw($fh);
+$fh = Symbol::gensym( );
+open $fh, "+&gt;&gt;filename" or die "$!";
+flock $fh, LOCK_EX;
+# do something
+close $fh;</pre></blockquote>
+</div>
+
+<p><tt class="literal">$fh</tt> is still a global variable, and therefore the
+code using it suffers from the same problem.</p>
+
+<p>The simplest solution to this problem is to always use lexically
+scoped variables (created with <tt class="literal">my( )</tt>). The
+lexically scoped variable will always go out of scope (assuming that
+it's not used in a closure, as explained in the
+beginning of this chapter), whether the script gets aborted before
+<tt class="literal">close( )</tt> is called or you simply forgot to
+<tt class="literal">close( )</tt> the file. Therefore, if the file was
+locked, it will be closed and unlocked. <a href="ch06_09.html#pmodperl-CHP-6-EX-37">Example 6-37</a>
+is a good version of the code.</p>
+
+<a name="pmodperl-CHP-6-EX-37" /><div class="example">
+<h4 class="objtitle">Example 6-37. flock4.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+use Symbol ( );
+my $fh = Symbol::gensym( );
+open $fh, "+&gt;&gt;filename" or die "$!";
+flock $fh, LOCK_EX;
+# do something
+close $fh;</pre></blockquote>
+</div>
+
+<p>If you use this approach, please don't conclude that
+you don't have to close files anymore because they
+are automatically closed for you. Not closing files is bad style and
+should be avoided.</p>
+
+<p>Note also that Perl 5.6 provides a <tt class="literal">Symbol.pm</tt>-like
+functionality as a built-in feature, so you can write:</p>
+
+<blockquote><pre class="code">open my $fh, "&gt;/tmp/foo" or die $!;</pre></blockquote>
+
+<p>and <tt class="literal">$fh</tt> will be automatically vivified as a valid
+filehandle. You don't need to use
+<tt class="literal">Symbol::gensym</tt> and
+<tt class="literal">Apache::gensym</tt> anymore, if backward compatibility
+is not a requirement.</p>
+
+<p>You can also use <tt class="literal">IO::*</tt> modules, such as
+<tt class="literal">IO::File</tt> or <tt class="literal">IO::Dir</tt>. These are
+much bigger than the <tt class="literal">Symbol</tt> module (as a matter of
+fact, these modules use the <tt class="literal">Symbol</tt> module
+themselves) and are worth using for files or directories only if you
+are already using them for the other features they provide. Here is
+an example of their usage:</p>
+
+<blockquote><pre class="code">use IO::File;
+use IO::Dir;
+my $fh = IO::File-&gt;new("&gt;filename");
+my $dh = IO::Dir-&gt;new("dirname");</pre></blockquote>
+
+<p>Alternatively, there are also the lighter
+<tt class="literal">FileHandle</tt> and <tt class="literal">DirHandle</tt>
+modules.</p>
+
+<p>If you still have to use global filehandles, there are a few
+approaches you can take to clean up in the case of abnormal script
+termination.</p>
+
+<p>If you are running under <tt class="literal">Apache::Registry</tt> and
+friends, the <tt class="literal">END</tt> block will perform the cleanup
+work for you. You can use <tt class="literal">END</tt> in the same way for
+scripts running under mod_cgi, or in plain Perl scripts. Just add the
+cleanup code to this block, and you are safe.</p>
+
+<p>For example, if you work with DBM files, it's
+important to flush the DBM buffers by calling a <tt class="literal">sync(
+)</tt> method:</p>
+
+<blockquote><pre class="code">END {
+    # make sure that the DB is flushed
+    $dbh-&gt;sync( );
+}</pre></blockquote>
+
+<p>Under mod_perl, the above code will work only for
+<tt class="literal">Apache::Registry</tt> and
+<tt class="literal">Apache::PerlRun</tt>scripts. Otherwise, execution of
+the <tt class="literal">END</tt> block is postponed until the process
+terminates. If you write a handler in the mod_perl API, use the
+<tt class="literal">register_cleanup( )</tt> method instead. It accepts a
+reference to a subroutine as an argument. You can rewrite the DBM
+synchronization code in this way:</p>
+
+<blockquote><pre class="code">$r-&gt;register_cleanup(sub { $dbh-&gt;sync( ) });</pre></blockquote>
+
+<p>This will work under <tt class="literal">Apache::Registry</tt> as well.</p>
+
+<p>Even better would be to check whether the client connection has been
+aborted. Otherwise, the cleanup code will always be executed, and for
+normally terminated scripts, this may not be what you want. To
+perform this check, use:</p>
+
+<blockquote><pre class="code">$r-&gt;register_cleanup(
+  # make sure that the DB is flushed
+  sub {
+      $dbh-&gt;sync( ) if Apache-&gt;request-&gt;connection-&gt;aborted( );
+  }
+);</pre></blockquote>
+
+<p>Or, if using an <tt class="literal">END</tt> block, use:</p>
+
+<blockquote><pre class="code">END {
+    # make sure that the DB is flushed
+    $dbh-&gt;sync( ) if Apache-&gt;request-&gt;connection-&gt;aborted( );
+}</pre></blockquote>
+
+<p>Note that if you use <tt class="literal">register_cleanup( )</tt>, it
+should be called at the beginning of the script or as soon as the
+variables you want to use in this code become available. If you use
+it at the end of the script, and the script happens to be aborted
+before this code is reached, no cleanup will be performed.</p>
+
+<p>For example, <tt class="literal">CGI.pm</tt> registers a cleanup subroutine
+in its <tt class="literal">new( )</tt> method:</p>
+
+<blockquote><pre class="code">sub new {
+  # code snipped
+  if ($MOD_PERL) {
+      Apache-&gt;request-&gt;register_cleanup(\&amp;CGI::_reset_globals);
+      undef $NPH;
+  }
+  # more code snipped
+}</pre></blockquote>
+
+<p>Another way to register a section of cleanup code for mod_perl API
+handlers is to use <tt class="literal">PerlCleanupHandler</tt> in the
+configuration file:</p>
+
+<blockquote><pre class="code">&lt;Location /foo&gt;
+    SetHandler perl-script
+    PerlHandler        Apache::MyModule
+    PerlCleanupHandler Apache::MyModule::cleanup( )
+    Options ExecCGI
+&lt;/Location&gt;</pre></blockquote>
+
+<p><tt class="literal">Apache::MyModule::cleanup</tt> <a name="pmodperl-CHP-6-ITERM-4582" /><a name="pmodperl-CHP-6-ITERM-4583" />performs<a name="pmodperl-CHP-6-ITERM-4584" /><a name="pmodperl-CHP-6-ITERM-4585" /><a name="pmodperl-CHP-6-ITERM-4586" /><a name="pmodperl-CHP-6-ITERM-4587" /> the cleanup.</p>
+
+</div>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">6.8. Loading and Reloading Modules</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.10. Handling Server Timeout Cases and Working with $SIG{ALRM}</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

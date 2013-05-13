@@ -1,0 +1,746 @@
+<html><head><title>Forking and Executing Subprocessesfrom mod_perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch10_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch10_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">10.2. Forking and Executing Subprocessesfrom mod_perl</h2>
+
+<p>When you fork Apache, you are forking the entire Apache server, lock,
+stock and barrel. Not only are you duplicating your Perl code and the
+Perl interpreter, but you are also duplicating all the core routines
+and whatever modules you have used in your server&#8212;for example,
+mod_ssl, mod_rewrite, mod_log, mod_proxy, and mod_speling (no,
+that's not a typo!). This can be a large overhead on
+some systems, so wherever possible, it's desirable
+to avoid forking under mod_perl.</p>
+
+<p>Modern operating systems
+<a name="pmodperl-CHP-10-ITERM-4836" /><a name="pmodperl-CHP-10-ITERM-4837" />have a light version of <tt class="literal">fork(
+)</tt>, optimized to do the absolute minimum of memory-page
+duplication, which adds little overhead when called. This fork relies
+on the <em class="emphasis">copy-on-write</em>
+<a name="pmodperl-CHP-10-ITERM-4838" /><a name="pmodperl-CHP-10-ITERM-4839" />technique. The gist of this technique is
+as follows: the parent process's memory pages
+aren't all copied immediately to the
+child's space on <tt class="literal">fork( )</tt> ing; this
+is done later, when the child or the parent modifies the data in the
+shared memory pages.</p>
+
+<p>If you need to call a Perl program from your mod_perl code,
+it's better to try to convert the program into a
+module and call it as a function without spawning a special process
+to do that. Of course, if you cannot do that or the program is not
+written in Perl, you have to call the program via <tt class="literal">system(
+)</tt> or an equivalent function, which spawns a new process. If
+the program is written in C, you can try to write some Perl glue code
+with help of the Inline, XS, or SWIG architectures. Then the program
+will be executed as a Perl subroutine and avoid a <tt class="literal">fork(
+)</tt> call.</p>
+
+<p>Also by trying to spawn a subprocess, you might be trying to do the
+wrong thing. If you just want to do some post-processing after
+sending a response to the browser, look into the
+<tt class="literal">PerlCleanupHandler</tt> directive. This
+<a name="pmodperl-CHP-10-ITERM-4840" /><a name="pmodperl-CHP-10-ITERM-4841" />allows
+<a name="pmodperl-CHP-10-ITERM-4842" />you to do exactly that. If you just
+need to run some cleanup code, you may want to register this code
+during the request processing via:</p>
+
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;register_cleanup(\&amp;do_cleanup);
+sub do_cleanup{ #some clean-up code here }</pre></blockquote>
+
+<p>But when a lengthy job needs to be done, there is not much choice but
+to use <tt class="literal">fork( )</tt>. You cannot just run such a job
+within an Apache process, since firstly it will keep the Apache
+process busy instead of letting it do the job it was designed for,
+and secondly, unless it is coded so as to detach from the Apache
+processes group, if Apache should happen to be stopped the lengthy
+job might be terminated as well.</p>
+
+<p>In the following sections, we'll discuss how to
+properly spawn new processes under mod_perl.</p>
+
+<a name="pmodperl-CHP-10-SECT-2.1" /><div class="sect2">
+<h3 class="sect2">10.2.1. Forking a New Process</h3>
+
+<p>The typical way to call <tt class="literal">fork( )</tt> under mod_perl is
+<a name="pmodperl-CHP-10-ITERM-4843" /><a name="pmodperl-CHP-10-ITERM-4844" /><a name="pmodperl-CHP-10-ITERM-4845" />illustrated
+in <a href="ch10_02.html#pmodperl-CHP-10-EX-13">Example 10-13</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-13" /><div class="example">
+<h4 class="objtitle">Example 10-13. fork1.pl</h4>
+<blockquote><pre class="code">defined (my $kid = fork) or die "Cannot fork: $!\n";
+if ($kid) {
+    # Parent runs this block
+}
+else {
+    # Child runs this block
+    # some code comes here
+    CORE::exit(0);
+}
+# possibly more code here usually run by the parent</pre></blockquote>
+</div>
+
+<p>When using <tt class="literal">fork( )</tt>, you should check its return
+value, since a return of <tt class="literal">undef</tt> it means that the
+call was unsuccessful and no process was spawned. This can happen for
+example, when the system is already running too many processes and
+cannot spawn new ones.</p>
+
+<p>When the process is successfully forked, the parent receives the PID
+of the newly spawned child as a returned value of the <tt class="literal">fork(
+)</tt> call and the child receives <tt class="literal">0</tt>. Now the
+program splits into two. In the above example, the code inside the
+first block after <tt class="literal">if</tt> will be executed by the
+parent, and the code inside the first block after
+<tt class="literal">else</tt> will be executed by the child.</p>
+
+<p>It's important not to forget to explicitly call
+<tt class="literal">exit( )</tt> at the end of the child code when forking.
+If you don't and there is some code outside the
+<tt class="literal">if...else</tt> block, the child process will execute it
+as well. But under mod_perl there is another nuance&#8212;you must
+use <tt class="literal">CORE::exit( )</tt> and not <tt class="literal">exit(
+)</tt>, which would be automatically overriden by
+<tt class="literal">Apache::exit( )</tt> if used in conjunction with
+<tt class="literal">Apache::Registry</tt> and similar modules. You want the
+spawned process to quit when its work is done, or
+it'll just stay alive, using resources and doing
+nothing.</p>
+
+<p>The parent process usually completes its execution and returns to the
+pool of free servers to wait for a new assignment. If the execution
+is to be aborted earlier for some reason, you should use
+<tt class="literal">Apache::exit( )</tt> or <tt class="literal">die( )</tt>. In
+the case of <tt class="literal">Apache::Registry</tt> or
+<tt class="literal">Apache::PerlRun</tt> handlers, a simple <tt class="literal">exit(
+)</tt> will do the right thing.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-2.2" /><div class="sect2">
+<h3 class="sect2">10.2.2. Freeing the Parent Process</h3>
+
+<p>In the child code, you must also close all <a name="pmodperl-CHP-10-ITERM-4846" />the
+pipes to the connection socket that were opened by the parent process
+(i.e., <tt class="literal">STDIN</tt> and <tt class="literal">STDOUT</tt>) and
+inherited by the child, so the parent will be able to complete the
+request and free itself for serving other requests. If you need the
+<tt class="literal">STDIN</tt> and/or <tt class="literal">STDOUT</tt>streams,
+you should reopen them. You may need to close or reopen the
+<tt class="literal">STDERR</tt> file handle, too. As inherited from its
+parent, it's opened to append to the
+<em class="emphasis">error_log</em> file, so the chances are that you will
+want to leave it untouched.</p>
+
+<p>Under mod_perl, the spawned process also inherits the file descriptor
+that's tied to the socket through which all the
+communications between the server and the client pass. Therefore, you
+need to free this stream in the forked process. If you
+don't, the server can't be
+restarted while the spawned process is still running. If you attempt
+to restart the server, you will get the following error:</p>
+
+<blockquote><pre class="code">[Mon May 20 23:04:11 2002] [crit] 
+(98)Address already in use: make_sock:
+  could not bind to address 127.0.0.1 port 8000</pre></blockquote>
+
+<p><tt class="literal">Apache::SubProcess</tt> comes to help,
+<a name="pmodperl-CHP-10-ITERM-4847" /><a name="pmodperl-CHP-10-ITERM-4848" /><a name="pmodperl-CHP-10-ITERM-4849" />providing a method called
+<tt class="literal">cleanup_for_exec( )</tt> that takes care of closing
+this file descriptor.</p>
+
+<p>The simplest way to free
+<a name="pmodperl-CHP-10-ITERM-4850" /><a name="pmodperl-CHP-10-ITERM-4851" /><a name="pmodperl-CHP-10-ITERM-4852" />the parent process is to
+close the <tt class="literal">STDIN</tt>, <tt class="literal">STDOUT</tt>, and
+<tt class="literal">STDERR</tt>streams (if you don't need
+them) and untie the Apache socket. If the mounted partition is to be
+unmounted at a later time, in addition you may want to change the
+current directory of the forked process to <em class="emphasis">/</em> so
+that the forked process won't keep the mounted
+partition busy.</p>
+
+<p>To summarize all these issues, here is an example of a fork that
+takes care of freeing the parent process (<a href="ch10_02.html#pmodperl-CHP-10-EX-14">Example 10-14</a>).</p>
+
+<a name="pmodperl-CHP-10-EX-14" /><div class="example">
+<h4 class="objtitle">Example 10-14. fork2.pl</h4>
+<blockquote><pre class="code">use Apache::SubProcess;
+defined (my $kid = fork) or die "Cannot fork: $!\n";
+if ($kid) {
+    # Parent runs this block
+}
+else {
+    # Child runs this block
+    $r-&gt;cleanup_for_exec( ); # untie the socket
+    chdir '/' or die "Can't chdir to /: $!";
+    close STDIN;
+    close STDOUT;
+    close STDERR;
+
+    # some code goes here
+
+    CORE::exit(0);
+}
+# possibly more code here usually run by the parent</pre></blockquote>
+</div>
+
+<p>Of course, the real code should be placed between freeing the parent
+code and the child process termination.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-2.3" /><div class="sect2">
+<h3 class="sect2">10.2.3. Detaching the Forked Process</h3>
+
+<p>Now what happens if the forked
+<a name="pmodperl-CHP-10-ITERM-4853" /><a name="pmodperl-CHP-10-ITERM-4854" /><a name="pmodperl-CHP-10-ITERM-4855" />process is running and we
+decide that we need to restart the web server? This forked process
+will be aborted, because when the parent process dies during the
+restart, it will kill its child processes as well. In order to avoid
+this, we need to detach the process from its parent session by
+opening a new session with help of a <tt class="literal">setsid( )</tt>
+system call (provided by the <tt class="literal">POSIX</tt> module). This
+is demonstrated in <a href="ch10_02.html#pmodperl-CHP-10-EX-15">Example 10-15</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-15" /><div class="example">
+<h4 class="objtitle">Example 10-15. fork3.pl</h4>
+<blockquote><pre class="code">use POSIX 'setsid';
+
+defined (my $kid = fork) or die "Cannot fork: $!\n";
+if ($kid) {
+    # Parent runs this block
+}
+else {
+    # Child runs this block
+    setsid or die "Can't start a new session: $!";
+    # ...
+}</pre></blockquote>
+</div>
+
+<p>Now the spawned child process has a life of its own, and it
+doesn't depend on the parent any more.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-2.4" /><div class="sect2">
+<h3 class="sect2">10.2.4. Avoiding Zombie Processes</h3>
+
+<p>Normally, every process has a
+<a name="pmodperl-CHP-10-ITERM-4856" /><a name="pmodperl-CHP-10-ITERM-4857" /><a name="pmodperl-CHP-10-ITERM-4858" />parent. Many processes are children of the
+<tt class="literal">init</tt> process, whose PID is 1. When you fork a
+process, you must <tt class="literal">wait( )</tt> or <tt class="literal">waitpid(
+)</tt> for it to finish. If you don't
+<tt class="literal">wait( )</tt> for it, it becomes a zombie.</p>
+
+<p>A zombie is a process that doesn't have a parent.
+When the child quits, it reports the termination to its parent. If no
+parent <tt class="literal">wait( )</tt>s to collect the exit status of the
+child, it gets confused and becomes a ghost process that can be seen
+as a process but not killed. It will be killed only when you stop the
+parent process that spawned it.</p>
+
+<p>Generally, the <em class="emphasis">ps(1)</em> utility displays these
+processes with the <tt class="literal">&lt;defunc&gt;</tt> tag, and you may
+see the zombies counter increment when using <em class="emphasis">top(
+)</em>. These zombie processes can take up system resources and
+are generally undesirable.</p>
+
+<p>The proper way to do a fork, to avoid zombie processes, is shown in
+<a href="ch10_02.html#pmodperl-CHP-10-EX-16">Example 10-16</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-16" /><div class="example">
+<h4 class="objtitle">Example 10-16. fork4.pl</h4>
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+defined (my $kid = fork) or die "Cannot fork: $!";
+if ($kid) {
+    waitpid($kid,0);
+    print "Parent has finished\n";
+}
+else {
+    # do something
+    CORE::exit(0);
+}</pre></blockquote>
+</div>
+
+<p>In most cases, the only reason you would want to fork is when you
+need to spawn a process that will take a long time to complete. So if
+the Apache process that spawns this new child process has to wait for
+it to finish, you have gained nothing. You can neither wait for its
+completion (because you don't have the time to) nor
+continue, because if you do you will get yet another zombie process.
+This is called a <em class="emphasis">blocking call</em>, since the
+process is blocked from doing anything else
+<a name="pmodperl-CHP-10-ITERM-4859" />until this call gets completed.</p>
+
+<p>The simplest solution is to ignore your dead children. Just add this
+line before the <tt class="literal">fork( )</tt> call:</p>
+
+<blockquote><pre class="code">$SIG{CHLD} = 'IGNORE';</pre></blockquote>
+
+<p>When you set the <tt class="literal">CHLD</tt> (<tt class="literal">SIGCHLD</tt>
+in C) signal handler to '<tt class="literal">IGNORE</tt>', all the
+processes will be collected by the <tt class="literal">init</tt> process
+and therefore will be prevented from becoming zombies. This
+doesn't work everywhere, but it has been proven to
+work at least on Linux.</p>
+
+<p>Note that you cannot localize this setting with <tt class="literal">local(
+)</tt>. If you try, it won't have the desired
+effect.</p>
+
+<p>The latest version of the code is shown in <a href="ch10_02.html#pmodperl-CHP-10-EX-17">Example 10-17</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-17" /><div class="example">
+<h4 class="objtitle">Example 10-17. fork5.pl</h4>
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+$SIG{CHLD} = 'IGNORE';
+
+defined (my $kid = fork) or die "Cannot fork: $!\n";
+if ($kid) {
+    print "Parent has finished\n";
+}
+else {
+    # do something time-consuming
+    CORE::exit(0);
+}</pre></blockquote>
+</div>
+
+<p>Note that the <tt class="literal">waitpid( )</tt> call is gone. The
+<tt class="literal">$SIG{CHLD} = 'IGNORE</tt>'; statement protects us from
+zombies, as explained above.</p>
+
+<p>Another solution (more portable, but slightly more expensive) is to
+use a double fork approach, as shown in <a href="ch10_02.html#pmodperl-CHP-10-EX-18">Example 10-18</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-18" /><div class="example">
+<h4 class="objtitle">Example 10-18. fork6.pl</h4>
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+defined (my $kid = fork) or die "Cannot fork: $!\n";
+if ($kid) {
+    waitpid($kid,0);
+}
+else {
+    defined (my $grandkid = fork) or die "Kid cannot fork: $!\n";
+    if ($grandkid) {
+        CORE::exit(0);
+    }
+    else {
+        # code here
+        # do something long lasting
+        CORE::exit(0);
+    }
+}</pre></blockquote>
+</div>
+
+<p>Grandkid becomes a child of <tt class="literal">init</tt>&#8212;i.e., a
+child of the process whose PID is 1.</p>
+
+<p>Note that the previous two solutions do allow you to determine the
+exit status of the process, but in our example, we
+don't care about it.</p>
+
+<p>Yet another solution is to use a different <tt class="literal">SIGCHLD</tt>
+handler:</p>
+
+<blockquote><pre class="code">use POSIX 'WNOHANG';
+$SIG{CHLD} = sub { while( waitpid(-1,WNOHANG)&gt;0 ) {  } };</pre></blockquote>
+
+<p>This is useful when you <tt class="literal">fork( )</tt> more than one
+process. The handler could call <tt class="literal">wait( )</tt> as well,
+but for a variety of reasons involving the handling of stopped
+processes and the rare event in which two children exit at nearly the
+same moment, the best technique is to call <tt class="literal">waitpid(
+)</tt> in a tight loop with a first argument of
+<tt class="literal">-1</tt> and a second argument of
+<tt class="literal">WNOHANG</tt>. Together these arguments tell
+<tt class="literal">waitpid( )</tt> to reap the next child
+that's available and prevent the call from blocking
+if there happens to be no child ready for reaping. The handler will
+loop until <tt class="literal">waitpid( )</tt> returns a negative number or
+zero, indicating that no more reapable children remain.</p>
+
+<p>While testing and debugging code that uses one of the above examples,
+you might want to write debug information to the
+<em class="emphasis">error_log</em> file so that you know
+what's happening.</p>
+
+<p>Read the <em class="emphasis">perlipc</em> manpage for more information
+about signal handlers.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-2.5" /><div class="sect2">
+<h3 class="sect2">10.2.5. A Complete Fork Example</h3>
+
+<p>Now let's put all the bits
+<a name="pmodperl-CHP-10-ITERM-4860" />of
+code together and show a well-written example that solves all the
+problems discussed <a name="pmodperl-CHP-10-ITERM-4861" />so
+far. We will use an <tt class="literal">Apache::Registry</tt>script for
+this purpose. Our script is shown in <a href="ch10_02.html#pmodperl-CHP-10-EX-19">Example 10-19</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-19" /><div class="example">
+<h4 class="objtitle">Example 10-19. proper_fork1.pl</h4>
+<blockquote><pre class="code">use strict;
+use POSIX 'setsid';
+use Apache::SubProcess;
+
+my $r = shift;
+$r-&gt;send_http_header("text/plain");
+
+$SIG{CHLD} = 'IGNORE';
+defined (my $kid = fork) or die "Cannot fork: $!\n";
+if ($kid) {
+    print "Parent $$ has finished, kid's PID: $kid\n";
+}
+else {
+    $r-&gt;cleanup_for_exec( ); # untie the socket
+    chdir '/'                 or die "Can't chdir to /: $!";
+    open STDIN, '/dev/null'   or die "Can't read /dev/null: $!";
+    open STDOUT, '&gt;/dev/null' or die "Can't write to /dev/null: $!";
+    open STDERR, '&gt;/tmp/log'  or die "Can't write to /tmp/log: $!";
+    setsid                    or die "Can't start a new session: $!";
+
+    my $oldfh = select STDERR;
+    local $| = 1;
+    select $oldfh;
+    warn "started\n";
+
+    # do something time-consuming
+    sleep 1, warn "$_\n" for 1..20;
+    warn "completed\n";
+
+    CORE::exit(0); # terminate the process
+}</pre></blockquote>
+</div>
+
+<p>The script starts with the usual declaration of
+<tt class="literal">strict</tt> mode, then loads the
+<tt class="literal">POSIX</tt> and <tt class="literal">Apache::SubProcess</tt>
+modules and imports the <tt class="literal">setsid( )</tt>symbol from the
+<tt class="literal">POSIX</tt> package.</p>
+
+<p>The HTTP header is sent next, with the
+<tt class="literal">Content-Type</tt> of <tt class="literal">text/plain</tt>. To
+avoid zombies, the parent process gets ready to ignore the child, and
+the fork is called.</p>
+
+<p>The <tt class="literal">if</tt> condition evaluates to a true value for the
+parent process and to a false value for the child process; therefore,
+the first block is executed by the parent and the second by the
+child.</p>
+
+<p>The parent process announces its PID and the PID of the spawned
+process, and finishes its block. If there is any code outside the
+<tt class="literal">if</tt>statement, it will be executed by the parent as
+well.</p>
+
+<p>The child process starts its code by disconnecting from the socket,
+changing its current directory to <tt class="literal">/</tt>, and opening
+the <tt class="literal">STDIN</tt> and <tt class="literal">STDOUT</tt>streams to
+<em class="emphasis">/dev/null</em> (this has the effect of closing them
+both before opening them). In fact, in this example we
+don't need either of these, so we could just
+<tt class="literal">close( )</tt> both. The child process completes its
+disengagement from the parent process by opening the
+<tt class="literal">STDERR</tt>stream to <em class="emphasis">/tmp/log</em>, so
+it can write to that file, and creates a new session with the help of
+<tt class="literal">setsid( )</tt>. Now the child process has nothing to do
+with the parent process and can do the actual processing that it has
+to do. In our example, it outputs a series of warnings, which are
+logged to <em class="emphasis">/tmp/log</em>:</p>
+
+<blockquote><pre class="code">my $oldfh = select STDERR;
+local $| = 1;
+select $oldfh;
+warn "started\n";
+# do something time-consuming
+sleep 1, warn "$_\n" for 1..20;
+warn "completed\n";</pre></blockquote>
+
+<p>We set <tt class="literal">$|=1</tt> to unbuffer the
+<tt class="literal">STDERR</tt>stream, so we can immediately see the debug
+output generated by the program. We use the keyword
+<tt class="literal">local</tt>so that buffering in other processes is not
+affected. In fact, we don't really need to unbuffer
+output when it is generated by <tt class="literal">warn( )</tt>. You want
+it if you use <tt class="literal">print( )</tt> to debug.</p>
+
+<p>Finally, the child process terminates by calling:</p>
+
+<blockquote><pre class="code">CORE::exit(0);</pre></blockquote>
+
+<p>which makes sure that it terminates at the end of the block and
+won't run some code that it's not
+supposed to run.</p>
+
+<p>This code example will allow you to verify that indeed the spawned
+child process has its own life, and that its parent is free as well.
+Simply issue a request that will run this script, see that the
+process starts writing warnings to the file
+<em class="emphasis">/tmp/log</em>, and issue a complete server stop and
+start. If everything is correct, the server will successfully restart
+and the long-term process will still be running. You will know that
+it's still running if the warnings are still being
+written into <em class="emphasis">/tmp/log</em>. If Apache takes a long
+time to stop and restart, you may need to raise the number of
+warnings to make sure that you don't miss the end of
+the run.</p>
+
+<p>If there are only five warnings to be printed, you should see the
+following output in the <em class="emphasis">/tmp/log</em> file:</p>
+
+<blockquote><pre class="code">started
+1
+2
+3
+4
+5
+completed</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-2.6" /><div class="sect2">
+<h3 class="sect2">10.2.6. Starting a Long-Running External Program</h3>
+
+<p>What happens if we cannot just <a name="pmodperl-CHP-10-ITERM-4862" />run
+Perl code from the spawned process? We may have a compiled utility,
+such as a program written in C, or a Perl program that cannot easily
+be converted into a module and thus called as a function. In this
+case, we have to use <tt class="literal">system( )</tt>, <tt class="literal">exec(
+)</tt>, <tt class="literal">qx( )</tt> or <tt class="literal">``</tt>
+(backticks) to start it.</p>
+
+<p>When using any of these methods, and when taint mode is enabled, we
+must also add the following code to untaint the
+<tt class="literal">PATH</tt> environment variable and delete a few other
+insecure environment variables. This information can be found in the
+<em class="emphasis">perlsec</em> manpage.</p>
+
+<blockquote><pre class="code">$ENV{'PATH'} = '/bin:/usr/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};</pre></blockquote>
+
+<p>Now all we have to do is reuse the code from the previous section.</p>
+
+<p>First we move the core program into the
+<em class="emphasis">external.pl</em> file, then we add the shebang line
+so that the program will be executed by Perl, tell the program to run
+under taint mode (<em class="emphasis">-T</em>), possibly enable
+<em class="emphasis">warnings</em> mode (<em class="emphasis">-w</em>), and
+make it executable. These changes are shown in <a href="ch10_02.html#pmodperl-CHP-10-EX-20">Example 10-20</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-20" /><div class="example">
+<h4 class="objtitle">Example 10-20. external.pl</h4>
+<blockquote><pre class="code">#!/usr/bin/perl -Tw
+
+open STDIN, '/dev/null'   or die "Can't read /dev/null: $!";
+open STDOUT, '&gt;/dev/null' or die "Can't write to /dev/null: $!";
+open STDERR, '&gt;/tmp/log'  or die "Can't write to /tmp/log: $!";
+
+my $oldfh = select STDERR;
+local $| = 1;
+select $oldfh;
+warn "started\n";
+# do something time-consuming
+sleep 1, warn "$_\n" for 1..20;
+warn "completed\n";</pre></blockquote>
+</div>
+
+<p>Now we replace the code that we moved into the external program with
+a call to <tt class="literal">exec( )</tt> to run it, as shown in <a href="ch10_02.html#pmodperl-CHP-10-EX-21">Example 10-21</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-21" /><div class="example">
+<h4 class="objtitle">Example 10-21. proper_fork_exec.pl</h4>
+<blockquote><pre class="code">use strict;
+use POSIX 'setsid';
+use Apache::SubProcess;
+
+$ENV{'PATH'} = '/bin:/usr/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+my $r = shift;
+$r-&gt;send_http_header("text/html");
+
+$SIG{CHLD} = 'IGNORE';
+
+defined (my $kid = fork) or die "Cannot fork: $!\n";
+if ($kid) {
+    print "Parent has finished, kid's PID: $kid\n";
+}
+else {
+    $r-&gt;cleanup_for_exec( ); # untie the socket
+    chdir '/'                 or die "Can't chdir to /: $!";
+    open STDIN, '/dev/null'   or die "Can't read /dev/null: $!";
+    open STDOUT, '&gt;/dev/null' or die "Can't write to /dev/null: $!";
+    open STDERR, '&gt;&amp;STDOUT'   or die "Can't dup stdout: $!";
+    setsid                    or die "Can't start a new session: $!";
+
+    exec "/home/httpd/perl/external.pl" or die "Cannot execute exec: $!";
+}</pre></blockquote>
+</div>
+
+<p>Notice that <tt class="literal">exec( )</tt> never returns unless it fails
+to start the process. Therefore you shouldn't put
+any code after <tt class="literal">exec( )</tt>&#8212;it will not be
+executed in the case of success. Use <tt class="literal">system( )</tt> or
+backticks instead if you want to continue doing other things in the
+process. But then you probably will want to terminate the process
+after the program has finished, so you will have to write:</p>
+
+<blockquote><pre class="code">system "/home/httpd/perl/external.pl"
+    or die "Cannot execute system: $!";
+CORE::exit(0);</pre></blockquote>
+
+<p>Another important nuance is that we have to close all
+<tt class="literal">STD</tt>streams in the forked process, even if the
+called program does that.</p>
+
+<p>If the external program is written in Perl, you can pass complicated
+data stuctures to it using one of the methods to serialize and then
+restore Perl data. The <tt class="literal">Storable</tt> and
+<tt class="literal">FreezeThaw</tt> modules come in handy.
+Let's say that we have a program called
+<em class="emphasis">master.pl</em> (<a href="ch10_02.html#pmodperl-CHP-10-EX-22">Example 10-22</a>) calling
+another program called <em class="emphasis">slave.pl</em> (<a href="ch10_02.html#pmodperl-CHP-10-EX-23">Example 10-23</a>).</p>
+
+<a name="pmodperl-CHP-10-EX-22" /><div class="example">
+<h4 class="objtitle">Example 10-22. master.pl</h4>
+<blockquote><pre class="code"># we are within the mod_perl code
+use Storable ( );
+my @params = (foo =&gt; 1, bar =&gt; 2);
+my $params = Storable::freeze(\@params);
+exec "./slave.pl", $params or die "Cannot execute exec: $!";</pre></blockquote>
+</div>
+
+<a name="pmodperl-CHP-10-EX-23" /><div class="example">
+<h4 class="objtitle">Example 10-23. slave.pl</h4>
+<blockquote><pre class="code">#!/usr/bin/perl -w
+use Storable ( );
+my @params = @ARGV ? @{ Storable::thaw(shift)||[  ] } : ( );
+# do something</pre></blockquote>
+</div>
+
+<p>As you can see, <em class="emphasis">master.pl</em> serializes the
+<tt class="literal">@params</tt> data structure with
+<tt class="literal">Storable::freeze</tt> and passes it to
+<em class="emphasis">slave.pl</em> as a single <a name="pmodperl-CHP-10-ITERM-4863" />\argument.
+<em class="emphasis">slave.pl</em> recovers it with
+<tt class="literal">Storable::thaw</tt>, by shifting the first value of the
+<tt class="literal">@ARGV</tt> array (if available). The
+<tt class="literal">FreezeThaw</tt> module does a very similar thing.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-2.7" /><div class="sect2">
+<h3 class="sect2">10.2.7. Starting a Short-Running External Program</h3>
+
+<p>Sometimes you need to call an external <a name="pmodperl-CHP-10-ITERM-4864" />program
+and you cannot continue before this program completes its run (e.g.,
+if you need it to return some result). In this case, the fork
+solution doesn't help. There are a few ways to
+execute such a program. First, you could use <tt class="literal">system(
+)</tt>:</p>
+
+<blockquote><pre class="code">system "perl -e 'print 5+5'"</pre></blockquote>
+
+<p>You would never call the Perl interperter for doing a simple
+calculation like this, but for the sake of a simple example
+it's good enough.</p>
+
+<p>The problem with this approach is that we cannot get the results
+printed to <tt class="literal">STDOUT</tt>. That's where
+backticks or <tt class="literal">qx( )</tt> can help. If you use either:</p>
+
+<blockquote><pre class="code">my $result = `perl -e 'print 5+5'`;</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">my $result = qx{perl -e 'print 5+5'};</pre></blockquote>
+
+<p>the whole output of the external program will be stored in the
+<tt class="literal">$result</tt> variable.</p>
+
+<p>Of course, you can use other solutions, such as opening a pipe
+(<tt class="literal">|</tt>) to the program if you need to submit many
+arguments. And there are more evolved solutions provided by other
+Perl modules, such as <tt class="literal">IPC::Open2</tt> and
+<tt class="literal">IPC::Open3</tt>, that allow you to open a process for
+reading, writing, and error handling.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-2.8" /><div class="sect2">
+<h3 class="sect2">10.2.8. Executing system( ) or exec( ) in the Right Way</h3>
+
+<p>The Perl <tt class="literal">exec( )</tt> and <tt class="literal">system( )</tt>
+functions behave <a name="pmodperl-CHP-10-ITERM-4865" /><a name="pmodperl-CHP-10-ITERM-4866" />identically in the way they spawn a
+program. Let's use <tt class="literal">system( )</tt> as
+an example. Consider the following code:</p>
+
+<blockquote><pre class="code">system("echo", "Hi");</pre></blockquote>
+
+<p>Perl will use the first argument as a program to execute, find the
+<tt class="literal">echo</tt> executable along the search path, invoke it
+directly, and pass the string "Hi"
+as an argument.</p>
+
+<p>Note that Perl's <tt class="literal">system( )</tt> is not
+the same as the standard <em class="emphasis">libc</em>
+<tt class="literal">system(3)</tt> call.</p>
+
+<p>If there is more than one argument to <tt class="literal">system( )</tt> or
+<tt class="literal">exec( )</tt>, or the argument is an array with more
+than one element in it, the arguments are passed directly to the
+C-level functions. When the argument is a single scalar or an array
+with only a single scalar in it, it will first be checked to see if
+it contains any shell metacharacters (e.g., <tt class="literal">*</tt>,
+<tt class="literal">?</tt>). If there are any, the Perl interpreter invokes
+a real shell program (<em class="emphasis">/bin/sh -c</em> on Unix
+platforms). If there are no shell metacharacters in the argument, it
+is split into words and passed directly to the C level, which is more
+efficient.</p>
+
+<p>In other words, only if you do:</p>
+
+<blockquote><pre class="code">system "echo *"</pre></blockquote>
+
+<p>will Perl actually <tt class="literal">exec( )</tt> a copy of
+<em class="emphasis">/bin/sh</em> to parse your command, which may incur a
+slight overhead on certain OSes.</p>
+
+<p>It's especially important to remember to run your
+code with taint mode enabled when <tt class="literal">system( )</tt> or
+<tt class="literal">exec( )</tt> is called using a single argument. There
+can be bad consequences if user input gets to the shell without
+proper laundering first. Taint mode will alert you when such a
+condition happens.</p>
+
+<p>Perl will try to do the most efficient thing no matter how the
+arguments are passed, and the additional overhead may be incurred
+only if you need the shell to expand some metacharacters before doing
+the actual call.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch10_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch10_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">10. Improving Performance with Shared Memory and Proper Forking</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">10.3. References</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

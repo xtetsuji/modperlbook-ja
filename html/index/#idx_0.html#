@@ -1,0 +1,270 @@
+<html>
+<head>
+<title>Index: Symbols &amp; Numbers</title>
+</head>
+<body bgcolor="#FFFFFF" text="#000000">
+
+<!-- START OF BODY -->
+
+<!-- TOP BANNER -->
+
+<p>
+
+
+<!-- TOP INDEX LINKS -->
+
+<p>
+
+<a href="idx_0.html">Symbols &amp; Numbers</a>
+| <a href="idx_a.html">A</a>
+| <a href="idx_b.html">B</a>
+| <a href="idx_c.html">C</a>
+| <a href="idx_d.html">D</a>
+| <a href="idx_e.html">E</a>
+| <a href="idx_f.html">F</a>
+| <a href="idx_g.html">G</a>
+| <a href="idx_h.html">H</a>
+| <a href="idx_i.html">I</a>
+| <a href="idx_j.html">J</a>
+| <a href="idx_k.html">K</a>
+| <a href="idx_l.html">L</a>
+| <a href="idx_m.html">M</a>
+| <a href="idx_n.html">N</a>
+| <a href="idx_o.html">O</a>
+| <a href="idx_p.html">P</a>
+| <a href="idx_q.html">Q</a>
+| <a href="idx_r.html">R</a>
+| <a href="idx_s.html">S</a>
+| <a href="idx_t.html">T</a>
+| <a href="idx_u.html">U</a>
+| <a href="idx_v.html">V</a>
+| <a href="idx_w.html">W</a>
+| <a href="idx_x.html">X</a>
+| <a href="idx_y.html">Y</a>
+| <a href="idx_z.html">Z</a>
+</FONT>
+
+<!-- INDEX SECTION BODY -->
+
+<H2>Index: Symbols &amp; Numbers</H2>
+
+<DL>
+
+
+
+<a name="$$-prototype-method-handlers-and">
+<dt>($$) prototype, method handlers and: <a href="../ch25_01.html#pmodperl-CHP-25-ITERM-5972">25.1.5. Method Handlers</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name=";-semicolon-importance-of">
+<dt>; (semicolon), importance of: <a href="../ch21_05.html#pmodperl-CHP-21-ITERM-5544">21.5.1. Locating and Correcting Syntax Errors</a></dt>
+
+
+<!-- ========================== -->
+
+
+
+<!-- ========================== -->
+
+
+<a name="$$-variable">
+<dt>$$ variable: <a href="../ch09_03.html#pmodperl-CHP-9-ITERM-4726">9.3. Process Memory Measurements</a></dt>
+
+
+<!-- ========================== -->
+
+
+
+<!-- ========================== -->
+
+
+<a name="$Apache::Server::StrictPerlSections">
+<dt>$Apache::Server::StrictPerlSections: <a href="../ch04_04.html#pmodperl-CHP-4-ITERM-3973">4.4.5. Verifying &lt;Perl&gt; Sections</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="@_array-passing-variables">
+<dt>@_array, passing variables: <a href="../ch14_02.html#pmodperl-CHP-14-ITERM-5230">14.2.5. Passing Variables</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="#!-bin-perl-directive">
+<dt>#!/bin/perl directive: <a href="../ch06_05.html#pmodperl-CHP-6-ITERM-4456">6.5.2. Command-Line Switches</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$ENV{PERL_SEND_HEADER}">
+<dt>$ENV{PERL_SEND_HEADER}: <a href="../ch06_11.html#pmodperl-CHP-6-ITERM-4604">6.11. Generating Correct HTTP Headers</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="@INC-directories-locating">
+<dt>@INC directories, locating: <a href="../ch02_07.html#pmodperl-CHP-2-ITERM-3474">2.7. A Simple mod_perl Content Handler</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="@INC-variable">
+<dt>@INC variable: <a href="../ch06_03.html#pmodperl-CHP-6-ITERM-4367">6.3.1. The @INC Array</a></dt><dd><dl>
+  
+  <a name="modifying-for-nonstandard-directories">
+  <dt>modifying for nonstandard directories: <a href="../ch03_09.html#pmodperl-CHP-3-ITERM-3736">3.9.2.1. Modifying @INC</a></dt>
+  
+  
+  <a name="nonstandard-Apache-installation-and">
+  <dt>nonstandard Apache installation and: <a href="../ch03_09.html#pmodperl-CHP-3-ITERM-3768">3.9.5. Nonstandard mod_perl-Enabled Apache Installation</a></dt>
+  
+  
+  <a name="porting-to-mod_perl-2.0">
+  <dt>porting to mod_perl 2.0: <a href="../ch25_01.html#pmodperl-CHP-25-ITERM-5962">25.1.3. Code Porting</a></dt>
+  
+</dl></dd>
+
+
+<!-- ========================== -->
+
+
+<a name="&lt;xsp:expr&gt;-tag">
+<dt>&lt;xsp:expr&gt; tag: <a href="../appe_03.html#pmodperl-APP-E-ITERM-6557"> E.3.2. Handling Cookies</a></dt>
+
+
+<!-- ========================== -->
+
+
+
+<!-- ========================== -->
+
+
+
+
+<!-- ========================== -->
+
+
+<a name="$&quot;-variable">
+<dt>$&quot; variable: <a href="../ch21_05.html#pmodperl-CHP-21-ITERM-5582">21.5.6. Introduction to the Perl Debugger</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$r-&gt;child_terminate-method">
+<dt>$r-&gt;child_terminate method: <a href="../ch06_04.html#pmodperl-CHP-6-ITERM-4398">6.4.1. exit( )</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$r-&gt;register_cleanup-">
+<dt>$r-&gt;register_cleanup( ): <a href="../ch06_04.html#pmodperl-CHP-6-ITERM-4445">6.4.10. END Blocks</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$r-&gt;rflush--function">
+<dt>$r-&gt;rflush( ) function: <a href="../ch13_03.html#pmodperl-CHP-13-ITERM-5108">13.3. Buffered Printing and Better print( ) Techniques</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$r-&gt;send_http_header-">
+<dt>$r-&gt;send_http_header( ): <a href="../ch06_06.html#pmodperl-CHP-6-ITERM-4495">6.6.3. Return Codes</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$r-&gt;status-">
+<dt>$r-&gt;status( ): <a href="../ch06_06.html#pmodperl-CHP-6-ITERM-4494">6.6.3. Return Codes</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$SIG{ALRM}">
+<dt>$SIG{ALRM}: <a href="../ch06_10.html#pmodperl-CHP-6-ITERM-4590">6.10. Handling Server Timeout Cases and Working with $SIG{ALRM}</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$^T-variable">
+<dt>$^T variable: <a href="../ch06_05.html#pmodperl-CHP-6-ITERM-4450">6.5.1. $^T and time( )</a></dt>
+
+
+<!-- ========================== -->
+
+
+<a name="$^W-variable">
+<dt>$^W variable: <a href="../ch06_05.html#pmodperl-CHP-6-ITERM-4459">6.5.2.1. Warnings</a></dt><dd><dl>
+  <dt><a href="../ch21_01.html#pmodperl-CHP-21-ITERM-5458">21.1.1. The Importance of Warnings</a></dt>
+</dl></dd>
+
+
+<!-- ========================== -->
+
+
+<a name="$x-variable">
+<dt>$x variable: <a href="../ch14_02.html#pmodperl-CHP-14-ITERM-5199">14.2.1. Memory Reuse</a></dt>
+
+</dl>
+
+<!-- BOTTOM INDEX LINKS -->
+
+<p>
+<hr width="684" align="LEFT">
+
+<a href="idx_0.html">Symbols &amp; Numbers</a>
+| <a href="idx_a.html">A</a>
+| <a href="idx_b.html">B</a>
+| <a href="idx_c.html">C</a>
+| <a href="idx_d.html">D</a>
+| <a href="idx_e.html">E</a>
+| <a href="idx_f.html">F</a>
+| <a href="idx_g.html">G</a>
+| <a href="idx_h.html">H</a>
+| <a href="idx_i.html">I</a>
+| <a href="idx_j.html">J</a>
+| <a href="idx_k.html">K</a>
+| <a href="idx_l.html">L</a>
+| <a href="idx_m.html">M</a>
+| <a href="idx_n.html">N</a>
+| <a href="idx_o.html">O</a>
+| <a href="idx_p.html">P</a>
+| <a href="idx_q.html">Q</a>
+| <a href="idx_r.html">R</a>
+| <a href="idx_s.html">S</a>
+| <a href="idx_t.html">T</a>
+| <a href="idx_u.html">U</a>
+| <a href="idx_v.html">V</a>
+| <a href="idx_w.html">W</a>
+| <a href="idx_x.html">X</a>
+| <a href="idx_y.html">Y</a>
+| <a href="idx_z.html">Z</a>
+</font>
+<hr width="684" align="left">
+
+<font size="-1"><a href="../copyrght.html">Copyright &copy; 2003</a>
+O'Reilly &amp; Associates, Inc.
+All Rights Reserved.
+</font>
+</p>
+
+
+<!-- END OF BODY -->
+
+</body>
+</html>

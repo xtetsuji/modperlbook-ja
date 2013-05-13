@@ -1,0 +1,309 @@
+<html><head><title>The Startup File (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch04_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch04_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">4.3. The Startup File</h2>
+
+<p>At server<a name="pmodperl-CHP-4-ITERM-3936" /><a name="pmodperl-CHP-4-ITERM-3937" /> startup, before child processes are
+spawned, you can do much more than just preload modules. You might
+want to register code that will initialize a database connection for
+each child when it is forked, tie read-only DBM files, fill in shared
+caches, etc.</p>
+
+<p>The <em class="emphasis">startup.pl</em> file is an ideal place to put
+code that should be executed when the server starts. Once you have
+prepared the code, load it in <em class="emphasis">httpd.conf</em> before
+other mod_perl configuration directives with the
+<tt class="literal">PerlRequire</tt> directive:</p>
+
+<blockquote><pre class="code">PerlRequire  /home/httpd/perl/lib/startup.pl</pre></blockquote>
+
+<p>Be careful with the startup file. Everything run at server
+initialization is run with <em class="emphasis">root</em> privileges if
+you start the server as <em class="emphasis">root</em> (which you have to
+do unless you choose to run the server on an unprivileged port,
+numbered 1024 or higher). This means that anyone who has write access
+to a script or module that is loaded by
+<tt class="literal">PerlModule</tt>, <tt class="literal">PerlRequire</tt>, or
+<tt class="literal">&lt;Perl&gt;</tt>sections effectively has
+<em class="emphasis">root</em> access to the system.</p>
+
+<a name="pmodperl-CHP-4-SECT-3.1" /><div class="sect2">
+<h3 class="sect2">4.3.1. A Sample Startup File</h3>
+
+<p>Let's look <a name="pmodperl-CHP-4-ITERM-3938" /><a name="pmodperl-CHP-4-ITERM-3939" />at a
+real-world startup file. The elements of the file are shown here,
+followed by their descriptions.</p>
+
+<blockquote><pre class="code">use strict;</pre></blockquote>
+
+<p>This pragma is worth using in every script longer than half a dozen
+lines. It will save a lot of time and debugging later.</p>
+
+<blockquote><pre class="code">use lib qw(/home/httpd/lib /home/httpd/extra-lib);</pre></blockquote>
+
+<p>This permanently adds extra directories to <tt class="literal">@INC</tt>,
+something that's possible only during server
+startup. At the end of each request's processing,
+mod_perl resets <tt class="literal">@INC</tt> to the value it had after the
+server startup. Alternatively, you can use the
+<tt class="literal">PERL5LIB</tt> environment variable to add extra
+directories to <tt class="literal">@INC</tt>.</p>
+
+<blockquote><pre class="code">$ENV{MOD_PERL} or die "not running under mod_perl!";</pre></blockquote>
+
+<p>This is a sanity check. If mod_perl wasn't properly
+built, the server startup is aborted.</p>
+
+<blockquote><pre class="code">use Apache::Registry ( );
+use LWP::UserAgent ( );
+use Apache::DBI ( );
+use DBI ( );</pre></blockquote>
+
+<p>Preload the
+<a name="pmodperl-CHP-4-ITERM-3940" />modules that get used by Perl code serving
+requests. Unless you need the symbols (variables and subroutines)
+exported by preloaded modules to accomplish something within the
+startup file, don't import
+them&#8212;it's just a waste of startup time and
+memory. Instead, use the empty import list <tt class="literal">( )</tt> to
+tell the <tt class="literal">import( )</tt><a name="pmodperl-CHP-4-ITERM-3941" /> function not to import anything.</p>
+
+<blockquote><pre class="code">use Carp ( );
+$SIG{_ _WARN_ _} = \&amp;Carp::cluck;</pre></blockquote>
+
+<p>This is a useful snippet to enable extended warnings logged in the
+<em class="emphasis">error_log</em> file. In addition to basic warnings, a
+trace of calls is added. This makes tracking potential problems a
+much easier task, since you know who called what.</p>
+
+<p>The only drawback of this method is that it globally overrides the
+default warning handler behavior&#8212;thus, in some places it might
+be desirable to change the settings locally (for example, with
+<tt class="literal">local $^W=0</tt>, or <tt class="literal">no warnings</tt>
+under Perl 5.6.0 and higher). Usually warnings are turned off on
+production machines to prevent unnecessary clogging of the
+<em class="emphasis">error_log</em> file if your code is not very clean.
+Hence, this method is mostly useful in a development environment.</p>
+
+<blockquote><pre class="code">use CGI ( );
+CGI-&gt;compile(':all');</pre></blockquote>
+
+<p>Some modules, such as <tt class="literal">CGI.pm</tt>, create their
+subroutines at runtime via <tt class="literal">AUTOLOAD</tt> to improve
+their loading time. This helps when the module includes many
+subroutines but only a few are actually used. (Also refer to the
+<tt class="literal">AutoSplit</tt> manpage.) Since the module is loaded
+only once with mod_perl, it might be a good idea to precompile all or
+some of its methods at server startup. This avoids the overhead of
+compilation at runtime. It also helps share more compiled code
+between child processes.</p>
+
+<p><tt class="literal">CGI.pm</tt>'s <tt class="literal">compile(
+)</tt><a name="pmodperl-CHP-4-ITERM-3942" /> method performs this task. Note that
+<tt class="literal">compile( )</tt> is specific to
+<a name="pmodperl-CHP-4-ITERM-3943" /><tt class="literal">CGI.pm</tt>; other
+modules that implement this feature may use another name for the
+compilation method.</p>
+
+<p>As with all modules we preload in the startup file, we
+don't import symbols from them because they will be
+lost when they go out of the file's scope.</p>
+
+<p>The following code snippet makes sure that when the child process is
+spawned, a connection to the database is opened automatically,
+avoiding this performance hit on the first request:</p>
+
+<blockquote><pre class="code">Apache::DBI-&gt;connect_on_init
+  ("DBI:mysql:database=test;host=localhost",
+   "user", "password", {
+                        PrintError =&gt; 1, # warn( ) on errors
+                        RaiseError =&gt; 0, # don't die on error
+                        AutoCommit =&gt; 1, # commit executes immediately
+                       }
+  );</pre></blockquote>
+
+<p>We discuss this method in detail in <a href="ch20_01.html">Chapter 20</a>.</p>
+
+<p>The file ends with <tt class="literal">1;</tt>so it can be successfully
+loaded by Perl.</p>
+
+<p>The entire
+<em class="emphasis">startup.pl</em><a name="pmodperl-CHP-4-ITERM-3944" /> file is shown
+in <a href="ch04_03.html#pmodperl-CHP-4-EX-3">Example 4-3</a>.</p>
+
+<a name="pmodperl-CHP-4-EX-3" /><div class="example">
+<h4 class="objtitle">Example 4-3. startup.pl</h4>
+<blockquote><pre class="code">use strict;
+
+use lib qw(/home/httpd/lib /home/httpd/extra-lib);
+$ENV{MOD_PERL} or die "not running under mod_perl!";
+
+use Apache::Registry ( );
+use LWP::UserAgent ( );
+use Apache::DBI ( );
+use DBI ( );
+
+use Carp ( );
+$SIG{_ _WARN_ _} = \&amp;Carp::cluck;
+
+use CGI ( );
+CGI-&gt;compile(':all');
+
+Apache::DBI-&gt;connect_on_init
+  ("DBI:mysql:database=test;host=localhost",
+   "user", "password", {
+                        PrintError =&gt; 1, # warn( ) on errors
+                        RaiseError =&gt; 0, # don't die on error
+                        AutoCommit =&gt; 1, # commit executes immediately
+                       }
+  );
+1;</pre></blockquote>
+</div>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-3.2" /><div class="sect2">
+<h3 class="sect2">4.3.2. Syntax Validation</h3>
+
+<p>If the
+startup<a name="pmodperl-CHP-4-ITERM-3945" /><a name="pmodperl-CHP-4-ITERM-3946" /><a name="pmodperl-CHP-4-ITERM-3947" />
+file doesn't include any modules that require the
+mod_perl runtime environment during their loading, you can validate
+its syntax with:</p>
+
+<blockquote><pre class="code">panic% perl -cw /home/httpd/perl/lib/startup.pl</pre></blockquote>
+
+<p>The <em class="emphasis">-c</em> switch tells Perl to validate only the
+file's syntax, and the <em class="emphasis">-w</em>
+switch enables warnings.</p>
+
+<p><tt class="literal">Apache::DBI</tt> is an example of a module that cannot
+be loaded outside of the mod_perl environment. If you try to load it,
+you will get the following error message:</p>
+
+<blockquote><pre class="code">panic% perl -MApache::DBI -c -e 1
+Can't locate object method "module" via package "Apache" 
+(perhaps you forgot to load "Apache"?) at 
+/usr/lib/perl5/site_perl/5.6.1/Apache/DBI.pm line 202.
+Compilation failed in require.
+BEGIN failed--compilation aborted.</pre></blockquote>
+
+<p>However, <tt class="literal">Apache::DBI</tt> will work perfectly once
+loaded from within mod_perl.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-3.3" /><div class="sect2">
+<h3 class="sect2">4.3.3. What Modules Should Be Added to the Startup File</h3>
+
+<p>Every module<a name="pmodperl-CHP-4-ITERM-3948" /><a name="pmodperl-CHP-4-ITERM-3949" /><a name="pmodperl-CHP-4-ITERM-3950" /><a name="pmodperl-CHP-4-ITERM-3951" /> loaded at server startup will be shared
+among the server children, saving a lot of RAM on your machine.
+Usually, we put most of the code we develop into modules and preload
+them.</p>
+
+<p>You can even preload CGI scripts with
+<tt class="literal">Apache::RegistryLoader</tt>, as explained in <a href="ch10_01.html">Chapter 10</a>.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-3.4" /><div class="sect2">
+<h3 class="sect2">4.3.4. The Confusion with use( ) in the Server Startup File</h3>
+
+<p>Some people<a name="pmodperl-CHP-4-ITERM-3952" /><a name="pmodperl-CHP-4-ITERM-3953" /><a name="pmodperl-CHP-4-ITERM-3954" /><a name="pmodperl-CHP-4-ITERM-3955" />
+wonder why they need to duplicate <tt class="literal">use Modulename</tt>
+in the startup file and in the script itself. The confusion arises
+due to misunderstanding <tt class="literal">use( )</tt>.
+Let's take the <tt class="literal">POSIX</tt> module as an
+example. When you write:</p>
+
+<blockquote><pre class="code">use POSIX qw(setsid);</pre></blockquote>
+
+<p><tt class="literal">use( )</tt> internally performs two operations:</p>
+
+<blockquote><pre class="code">BEGIN {
+    require POSIX;
+    POSIX-&gt;import(qw(setsid));
+}</pre></blockquote>
+
+<p>The first operation loads and compiles the module. The second calls
+the module's <tt class="literal">import( )</tt> method and
+specifies to import the symbol <em class="emphasis">setsid</em> into the
+caller's namespace. The <tt class="literal">BEGIN</tt>
+block makes sure that the code is executed as soon as possible,
+before the rest of the code is even parsed. <tt class="literal">POSIX</tt>,
+like many other modules, specifies a default export list. This is an
+especially extensive list, so when you call:</p>
+
+<blockquote><pre class="code">use POSIX;</pre></blockquote>
+
+<p>about 500 KB worth of symbols gets imported.</p>
+
+<p>Usually, we don't need <tt class="literal">POSIX</tt> or
+its symbols in the startup file; all we want is to preload it.
+Therefore, we use an empty list as an argument for <tt class="literal">use(
+)</tt>:</p>
+
+<blockquote><pre class="code">use POSIX ( );</pre></blockquote>
+
+<p>so the <tt class="literal">POSIX::import( )</tt> method
+won't be even called.</p>
+
+<p>When we want to use the <tt class="literal">POSIX</tt> module in the code,
+we <tt class="literal">use( )</tt> it again, but this time no loading
+overhead occurs because the module has been loaded already. If we
+want to import something from the module, we supply the list of
+symbols to load:</p>
+
+<blockquote><pre class="code">use POSIX qw(:flock_h);</pre></blockquote>
+
+<p>This example loads constants used with the <tt class="literal">flock(
+)</tt> function.</p>
+
+<p>Technically, you aren't required to supply the
+<tt class="literal">use( )</tt>statement in your handler code if the
+module has already been loaded during server startup or elsewhere.
+When writing your code, however, don't assume that
+the module code has been preloaded. Someday in the future, you or
+someone else will revisit this code and will not understand how it is
+possible to use a module's methods without first
+loading the module itself.</p>
+
+<p>Please refer to the <em class="emphasis">Exporter</em> and
+<em class="emphasis">perlmod</em> manpages, and to the section on
+<tt class="literal">use( )</tt> in the <em class="emphasis">perlfunc</em>
+manpage for more information about <tt class="literal">import( )</tt>.</p>
+
+<p>Remember that you can always use <tt class="literal">require( )</tt> to
+preload the files at server startup if you don't add
+<tt class="literal">( )</tt>, because:</p>
+
+<blockquote><pre class="code">require Data::Dumper;</pre></blockquote>
+
+<p>is the same as:</p>
+
+<blockquote><pre class="code">use Data::Dumper ( );</pre></blockquote>
+
+<p>except that it's not executed at compile-time.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch04_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch04_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">4.2. mod_perl Configuration</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">4.4. Apache Configuration in Perl</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

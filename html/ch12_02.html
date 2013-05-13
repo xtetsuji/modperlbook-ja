@@ -1,0 +1,130 @@
+<html><head><title>Standalone mod_perl-Enabled Apache Server (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch12_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">12.2. Standalone mod_perl-Enabled Apache Server</h2>
+
+<p>The first
+<a name="pmodperl-CHP-12-ITERM-4921" /><a name="pmodperl-CHP-12-ITERM-4922" />and
+simplest scenario uses a straightforward, standalone,
+mod_perl-enabled Apache server, as shown in <a href="ch12_02.html#pmodperl-CHP-12-FIG-1">Figure 12-1</a>. Just take your plain Apache server and add
+mod_perl, like you would add any other Apache module. Continue to run
+it at the port it was using before. You probably want to try this
+before you proceed to more sophisticated and complex techniques. This
+is the standard installation procedure we described in <a href="ch03_01.html">Chapter 3</a>.</p>
+
+<a name="pmodperl-CHP-12-FIG-1" /><div class="figure"><img src="figs/pmp_1201.gif" alt="Figure 12-1" width="361" /></div><h4 class="objtitle">Figure 12-1. mod_perl-enabled Apache server</h4>
+
+<p>A standalone <a name="pmodperl-CHP-12-ITERM-4923" />server gives you the
+following advantages:</p>
+
+<dl>
+<dt><i>Simplicity</i></dt>
+<dd>
+You just follow the installation instructions, configure it, restart
+the server, and you are done.</p>
+</dd>
+
+
+
+<dt><i>No network changes</i></dt>
+<dd>
+You do not have to worry about using additional ports, as we will see
+later.</p>
+</dd>
+
+
+
+<dt><i>Speed</i></dt>
+<dd>
+You get a very fast server for dynamic content, and you see an
+enormous speedup compared to mod_cgi, from the first moment you start
+to use it.</p>
+</dd>
+
+</dl>
+
+<p>The disadvantages of a standalone server are as follows:</p>
+
+<ul><li>
+<p>The process <a name="pmodperl-CHP-12-ITERM-4924" />size of a mod_perl-enabled
+Apache server might be huge (maybe 4 MB at startup and growing to 10
+MB or more, depending on how you use it) compared to a typical plain
+Apache server (about 500 KB). Of course, if memory sharing is in
+place, RAM requirements will be smaller.</p>
+
+<p>You probably have a few dozen child processes. The additional
+<a name="pmodperl-CHP-12-ITERM-4925" />memory requirements add up in
+direct relation to the number of child processes. Your memory demands
+will grow by an order of magnitude, but this is the price you pay for
+the additional performance boost of mod_perl. With memory being
+relatively inexpensive nowadays, the additional cost is
+low&#8212;especially when you consider the dramatic performance boost
+mod_perl gives to your services with every 100 MB of RAM you add.</p>
+
+<p>While you will be happy to have these monster processes serving your
+scripts with monster speed, you should be very worried about having
+them serve static objects such as images and HTML files. Each static
+request served by a mod_perl-enabled server means another large
+process running, competing for system resources such as memory and
+CPU cycles. The real overhead depends on the
+<a name="pmodperl-CHP-12-ITERM-4926" /><a name="pmodperl-CHP-12-ITERM-4927" />static object request
+rate. Remember that if your mod_perl code produces HTML code that
+includes images, each of these will produce another static object
+request. Having another plain web server to serve the static objects
+solves this unpleasant problem. Having a proxy server as a frontend,
+caching the static objects and freeing the mod_perl processes from
+this burden, is another solution. We will discuss both later.</p>
+</li><li>
+<p>Another drawback of this approach is that when serving output to a
+client with a slow connection, the huge mod_perl-enabled server
+process (with all of its system resources) will be tied up until the
+response is completely written to the client. While it might take a
+few milliseconds for your script to complete the request, there is a
+chance it will still be busy for a number of seconds or even minutes
+if the request is from a client with a slow connection. As with the
+previous drawback, a proxy solution can solve this problem.
+We'll discuss proxies more later.</p>
+
+<p>Proxying dynamic content is not going to help much if all the clients
+are on a fast local net (for example, if you are administering an
+Intranet). On the contrary, it can decrease performance. Still,
+remember that some of your Intranet users might work from home
+through slow modem links.</p>
+</li></ul>
+<p>If you are new to mod_perl, this is probably the best way to get
+yourself started.</p>
+
+<p>And of course, if your site is serving only mod_perl scripts (and
+close to zero static objects), this might be the perfect choice for
+you!</p>
+
+<p>Before trying the more advanced setup techniques we are going to talk
+about now, it's probably a good idea to review the
+simpler straightforward installation and configuration techniques
+covered in <a href="ch03_01.html">Chapter 3</a> and <a href="ch04_01.html">Chapter 4</a>. These will get you started with the standard
+deployment discussed here.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch12_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">12. Server Setup Strategies</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">12.3. One Plain and One mod_perl-Enabled Apache Server</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

@@ -1,0 +1,489 @@
+<html><head><title>CHECK and INIT Blocks (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">6.5. CHECK and INIT Blocks</h2>
+
+<p>The <tt class="literal">CHECK</tt>
+<a name="pmodperl-CHP-6-ITERM-4446" /><a name="pmodperl-CHP-6-ITERM-4447" />and <tt class="literal">INIT</tt>
+<a name="pmodperl-CHP-6-ITERM-4448" /><a name="pmodperl-CHP-6-ITERM-4449" />blocks run when compilation is complete,
+but before the program starts. <tt class="literal">CHECK</tt> can mean
+"checkpoint,"
+"double-check," or even just
+"stop." <tt class="literal">INIT</tt>
+stands for "initialization." The
+difference is subtle: <tt class="literal">CHECK</tt> blocks are run just
+after the compilation ends, whereas <tt class="literal">INIT</tt> blocks
+are run just before the runtime begins (hence, the
+<em class="emphasis">-c</em> command-line flag to Perl runs up to
+<tt class="literal">CHECK</tt> blocks but not <tt class="literal">INIT</tt>
+blocks).</p>
+
+<p>Perl calls these blocks only during <tt class="literal">perl_parse( )</tt>,
+which mod_perl calls once at startup time. Therefore,
+<tt class="literal">CHECK</tt> and <tt class="literal">INIT</tt> blocks
+don't work in mod_perl, for the same reason these
+don't:</p>
+
+<blockquote><pre class="code">panic% perl -e 'eval qq(CHECK { print "ok\n" })'
+panic% perl -e 'eval qq(INIT  { print "ok\n" })'</pre></blockquote>
+
+<a name="pmodperl-CHP-6-SECT-5.1" /><div class="sect2">
+<h3 class="sect2">6.5.1. $^T and time( )</h3>
+
+<p>Under mod_perl, processes don't quit after serving a
+single request. Thus, <tt class="literal">$^T</tt><a name="pmodperl-CHP-6-ITERM-4450" /><a name="pmodperl-CHP-6-ITERM-4451" />
+gets initialized to the server startup time and retains this value
+throughout the process's life. Even if you
+don't use this variable directly,
+it's important to know that Perl refers to the value
+of <tt class="literal">$^T</tt> internally.</p>
+
+<p>For example, Perl uses <tt class="literal">$^T</tt> with the
+<tt class="literal">-M</tt>, <tt class="literal">-C</tt>, or
+<tt class="literal">-A</tt> file test operators. As a result, files created
+after the child server's startup are reported as
+having a negative age when using those operators.
+<tt class="literal">-M</tt> returns the age of the script file relative to
+the value of the <tt class="literal">$^T</tt>special variable.</p>
+
+<p>If you want to have <tt class="literal">-M</tt> report the
+file's age relative to the current request, reset
+<tt class="literal">$^T</tt>, just as in any other Perl script. Add the
+following line at the beginning of your scripts:</p>
+
+<blockquote><pre class="code">local $^T = time;</pre></blockquote>
+
+<p>You can also do:</p>
+
+<blockquote><pre class="code">local $^T = $r-&gt;request_time;</pre></blockquote>
+
+<p>The second technique is better performance-wise, as it skips the
+<tt class="literal">time( )</tt><a name="pmodperl-CHP-6-ITERM-4452" /> system call and uses the timestamp of the
+request's start time, available via the
+<tt class="literal">$r-&gt;request_time</tt> method.</p>
+
+<p>If this correction needs to be applied to a lot of handlers, a more
+scalable solution is to specify a fixup handler, which will be
+executed during the fixup stage:</p>
+
+<blockquote><pre class="code">sub Apache::PerlBaseTime::handler {
+    $^T = shift-&gt;request_time;
+    return Apache::Constants::DECLINED;
+}</pre></blockquote>
+
+<p>and then add the following line to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlFixupHandler Apache::PerlBaseTime</pre></blockquote>
+
+<p>Now no modifications to the content-handler code and scripts need to
+be performed.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-5.2" /><div class="sect2">
+<h3 class="sect2">6.5.2. Command-Line Switches</h3>
+
+<p>When a Perl
+<a name="pmodperl-CHP-6-ITERM-4453" /><a name="pmodperl-CHP-6-ITERM-4454" />script
+is run from the command line, the shell invokes the Perl interpreter
+via <a name="pmodperl-CHP-6-ITERM-4455" />the
+<tt class="literal">#!/bin/perl</tt><a name="pmodperl-CHP-6-ITERM-4456" /> directive, which is the first line of
+the script (sometimes referred to as the <em class="emphasis">shebang
+line</em>). In scripts running under mod_cgi, you may use Perl
+switches as described in the <em class="emphasis">perlrun</em> manpage,
+such as <em class="emphasis">-w</em>, <em class="emphasis">-T</em>, or
+<em class="emphasis">-d</em>. Under the
+<tt class="literal">Apache::Registry</tt> handlers family, all switches
+except <em class="emphasis">-w</em> are ignored (and use of the
+<em class="emphasis">-T</em> switch triggers a warning). The support for
+<em class="emphasis">-w</em> was added for backward compatibility with
+mod_cgi.</p>
+
+<p>Most command-line switches have special Perl variable equivalents
+that allow them to be set/unset in code. Consult the
+<em class="emphasis">perlvar</em> manpage for more details.</p>
+
+<p>mod_perl provides its own equivalents to <em class="emphasis">-w</em> and
+<em class="emphasis">-T</em> in the form of configuration directives, as
+we'll discuss presently.</p>
+
+<p>Finally, if you still need to set additional Perl startup flags, such
+as <em class="emphasis">-d</em> and <em class="emphasis">-D</em>, you can use
+the <tt class="literal">PERL5OPT</tt> environment variable. Switches in
+this variable are treated as if they were on every Perl command line.
+According to the <em class="emphasis">perlrun</em> manpage, only the
+<em class="emphasis">-[DIMUdmw]</em> switches are allowed.</p>
+
+<a name="pmodperl-CHP-6-SECT-5.2.1" /><div class="sect3">
+<h3 class="sect3">6.5.2.1. Warnings</h3>
+
+<p>There
+are<a name="pmodperl-CHP-6-ITERM-4457" /><a name="pmodperl-CHP-6-ITERM-4458" />
+three ways to enable warnings:</p>
+
+<dl>
+<dt><i>Globally to all processes</i></dt>
+<dd>
+In <em class="emphasis">httpd.conf</em></tt>, set:</p>
+
+<blockquote><pre class="code">PerlWarn On</pre></blockquote>
+
+<p>You can then fine-tune your code, turning warnings off and on by
+setting the <tt class="literal">$^W</tt> variable in your scripts.</p>
+
+</dd>
+
+
+<dt><i>Locally to a script</i></dt>
+<dd>
+Including the following line:</p>
+
+<blockquote><pre class="code">#!/usr/bin/perl -w</pre></blockquote>
+
+<p>will turn warnings on for the scope of the script. You can turn them
+off and on in the script by setting the <tt class="literal">$^W</tt>
+variable, as noted above.</p>
+
+</dd>
+
+
+<dt><i>Locally to a block</i></dt>
+<dd>
+This code turns warnings on for the scope of the block:</p>
+
+<blockquote><pre class="code">{
+    local $^W = 1;
+    # some code
+}
+# $^W assumes its previous value here</pre></blockquote>
+
+<p>This turns warnings off:</p>
+
+<blockquote><pre class="code">{
+    local $^W = 0;
+    # some code
+}
+# $^W assumes its previous value here</pre></blockquote>
+
+<p>If <tt class="literal">$^W</tt><a name="pmodperl-CHP-6-ITERM-4459" /><a name="pmodperl-CHP-6-ITERM-4460" />
+isn't properly localized, this code will affect the
+current request and all subsequent requests processed by this child.
+Thus:</p>
+
+<blockquote><pre class="code">$^W = 0;</pre></blockquote>
+
+<p>will turn the warnings off, no matter what.</p>
+
+<p>If you want to turn warnings on for the scope of the whole file, as
+in the previous item, you can do this by adding:</p>
+
+<blockquote><pre class="code">local $^W = 1;</pre></blockquote>
+
+<p>at the beginning of the file. Since a file is effectively a block,
+file scope behaves like a block's curly braces
+(<tt class="literal">{ }</tt>), and <tt class="literal">local $^W</tt> at the
+start of the file will be effective for the whole file.</p>
+</dd>
+
+</dl>
+
+<p>While having warnings mode turned on is essential for a development
+server, you should turn it globally off on a production server.
+Having warnings enabled
+introduces<a name="pmodperl-CHP-6-ITERM-4461" /> a non-negligible performance
+penalty. Also, if every request served generates one warning, and
+your server processes millions of requests per day, the
+<em class="emphasis">error_log</em></tt> file will eat up all your disk space
+and the system won't be able to function normally
+anymore.</p>
+
+<p>Perl 5.6.x introduced the
+<tt class="literal">warnings</tt><a name="pmodperl-CHP-6-ITERM-4462" />
+<a name="pmodperl-CHP-6-ITERM-4463" />pragma,
+which allows very flexible control over warnings. This pragma allows
+you to enable and disable groups of warnings. For example, to enable
+only the syntax warnings, you can use:</p>
+
+<blockquote><pre class="code">use warnings 'syntax';</pre></blockquote>
+
+<p>Later in the code, if you want to disable syntax warnings and enable
+signal-related warnings, you can use:</p>
+
+<blockquote><pre class="code">no  warnings 'syntax';
+use warnings 'signal';</pre></blockquote>
+
+<p>But usually you just want to use:</p>
+
+<blockquote><pre class="code">use warnings;</pre></blockquote>
+
+<p>which is the equivalent of:</p>
+
+<blockquote><pre class="code">use warnings 'all';</pre></blockquote>
+
+<p>If you want your code to be really
+<a name="pmodperl-CHP-6-ITERM-4464" /><a name="pmodperl-CHP-6-ITERM-4465" />clean and consider all warnings
+as errors, Perl will help you to do that. With the following code,
+any warning in the lexical scope of the definition will trigger a
+fatal error:</p>
+
+<blockquote><pre class="code">use warnings FATAL =&gt; 'all';</pre></blockquote>
+
+<p>Of course, you can fine-tune the groups of warnings and make only
+certain groups of warnings fatal. For example, to make only closure
+problems fatal, you can use:</p>
+
+<blockquote><pre class="code">use warnings FATAL =&gt; 'closure';</pre></blockquote>
+
+<p>Using the <tt class="literal">warnings</tt> pragma, you can also disable
+warnings locally:</p>
+
+<blockquote><pre class="code">{
+  no warnings;
+  # some code that would normally emit warnings
+}</pre></blockquote>
+
+<p>In this way, you can avoid some warnings that you are aware of but
+can't do anything about.</p>
+
+<p>For more information about the <tt class="literal">warnings</tt> pragma,
+refer to the <em class="emphasis">perllexwarn</em></tt> manpage.</p>
+
+</div>
+
+<a name="pmodperl-CHP-6-SECT-5.2.2" /><div class="sect3">
+<h3 class="sect3">6.5.2.2. Taint mode</h3>
+
+<p>Perl's <em class="emphasis">-T</em></tt><a name="pmodperl-CHP-6-ITERM-4466" /> switch enables <em class="emphasis">taint
+mode</em></tt><a name="pmodperl-CHP-6-ITERM-4467" />.
+In <a name="pmodperl-CHP-6-ITERM-4468" /><a name="pmodperl-CHP-6-ITERM-4469" />taint mode, Perl performs some checks on
+how your program is using the data passed to it. For example, taint
+checks prevent your program from passing some external data to a
+system call without this data being explicitly checked for nastiness,
+thus avoiding a fairly large number of common security holes. If you
+don't force all your scripts and handlers to run
+under taint mode, it's more likely that
+you'll leave some holes to be exploited by malicious
+users. (See <a href="ch23_01.html">Chapter 23</a> and the
+<em class="emphasis">perlsec</em></tt> manpage for more information. Also read
+the <tt class="literal">re</tt> pragma's manpage.)</p>
+
+<p>Since the <em class="emphasis">-T</em></tt>switch can't be
+turned on from within Perl (this is because when Perl is running,
+it's already too late to mark
+<em class="emphasis">all</em></tt> external data as tainted), mod_perl provides
+the
+<tt class="literal">PerlTaintCheck</tt><a name="pmodperl-CHP-6-ITERM-4470" /> directive to turn on taint checks
+globally. Enable this mode with:</p>
+
+<blockquote><pre class="code">PerlTaintCheck On</pre></blockquote>
+
+<p>anywhere in <em class="emphasis">httpd.conf</em></tt> (though
+it's better to place it as early as possible for
+clarity).</p>
+
+<p>For more information on taint checks and how to untaint data, refer
+to the <em class="emphasis">perlsec</em></tt> manpage.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-6-SECT-5.3" /><div class="sect2">
+<h3 class="sect2">6.5.3. Compiled Regular Expressions</h3>
+
+<p>When<a name="pmodperl-CHP-6-ITERM-4471" /><a name="pmodperl-CHP-6-ITERM-4472" /><a name="pmodperl-CHP-6-ITERM-4473" /><a name="pmodperl-CHP-6-ITERM-4474" />
+using a regular expression containing an interpolated Perl variable
+that you are confident will not change during the execution of the
+program, a standard speed-optimization technique is to add the
+<tt class="literal">/o</tt><a name="pmodperl-CHP-6-ITERM-4475" /> modifier to the regex pattern.
+This compiles the regular expression once, for the entire lifetime of
+the script, rather than every time the pattern is executed. Consider:</p>
+
+<blockquote><pre class="code">my $pattern = '^\d+$'; # likely to be input from an HTML form field
+foreach (@list) {
+    print if /$pattern/o;
+}</pre></blockquote>
+
+<p>This is usually a big win in loops over lists, or when using the
+<tt class="literal">grep( )</tt> or <tt class="literal">map( )</tt> operators.</p>
+
+<p>In long-lived mod_perl scripts and handlers, however, the variable
+may change with each invocation. In that case, this memorization can
+pose a problem. The first request processed by a fresh mod_perl child
+process will compile the regex and perform the search correctly.
+However, all subsequent requests running the same code in the same
+process will use the memorized pattern and not the fresh one supplied
+by users. The code will appear to be broken.</p>
+
+<p>Imagine that you run a search engine service, and one person enters a
+search keyword of her choice and finds what she's
+looking for. Then another person who happens to be served by the same
+process searches for a different keyword, but unexpectedly receives
+the same search results as the previous person.</p>
+
+<p>There are two solutions to this problem.</p>
+
+<p>The first solution is to use the <tt class="literal">eval
+q//</tt><a name="pmodperl-CHP-6-ITERM-4476" /> construct to force the code to be
+evaluated each time it's run. It's
+important that the <tt class="literal">eval</tt> block covers the entire
+processing loop, not just the pattern match itself.</p>
+
+<p>The original code fragment would be rewritten as:</p>
+
+<blockquote><pre class="code">my $pattern = '^\d+$';
+eval q{
+    foreach (@list) {
+        print if /$pattern/o;
+    }
+}</pre></blockquote>
+
+<p>If we were to write this:</p>
+
+<blockquote><pre class="code">foreach (@list) {
+    eval q{ print if /$pattern/o; };
+}</pre></blockquote>
+
+<p>the regex would be compiled for every element in the list, instead of
+just once for the entire loop over the list (and the
+<tt class="literal">/o</tt> modifier would essentially be useless).</p>
+
+<p>However, watch out for using strings coming from an untrusted origin
+inside <tt class="literal">eval</tt>&#8212;they might contain Perl code
+dangerous to your system, so make sure to sanity-check them first.</p>
+
+<p>This approach can be used if there is more than one pattern-match
+operator in a given section of code. If the section contains only one
+regex operator (be it <tt class="literal">m//</tt> or
+<tt class="literal">s///</tt>), you can rely on the property of the
+<em class="emphasis">null pattern</em></tt>, which reuses the last pattern
+seen. This leads to the second solution, which also eliminates the
+use of <tt class="literal">eval</tt>.</p>
+
+<p>The above code fragment becomes:</p>
+
+<blockquote><pre class="code">my $pattern = '^\d+$';
+"0" =~ /$pattern/; # dummy match that must not fail!
+foreach (@list) {
+    print if //;
+}</pre></blockquote>
+
+<p>The only caveat is that the dummy match that boots the regular
+expression engine <em class="emphasis">must</em></tt>succeed&#8212;otherwise
+the pattern will not be cached, and the <tt class="literal">//</tt> will
+match everything. If you can't count on fixed text
+to ensure the match succeeds, you have two options.</p>
+
+<p>If you can guarantee that the pattern variable contains no
+metacharacters (such as <tt class="literal">*</tt>, <tt class="literal">+</tt>,
+<tt class="literal">^</tt>, <tt class="literal">$</tt>, <tt class="literal">\d</tt>,
+etc.), you can use the dummy match of the pattern itself:</p>
+
+<blockquote><pre class="code">$pattern =~ /\Q$pattern\E/; # guaranteed if no metacharacters present</pre></blockquote>
+
+<p>The <tt class="literal">\Q</tt> modifier ensures that any special regex
+characters will be escaped.</p>
+
+<p>If there is a possibility that the pattern contains metacharacters,
+you should match the pattern itself, or the nonsearchable
+<tt class="literal">\377</tt> character, as follows:</p>
+
+<blockquote><pre class="code">"\377" =~ /$pattern|^\377$/; # guaranteed if metacharacters present</pre></blockquote>
+
+<a name="pmodperl-CHP-6-SECT-5.3.1" /><div class="sect3">
+<h3 class="sect3">6.5.3.1. Matching patterns repeatedly</h3>
+
+<p>Another<a name="pmodperl-CHP-6-ITERM-4477" /><a name="pmodperl-CHP-6-ITERM-4478" /><a name="pmodperl-CHP-6-ITERM-4479" /><a name="pmodperl-CHP-6-ITERM-4480" /> technique may also be used,
+depending on the complexity of the regex to which it is applied. One
+common situation in which a compiled regex is usually more efficient
+is when you are matching any one of a group of patterns over and over
+again.</p>
+
+<p>To make this approach easier to use, we'll use a
+slightly modified helper routine from Jeffrey
+Friedl's book <em class="emphasis">Mastering Regular
+Expressions</em></tt> (O'Reilly):</p>
+
+<blockquote><pre class="code">sub build_match_many_function {
+    my @list = @_;
+    my $expr = join '||', 
+        map { "\$_[0] =~ m/\$list[$_]/o" } (0..$#list);
+    my $matchsub = eval "sub { $expr }";
+    die "Failed in building regex @list: $@" if $@;
+    return $matchsub;
+}</pre></blockquote>
+
+<p>This function accepts a list of patterns as an argument, builds a
+match regex for each item in the list against
+<tt class="literal">$_[0]</tt>, and uses the logical <tt class="literal">||</tt>
+(OR) operator to stop the matching when the first match succeeds. The
+chain of pattern matches is then placed into a string and compiled
+within an anonymous subroutine using <tt class="literal">eval</tt>. If
+<tt class="literal">eval</tt> fails, the code aborts with <tt class="literal">die(
+)</tt>; otherwise, a reference to this subroutine is returned to
+the caller.</p>
+
+<p>Here is how it can be used:</p>
+
+<blockquote><pre class="code">my @agents = qw(Mozilla Lynx MSIE AmigaVoyager lwp libwww);
+my $known_agent_sub = build_match_many_function(@agents);
+
+while (&lt;ACCESS_LOG&gt;) {
+    my $agent = get_agent_field($_);
+    warn "Unknown Agent: $agent\n"
+        unless $known_agent_sub-&gt;($agent);
+}</pre></blockquote>
+
+<p>This code takes lines of log entries from the
+<em class="emphasis">access_log</em></tt> file already opened on the
+<tt class="literal">ACCESS_LOG</tt> file handle, extracts the agent field
+from each entry in the log file, and tries to match it against the
+list of known agents. Every time the match fails, it prints a warning
+with the name of the unknown agent.</p>
+
+<p>An alternative approach is to use the
+<tt class="literal">qr//</tt><a name="pmodperl-CHP-6-ITERM-4481" /> operator, which is used to compile a
+regex. The previous example can be rewritten as:</p>
+
+<blockquote><pre class="code">my @agents = qw(Mozilla Lynx MSIE AmigaVoyager lwp libwww);
+my @compiled_re = map qr/$_/, @agents;
+
+while (&lt;ACCESS_LOG&gt;) {
+    my $agent = get_agent_field($_);
+    my $ok = 0;
+    for my $re (@compiled_re) {
+        $ok = 1, last if /$re/;
+    }
+    warn "Unknown Agent: $agent\n"
+        unless $ok;
+}</pre></blockquote>
+
+<p>In this code, we compile the patterns once before we use them,
+similar to <tt class="literal">build_match_many_function( )</tt> from the
+previous example, but now we save an extra call to a subroutine. A
+simple benchmark shows that this example is about 2.5 times faster
+than the previous one.</p>
+
+</div>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">6.4. Perl Specifics in the mod_perl Environment</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.6. Apache::Registry Specifics</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

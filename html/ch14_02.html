@@ -1,0 +1,741 @@
+<html><head><title>Coding for a Smaller Memory Footprint (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch14_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch14_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">14.2. Coding for a Smaller Memory Footprint</h2>
+
+<p>The following sections present proactive techniques that prevent
+processes from growing large in the first place.</p>
+
+<a name="pmodperl-CHP-14-SECT-2.1" /><div class="sect2">
+<h3 class="sect2">14.2.1. Memory Reuse</h3>
+
+<p>Consider the code in<a name="pmodperl-CHP-14-ITERM-5198" /> <a href="ch14_02.html#pmodperl-CHP-14-EX-1">Example 14-1</a>.</p>
+
+<a name="pmodperl-CHP-14-EX-1" /><div class="example">
+<h4 class="objtitle">Example 14-1. memory_hog.pl</h4>
+<blockquote><pre class="code">use GTop ( );
+my $gtop = GTop-&gt;new;
+my $proc = $gtop-&gt;proc_mem($$);
+print "size before:  ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";
+{
+    my $x = 'a' x 10**7;
+    print "size inside: ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";
+}
+print "size  after: ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";</pre></blockquote>
+</div>
+
+<p>When executed, it prints:</p>
+
+<blockquote><pre class="code">size before:  1830912 B
+size inside: 21852160 B
+size  after: 21852160 B</pre></blockquote>
+
+<p>This script starts by printing the size of the memory it occupied
+when it was first loaded. The opening curly brace starts a new block,
+in which <a name="pmodperl-CHP-14-ITERM-5199" />a
+<a name="pmodperl-CHP-14-ITERM-5200" />lexical
+variable <tt class="literal">$x</tt> is populated with a string 10,000,000
+bytes in length. The script then prints the new size of the process
+and exits from the block. Finally, the script again prints the size
+of the process.</p>
+
+<p>Since the variable <tt class="literal">$x</tt> is lexical, it is destroyed
+at the end of the block, before the final print statement, thus
+releasing all the memory that it was occupying. But from the output
+we can clearly see that a huge chunk of memory
+wasn't released to the OS&#8212;the
+process's memory usage didn't
+change. Perl reuses this released memory internally. For example,
+let's modify the script as shown in <a href="ch14_02.html#pmodperl-CHP-14-EX-2">Example 14-2</a>.</p>
+
+<a name="pmodperl-CHP-14-EX-2" /><div class="example">
+<h4 class="objtitle">Example 14-2. memory_hog2.pl</h4>
+<blockquote><pre class="code">use GTop ( );
+my $gtop = GTop-&gt;new;
+my $proc = $gtop-&gt;proc_mem($$);
+print "size before :  ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";
+{
+    my $x = 'a' x 10**7;
+    print "size inside : ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";
+}
+print "size  after : ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";
+{
+    my $x = 'a' x 10;
+    print "size inside2: ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";
+}
+print "size  after2: ", $gtop-&gt;proc_mem($$)-&gt;size( ), " B\n";</pre></blockquote>
+</div>
+
+<p>When we execute this script, we will see the following output:</p>
+
+<blockquote><pre class="code">size before :  1835008 B
+size inside : 21852160 B
+size  after : 21852160 B
+size inside2: 21852160 B
+size  after2: 21852160 B</pre></blockquote>
+
+<p>As you can see, the memory usage of this script was no more than that
+of the previous one.</p>
+
+<p>So we have just learned that Perl programs don't
+return memory to the OS until they quit. If variables go out of
+scope, the memory they occupied is reused by Perl for newly created
+or growing variables.</p>
+
+<p>Suppose your code does memory-intensive operations and the processes
+grow fast at first, but after a few requests the sizes of the
+processes stabilize as Perl starts to reuse the acquired memory. In
+this case, the wisest approach is to find this limiting size and set
+the upper memory limit to a slightly higher value. If you set the
+limit lower, processes will be killed <a name="pmodperl-CHP-14-ITERM-5201" />unnecessarily and lots of redundant
+operations will be performed by the OS.</p>
+
+</div>
+<a name="pmodperl-CHP-14-SECT-2.2" /><div class="sect2">
+<h3 class="sect2">14.2.2. Big Input, Big Damage</h3>
+
+<p>This section demonstrates how a<a name="pmodperl-CHP-14-ITERM-5202" />
+malicious <a name="pmodperl-CHP-14-ITERM-5203" />user <a name="pmodperl-CHP-14-ITERM-5204" /><a name="pmodperl-CHP-14-ITERM-5205" />can bring the service down or cause
+problems by submitting unexpectedly big data.</p>
+
+<p>Imagine that you have a guestbook script/handler, which works fine.
+But you've forgotten about a small nuance: you
+don't check the size of the submitted message. A 10
+MB core file copied and pasted into the HTML
+<tt class="literal">textarea</tt> entry box intended for a
+guest's message and submitted to the server will
+make the server grow by at least 10 MB. (Not to mention the horrible
+experience users will go through when trying to view the guest book,
+since the contents of the binary core file will be displayed.) If
+your server is short of memory, after a few more submissions like
+this one it will start swapping, and it may be on its way to crashing
+once all the swap memory is exhausted.</p>
+
+<p>To prevent such a thing from happening, you could check the size of
+the submitted argument, like this:</p>
+
+<blockquote><pre class="code">my $r = shift;
+my %args = $r-&gt;args;
+my $message = exists $args{message} ? $args{message} : '';
+die "the message is too big" 
+    unless length $message &gt; 8192; # 8KB</pre></blockquote>
+
+<p>While this prevents your program from adding huge inputs into the
+guest book, the size of the process will grow anyway, since you have
+allowed the code to process the submitted form's
+data. The only way to really protect your server from accepting huge
+inputs is not to read data above some preset limit. However, you
+cannot safely rely on the <tt class="literal">Content-Length</tt> header,
+since that can easily be spoofed.</p>
+
+<p>You don't have to worry about <tt class="literal">GET</tt>
+requests, since their data is submitted via the query string of the
+URI, which has a hard limit of about 8 KB.</p>
+
+<p>Think about disabling file uploads if you don't use
+them. Remember that a user can always write an HTML form from scratch
+and submit it to your program for processing, which makes it easy to
+submit huge files. If you don't limit the size of
+the form input, even if your program rejects the faulty input, the
+data will be read in by the server and the process will grow as a
+result. Here is a simple example that will readily accept anything
+submitted by the form, including fields that you
+didn't create, which a malicious user may have added
+by mangling the original form:</p>
+
+<blockquote><pre class="code">use CGI;
+my $q = CGI-&gt;new;
+my %args = map {$_ =&gt; $q-&gt;param($_)} $q-&gt;params;</pre></blockquote>
+
+<p>If you are using <tt class="literal">CGI.pm</tt>, you can set the maximum
+allowed <tt class="literal">POST</tt>size and disable file uploads using
+the following setting:</p>
+
+<blockquote><pre class="code">use CGI;
+$CGI::POST_MAX = 1048576;  # max 1MB allowed
+$CGI::DISABLE_UPLOADS = 1; # disable file uploads</pre></blockquote>
+
+<p>The above setting will reject all submitted forms whose total size
+exceeds 1 MB. Only non-file upload inputs will be processed.</p>
+
+<p>If you are using the <tt class="literal">Apache::Request</tt> module, you
+can disable file uploads and limit the maximum
+<tt class="literal">POST</tt>size by passing the appropriate arguments to
+the <tt class="literal">new( )</tt> function. The following example has the
+same effect as the <tt class="literal">CGI.pm</tt> example shown above:</p>
+
+<blockquote><pre class="code">my $apr = Apache::Request-&gt;new($r, 
+                               POST_MAX        =&gt; 1048576,
+                               DISABLE_UPLOADS =&gt; 1
+                              );</pre></blockquote>
+
+<p>Another alternative is to use the <tt class="literal">LimitRequestBody</tt>
+directive in <em class="emphasis">httpd.conf</em> to limit the size of the
+request body. This directive can be set per-server, per-directory,
+per-file, or per-location. The default value is 0, which means
+unlimited. As an example, to limit the size of the request body to 2
+MB, you should add:</p>
+
+<blockquote><pre class="code">LimitRequestBody 2097152</pre></blockquote>
+
+<p>The value is set in bytes (2097152 bytes =  = 2 MB).</p>
+
+<p>In this section, we have presented only a single example among many
+that can cause your server to use more memory than planned. It helps
+to keep an open mind and to explore what other things a creative user
+might try to do with your service. Don't assume
+users will only click where you <a name="pmodperl-CHP-14-ITERM-5206" />intend <a name="pmodperl-CHP-14-ITERM-5207" />them to.</p>
+
+</div>
+<a name="pmodperl-CHP-14-SECT-2.3" /><div class="sect2">
+<h3 class="sect2">14.2.3. Small Input, Big Damage</h3>
+
+<p>This section demonstrates how a <a name="pmodperl-CHP-14-ITERM-5208" />small input <a name="pmodperl-CHP-14-ITERM-5209" />submitted by a malicious user
+may hog the whole server.</p>
+
+<p>Imagine an online service that allows users to create a canvas on the
+server side and do some fancy image processing. Among the inputs that
+are to be submitted by the user are the width and the height of the
+canvas. If the program doesn't restrict the maximum
+values for them, some smart user may ask your program to create a
+canvas of 1,000,000 &#xD7; 1,000,000 pixels. In addition to
+working the CPU rather heavily, the processes that serve this request
+will probably eat all the available memory (including the swap space)
+and kill the server.</p>
+
+<p>How can the user do this, if you have prepared a form with a
+pull-down list of possible choices? Simply by saving the form and
+later editing it, or by using a <tt class="literal">GET</tt> request.
+Don't forget that what you receive is merely an
+input from a user agent, and it can very easily be spoofed by anyone
+knowing <a name="pmodperl-CHP-14-ITERM-5210" />how to use <tt class="literal">LWP::UserAgent</tt>
+or something equivalent. There are various techniques to prevent
+users from fiddling with forms, but it's much
+simpler to make your code check that the submitted values are
+acceptable and then move on.</p>
+
+<p>If you do some relational database processing, you will often
+encounter the need to read lots of records from the database and then
+print them to the browser after they are formatted.
+Let's look at an example.</p>
+
+<p>We will use <tt class="literal">DBI</tt> and <tt class="literal">CGI.pm</tt> for
+this example. Assume that we are already connected to the database
+server (refer to the <tt class="literal">DBI</tt> manpage for a complete
+reference to the <tt class="literal">DBI</tt> module):</p>
+
+<blockquote><pre class="code">my $q = new CGI;
+my $default_hits = 10;
+my $hits = int $q-&gt;param("hints") || $default_hits;
+
+my $do_sql = "SELECT from foo LIMIT 0,$hits";
+my $sth = $dbh-&gt;prepare($do_sql);
+$sth-&gt;execute;
+
+while (@row_ary = $sth-&gt;fetchrow_array) {
+    # do DB accumulation into some variable
+}
+# print the data
+...</pre></blockquote>
+
+<p>In this example, the records are accumulated in the program data
+before they are printed. The variables that are used to store the
+records that matched the query will grow by the size of the data, in
+turn causing the <em class="emphasis">httpd</em> process to grow by the
+same amount.</p>
+
+<p>Imagine a search engine interface that allows a user to choose to
+display 10, 50, or 100 results. What happens if the user modifies the
+form to ask for 1,000,000 hits? If you have a big enough database,
+and if you rely on the fact that the only valid choices would be 10,
+50, or 100 without actually checking, your database engine may
+unexpectedly return a million records. Your process will grow by many
+megabytes, possibly eating all the available memory and swap space.</p>
+
+<p>The obvious solution is to disallow arbitrary inputs for critical
+variables like this one. Another improvement is to avoid the
+accumulation of matched records in the program data. Instead, you
+could use <tt class="literal">DBI::bind_columns( )</tt> or a similar
+function to print each record as it is fetched from <a name="pmodperl-CHP-14-ITERM-5211" />the <a name="pmodperl-CHP-14-ITERM-5212" />database. In <a href="ch20_01.html">Chapter 20</a> we <a name="pmodperl-CHP-14-ITERM-5213" /><a name="pmodperl-CHP-14-ITERM-5214" />will talk about this technique in
+depth.</p>
+
+</div>
+<a name="pmodperl-CHP-14-SECT-2.4" /><div class="sect2">
+<h3 class="sect2">14.2.4. Think Production, Not Development</h3>
+
+<p>Developers often use <a name="pmodperl-CHP-14-ITERM-5215" /><a name="pmodperl-CHP-14-ITERM-5216" /><a name="pmodperl-CHP-14-ITERM-5217" />sample inputs for testing their new code.
+But sometimes they forget that the real inputs can be much bigger
+than those they used in development.</p>
+
+<p>Consider code like this, which is common enough in Perl scripts:</p>
+
+<blockquote><pre class="code">{
+    open IN, $file or die $!;
+    local $/;
+    $content = &lt;IN&gt;; # slurp the whole file in
+    close IN;
+}</pre></blockquote>
+
+<p>If you know for sure that the input will always be small, the code we
+have presented here might be fine. But if the file is 5 MB, the child
+process that executes this script when serving the request will grow
+by that amount. Now if you have 20 children, and each one executes
+this code, together they will consume 20 &#xD7; 5 MB = 100 MB
+of RAM! If, when the code was developed and tested, the input file
+was very small, this potential excessive memory usage probably went
+unnoticed.</p>
+
+<p>Try to think about the many situations in which your code might be
+used. For example, it's possible that the input will
+originate from a source you did not envisage. Your code might behave
+badly as a result. To protect against this possibility, you might
+want to try to use other approaches to processing the file. If it has
+lines, perhaps you can process one line at a time instead of reading
+them all into a variable at once. If you need to modify the file, use
+a temporary file. When the processing is finished, you can overwrite
+the source file. Make sure that you lock the files when you modify
+them.</p>
+
+<p>Often you just don't expect the input to grow. For
+example, you may want to write a birthday reminder process intended
+for your own personal use. If you have 100 friends and relatives
+about whom you want to be reminded, slurping the whole file in before
+processing it might be a perfectly reasonable way to approach the
+task.</p>
+
+<p>But what happens if your friends (who know you as one who usually
+forgets their birthdays) are so surprised by your timely birthday
+greetings that they ask you to allow them to use your cool invention
+as well? If all 100 friends have yet another 100 friends, you could
+end up with 10,000 records in your database. The code may not work
+well with input of this size. Certainly, the answer is to rewrite the
+code to use a DBM file or a relational database. If you continue to
+store the records in a flat file and read the whole database into
+memory, your code will use a lot of <a name="pmodperl-CHP-14-ITERM-5218" /><a name="pmodperl-CHP-14-ITERM-5219" /><a name="pmodperl-CHP-14-ITERM-5220" />memory and be very slow.</p>
+
+</div>
+<a name="pmodperl-CHP-14-SECT-2.5" /><div class="sect2">
+<h3 class="sect2">14.2.5. Passing Variables</h3>
+
+<p>Let's talk about passing <a name="pmodperl-CHP-14-ITERM-5221" />varia<a name="pmodperl-CHP-14-ITERM-5222" /><a name="pmodperl-CHP-14-ITERM-5223" />bles to a subroutine. There are
+two ways to do this: you can pass a <em class="emphasis">copy</em> of the
+variable to the <a name="pmodperl-CHP-14-ITERM-5224" /><a name="pmodperl-CHP-14-ITERM-5225" /><a name="pmodperl-CHP-14-ITERM-5226" />subroutine (this is called
+<em class="emphasis">passing by value</em>) or you can instead pass a
+<em class="emphasis">reference</em> to it (a reference is just a pointer,
+so the variable itself is not copied). Other things being equal, if
+the copy of the variable is larger than a pointer to it, it will be
+more efficient to pass a reference.</p>
+
+<p>Let's use the example from the previous section,
+assuming we have no choice but to read the whole file before any data
+processing takes place and its size is 5 MB. Suppose you have some
+subroutine called <tt class="literal">process( )</tt> that processes the
+data and returns it. Now say you pass <tt class="literal">$content</tt> by
+value and <tt class="literal">process( )</tt> makes a copy of it in the
+familiar way:</p>
+
+<blockquote><pre class="code">my $content = qq{foobarfoobar};
+$content = process($content);
+sub process {
+    my $content = shift;
+    $content =~ s/foo/bar/gs;
+    return $content;
+}</pre></blockquote>
+
+<p>You have just copied another 5 MB, and the child has grown in size by
+another 5 MB. Assuming 20 Apache children, you can multiply this
+growth again by factor of 20&#8212;now you have 200 MB of wasted RAM!
+This will eventually be reused, but it's still a
+waste. Whenever you think the variable may grow bigger than a few
+kilobytes, definitely pass it by reference.</p>
+
+<p>There are several forms of syntax you can use to pass and use
+variables passed by reference. For example:</p>
+
+<blockquote><pre class="code">my $content = qq{foobarfoobar};
+process(\$content);
+sub process {
+    my $r_content = shift; 
+    $$r_content =~ s/foo/bar/gs;
+}</pre></blockquote>
+
+<p>Here <tt class="literal">$content</tt> is populated with some data and then
+passed by reference to the subroutine <tt class="literal">process( )</tt>,
+which replaces all occurrences of the string <em class="emphasis">foo</em>
+with the string <em class="emphasis">bar</em>. <tt class="literal">process(
+)</tt> doesn't have to return
+anything&#8212;the variable <tt class="literal">$content</tt> was modified
+directly, since <tt class="literal">process( )</tt> took a reference to it.</p>
+
+<p>If the hashes or arrays are passed by reference, their individual
+elements are still accessible. You don't need to
+dereference them:</p>
+
+<blockquote><pre class="code">$var_lr-&gt;[$index]  get $index'th element of an array via a ref
+$var_hr-&gt;{$key}    get $key'th element of a hash via a ref</pre></blockquote>
+
+<p>Note that if you pass the variable by reference but then dereference
+it to copy it to a new string, you don't gain
+anything, since a new chunk of memory will be acquired to make a
+<em class="emphasis">copy</em> of the original variable. The
+<em class="emphasis">perlref</em> manpage provides extensive information
+about
+working<a name="pmodperl-CHP-14-ITERM-5227" /><a name="pmodperl-CHP-14-ITERM-5228" /><a name="pmodperl-CHP-14-ITERM-5229" /> with references.</p>
+
+<p>Another approach is to <a name="pmodperl-CHP-14-ITERM-5230" /><a name="pmodperl-CHP-14-ITERM-5231" />use
+the <tt class="literal">@_</tt> array directly. Internally, Perl always
+passes these variables by reference and dereferences them when they
+are copied from the <tt class="literal">@_</tt> array. This is an
+efficiency mechanism to allow you to write subroutines that take a
+variable passed as a value, without copying it.</p>
+
+<blockquote><pre class="code">process($content);
+sub process {
+  $_[0] =~ s/foo/bar/gs;
+}</pre></blockquote>
+
+<p>From <em class="emphasis">perldoc perlsub</em>:</p>
+
+<blockquote><pre class="code">The array @_ is a local array, but its elements are aliases for the actual scalar 
+parameters.  In particular, if an element $_[0] is updated, the corresponding 
+argument is updated (or an error occurs if it is not possible to update)...</pre></blockquote>
+
+<p>Be careful when you write this kind of subroutine for use by someone
+else; it can be confusing. It's not obvious that a
+call like <tt class="literal">process($content);</tt> modifies the passed
+variable. Programmers (the users of your library, in this case) are
+used to subroutines that either modify variables passed by reference
+or expressly return a result, like this:</p>
+
+<blockquote><pre class="code">$content = process($content);</pre></blockquote>
+
+<p>You should also be aware that if the user tries to submit a read-only
+value, this code won't work and you will get a
+<a name="pmodperl-CHP-14-ITERM-5232" />runtime
+<a name="pmodperl-CHP-14-ITERM-5233" />error.
+Perl will <a name="pmodperl-CHP-14-ITERM-5234" />refuse to modify a read-only value:</p>
+
+<blockquote><pre class="code">$content = process("string foo");</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-14-SECT-2.6" /><div class="sect2">
+<h3 class="sect2">14.2.6. Memory Leakage</h3>
+
+<p>It's normal for a process to <a name="pmodperl-CHP-14-ITERM-5235" />grow
+when it processes its first few requests. They may be different
+requests, or the same requests processing different data. You may try
+to reload the same request a few times, and in many cases the process
+will stop growing after only the second reload. In any case, once a
+representative selection of requests and inputs has been executed by
+a process, it won't usually grow any more unless the
+code leaks memory. If it grows after each reload of an identical
+request, there is probably a memory leak.</p>
+
+<p>The experience might be different if the code works with some
+external resource that can change between requests. For example, if
+the code retrieves database records matching some query,
+it's possible that from time to time the database
+will be updated and that a different number of records will match the
+same query the next time it is issued. Depending on the techniques
+you use to retrieve the data, format it, and send it to the user, the
+process may increase or decrease in size, reflecting the changes in
+the data.</p>
+
+<p>The easiest way to see whether the code is leaking is to run the
+server in single-process mode (<em class="emphasis">httpd -X</em>),
+issuing the same request a few times to see whether the process grows
+after each request. If it does, you probably have a memory leak. If
+the code leaks 5 KB per request, then after 1,000 requests to run the
+leaking code, 5 MB of memory will have leaked. If in production you
+have 20 processes, this could possibly lead to 100 MB of leakage
+after a few tens of thousands of requests.</p>
+
+<p>This technique to detect leakage can be misleading if you are not
+careful. Suppose your process first runs some clean (non-leaking)
+code that acquires 100 KB of memory. In an attempt to make itself
+more efficient, Perl doesn't give the 100 KB of
+memory back to the operating system. The next time the process runs
+<em class="emphasis">any</em> script, some of the 100 KB will be reused.
+But if this time the process runs a script that needs to acquire only
+5 KB, you won't see the process grow even if the
+code has actually leaked these 5 KB. Now it might take 20 or more
+requests for the leaking script <em class="emphasis">served by the same
+process</em> before you would see that process start growing
+again.</p>
+
+<p>A process may leak memory <a name="pmodperl-CHP-14-ITERM-5236" />for several reasons: badly
+written system C/C++ libraries used in the <em class="emphasis">httpd</em>
+binary and badly written Perl code are the most common. Perl modules
+may also use C libraries, and these might leak memory as well. Also,
+some operating systems have been known to have problems with their
+memory-management functions.</p>
+
+<p>If you know that you have no leaks in your code, then for detecting
+leaks in C/C++ libraries you should either use the technique of
+sampling the memory usage described above, or use C/C++ developer
+tools designed for this purpose. This topic is beyond the scope of
+this book.</p>
+
+<p>The <tt class="literal">Apache::Leak</tt>
+<a name="pmodperl-CHP-14-ITERM-5237" /><a name="pmodperl-CHP-14-ITERM-5238" />module
+(derived from <tt class="literal">Devel::Leak</tt>) might help you to
+detect leaks in your code. Consider the script in <a href="ch14_02.html#pmodperl-CHP-14-EX-3">Example 14-3</a>.</p>
+
+<a name="pmodperl-CHP-14-EX-3" /><div class="example">
+<h4 class="objtitle">Example 14-3. leaktest.pl</h4>
+<blockquote><pre class="code">use Apache::Leak;
+
+my $global = "FooA";
+
+leak_test {
+    $$global = 1;
+    ++$global;
+};</pre></blockquote>
+</div>
+
+<p>You do not need to be inside mod_perl to use this script. The
+<a name="pmodperl-CHP-14-ITERM-5239" /><a name="pmodperl-CHP-14-ITERM-5240" />argument to <tt class="literal">leak_test( )</tt>
+is an anonymous sub or a block, so you can just throw in any code you
+suspect might be leaking. The script will run the code twice. The
+first time, new scalar values (SVs) are created, but this does not
+mean the code is leaking. The second pass will give better evidence.</p>
+
+<p>From the command line, the above script outputs:</p>
+
+<blockquote><pre class="code">ENTER: 1482 SVs
+new c28b8 : new c2918 : 
+LEAVE: 1484 SVs
+ENTER: 1484 SVs
+new db690 : new db6a8 : 
+LEAVE: 1486 SVs
+!!! 2 SVs leaked !!!</pre></blockquote>
+
+<p>This module uses the <a name="pmodperl-CHP-14-ITERM-5241" /><a name="pmodperl-CHP-14-ITERM-5242" />simple approach of walking the
+Perl internal table of allocated SVs. It records them before entering
+the scope of the code under test and after leaving the scope. At the
+end, a comparison of the two sets is <a name="pmodperl-CHP-14-ITERM-5243" /><a name="pmodperl-CHP-14-ITERM-5244" />performed, <tt class="literal">sv_dump( )</tt> is
+called for anything that did not exist in the first set, and the
+difference in counts is reported. Note that you will see the dumps of
+SVs only if Perl was built with the <em class="emphasis">-DDEBUGGING</em>
+option. In our example the script will dump two SVs twice, since the
+same code is run twice. The volume of output is too great to be
+presented here.</p>
+
+<p>Our example leaks because <tt class="literal">$$global = 1;</tt> creates a
+new global variable, <tt class="literal">FooA</tt> (with the value of
+<tt class="literal">1</tt>), which will not be destroyed until this module
+is destroyed. Under mod_perl the module doesn't get
+destroyed until the process quits. When the code is run the second
+time, <tt class="literal">$global</tt> will contain <tt class="literal">FooB</tt>
+because of the increment operation at the end of the first run.
+Consider:</p>
+
+<blockquote><pre class="code">$foo = "AAA";
+print "$foo\n";
+$foo++;
+print "$foo\n";</pre></blockquote>
+
+<p>which prints:</p>
+
+<blockquote><pre class="code">AAA
+AAB</pre></blockquote>
+
+<p>So every time the code is executed, a new variable
+(<tt class="literal">FooC</tt>, <tt class="literal">FooD</tt>, etc.) will spring
+into existence.</p>
+
+<p><tt class="literal">Apache::Leak</tt> is not very user-friendly. You may
+want to take a look at <tt class="literal">B::LexInfo</tt>. It is possible
+to see something that might appear to be a leak, but is actually just
+a Perl optimization. Consider this code, for example:</p>
+
+<blockquote><pre class="code">sub test { my ($string) = @_;}
+test("a string");</pre></blockquote>
+
+<p><tt class="literal">B::LexInfo</tt> will show you that Perl does not
+release the value from <tt class="literal">$string</tt> unless you
+<tt class="literal">undef( )</tt> it. This is because Perl anticipates that
+the memory will be needed for another string, the next time the
+subroutine is entered. You'll see similar behavior
+for <tt class="literal">@array</tt> lengths, <tt class="literal">%hash</tt> keys,
+and scratch areas <a name="pmodperl-CHP-14-ITERM-5245" />of the
+<a name="pmodperl-CHP-14-ITERM-5246" />padlist
+for operations such as <tt class="literal">join( )</tt>,
+., etc.</p>
+
+<p>Let's look at how <tt class="literal">B::LexInfo</tt>
+works. The code in <a href="ch14_02.html#pmodperl-CHP-14-EX-4">Example 14-4</a> creates a new
+<tt class="literal">B::LexInfo</tt> object, then runs <tt class="literal">cvrundiff(
+)</tt>, which creates two snapshots of the lexical
+variables' padlists&#8212;one before the call to
+<tt class="literal">LeakTest1::test( )</tt> and the other, in this case,
+after it has been called with the argument "<tt class="literal">a
+string</tt>". Then it calls <em class="emphasis">diff -u</em> to
+generate the difference between the snapshots.</p>
+
+<a name="pmodperl-CHP-14-EX-4" /><div class="example">
+<h4 class="objtitle">Example 14-4. leaktest1.pl</h4>
+<blockquote><pre class="code">package LeakTest1;
+use B::LexInfo ( );
+
+sub test { my ($string) = @_;}
+
+my $lexi = B::LexInfo-&gt;new;
+my $diff = $lexi-&gt;cvrundiff('LeakTest1::test', "a string");
+print $$diff;</pre></blockquote>
+</div>
+
+<p>In case you aren't familiar with how
+<tt class="literal">diff</tt> works, <tt class="literal">-</tt> at the beginning
+of the line means that that line was removed, <tt class="literal">+</tt>
+means that a line was added, and other lines are there to show the
+context in which the difference was found. Here is the output:</p>
+
+<blockquote><pre class="code">--- /tmp/B_LexInfo_3099.before        Tue Feb 13 20:09:52 2001
++++ /tmp/B_LexInfo_3099.after        Tue Feb 13 20:09:52 2001
+@@ -2,9 +2,11 @@
+   {
+     'LeakTest1::test' =&gt; {
+       '$string' =&gt; {
+-        'TYPE' =&gt; 'NULL',
++        'TYPE' =&gt; 'PV',
++        'LEN' =&gt; 9,
+         'ADDRESS' =&gt; '0x8146d80',
+-        'NULL' =&gt; '0x8146d80'
++        'PV' =&gt; 'a string',
++        'CUR' =&gt; 8
+       },
+       '_ _SPECIAL_ _1' =&gt; {
+         'TYPE' =&gt; 'NULL',</pre></blockquote>
+
+<p>Perl tries to optimize the speed by keeping the memory allocated for
+<tt class="literal">$string</tt>, even after the variable is destroyed.</p>
+
+<p>Let's run the script from <a href="ch14_02.html#pmodperl-CHP-14-EX-3">Example 14-3</a> with <tt class="literal">B::LexInfo</tt> (see <a href="ch14_02.html#pmodperl-CHP-14-EX-5">Example 14-5</a>).</p>
+
+<a name="pmodperl-CHP-14-EX-5" /><div class="example">
+<h4 class="objtitle">Example 14-5. leaktest2.pl</h4>
+<blockquote><pre class="code">package LeakTest2;
+use B::LexInfo ( );
+
+my $global = "FooA";
+
+sub test {
+    $$global = 1;
+    ++$global;
+}
+
+my $lexi = B::LexInfo-&gt;new;
+my $diff = $lexi-&gt;cvrundiff('LeakTest2::test');
+print $$diff;</pre></blockquote>
+</div>
+
+<p>Here's the result:</p>
+
+<blockquote><pre class="code">--- /tmp/B_LexInfo_3103.before Tue Feb 13 20:12:04 2001
++++ /tmp/B_LexInfo_3103.after         Tue Feb 13 20:12:04 2001
+@@ -5,7 +5,7 @@
+         'TYPE' =&gt; 'PV',
+         'LEN' =&gt; 5,
+         'ADDRESS' =&gt; '0x80572ec',
+-        'PV' =&gt; 'FooA',
++        'PV' =&gt; 'FooB',
+         'CUR' =&gt; 4
+       }
+     }</pre></blockquote>
+
+<p>We can clearly see the leakage, since the value of the
+<tt class="literal">PV</tt> entry has changed from one string to a
+different one. Compare this with the previous example, where a
+variable didn't exist and sprang into existence for
+optimization reasons. If you find this confusing, probably the best
+approach is to run <em class="emphasis">diff</em> twice when you test your
+code.</p>
+
+<p>Now let's run the <tt class="literal">cvrundiff( )</tt>
+function <a name="pmodperl-CHP-14-ITERM-5247" /><a name="pmodperl-CHP-14-ITERM-5248" /><a name="pmodperl-CHP-14-ITERM-5249" />on this example, as shown in <a href="ch14_02.html#pmodperl-CHP-14-EX-6">Example 14-6</a>.</p>
+
+<a name="pmodperl-CHP-14-EX-6" /><div class="example">
+<h4 class="objtitle">Example 14-6. leaktest3.pl</h4>
+<blockquote><pre class="code">package LeakTest2;
+use B::LexInfo ( );
+
+my $global = "FooA";
+
+sub test {
+    $$global = 1;
+    ++$global;
+}
+
+my $lexi = B::LexInfo-&gt;new;
+my $diff = $lexi-&gt;cvrundiff('LeakTest2::test');
+$diff    = $lexi-&gt;cvrundiff('LeakTest2::test');
+print $$diff;</pre></blockquote>
+</div>
+
+<p>Here's the output:</p>
+
+<blockquote><pre class="code">--- /tmp/B_LexInfo_3103.before Tue Feb 13 20:12:04 2001
++++ /tmp/B_LexInfo_3103.after         Tue Feb 13 20:12:04 2001
+@@ -5,7 +5,7 @@
+         'TYPE' =&gt; 'PV',
+         'LEN' =&gt; 5,
+         'ADDRESS' =&gt; '0x80572ec',
+-        'PV' =&gt; 'FooB',
++        'PV' =&gt; 'FooC',
+         'CUR' =&gt; 4
+       }
+     }</pre></blockquote>
+
+<p>We can see the leak again, since the value of <tt class="literal">PV</tt>
+has changed again, from <tt class="literal">FooB</tt> to
+<tt class="literal">FooC</tt>. Now let's run
+<tt class="literal">cvrundiff( )</tt> on the second example script, as
+shown in <a href="ch14_02.html#pmodperl-CHP-14-EX-7">Example 14-7</a>.</p>
+
+<a name="pmodperl-CHP-14-EX-7" /><div class="example">
+<h4 class="objtitle">Example 14-7. leaktest4.pl</h4>
+<blockquote><pre class="code">package LeakTest1;
+use B::LexInfo ( );
+
+sub test { my ($string) = @_;}
+
+my $lexi = B::LexInfo-&gt;new;
+my $diff = $lexi-&gt;cvrundiff('LeakTest1::test', "a string");
+   $diff = $lexi-&gt;cvrundiff('LeakTest1::test', "a string");
+print $$diff;</pre></blockquote>
+</div>
+
+<p>No output is produced, since there is no difference between the
+second and third runs. All the data structures are allocated during
+the first execution, so we are sure that no memory is leaking here.</p>
+
+<p><tt class="literal">Apache::Status</tt> includes a
+<tt class="literal">StatusLexInfo</tt> option that can show you the
+internals of your code via <tt class="literal">B::LexInfo</tt>. See <a href="ch21_01.html">Chapter 21</a> for more<a name="pmodperl-CHP-14-ITERM-5250" /> information.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch14_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch14_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">14. Defensive Measures for Performance Enhancement</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">14.3. Conclusion</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

@@ -1,0 +1,284 @@
+<html><head><title>Defensive Measures for Performance Enhancement (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_13.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch14_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 14. Defensive Measures for Performance Enhancement</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch14_01.html#pmodperl-CHP-14-SECT-1">Controlling Your Memory Usage</a><br />
+<a href="ch14_02.html">Coding for a Smaller Memory Footprint</a><br />
+<a href="ch14_03.html">Conclusion</a><br />
+<a href="ch14_04.html">References</a><br /></p></div><p>If you have already worked with mod_perl, you have probably noticed
+that it can be difficult to keep your mod_perl processes from using a
+lot of memory. The less memory you have, the fewer processes you can
+run and the worse your server will perform, especially under a heavy
+load. This chapter presents several common situations that can lead
+to unnecessary consumption of RAM, together with preventive measures.</p><div class="sect1"><a name="pmodperl-CHP-14-SECT-1" />
+<h2 class="sect1">14.1. Controlling Your Memory Usage</h2>
+
+<p>When you need to control the size of your <em class="emphasis">httpd</em>
+processes, use one of the two modules,
+<tt class="literal">Apache::GTopLimit</tt> and
+<tt class="literal">Apache::SizeLimit</tt>, which kill Apache
+<em class="emphasis">httpd</em> processes when those processes grow too
+large or lose a <a name="pmodperl-CHP-14-ITERM-5188" />big chunk
+<a name="pmodperl-CHP-14-ITERM-5189" /><a name="pmodperl-CHP-14-ITERM-5190" />of their shared memory. The two modules
+differ in their methods for finding out the memory usage.
+<tt class="literal">Apache::GTopLimit</tt> relies on the
+<tt class="literal">libgtop</tt> library to perform this task, so if this
+library can be built on your platform you can use this module.
+<tt class="literal">Apache::SizeLimit</tt> includes different methods for
+different platforms&#8212;you will have to check the
+module's manpage to figure out which platforms are
+supported.</p>
+
+<a name="pmodperl-CHP-14-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">14.1.1. Defining the Minimum Shared Memory Size Threshold</h3>
+
+<p>As we have already discussed, <a name="pmodperl-CHP-14-ITERM-5191" /><a name="pmodperl-CHP-14-ITERM-5192" />when
+it is first created, an Apache child process usually has a large
+fraction of its memory shared with its parent. During the child
+process's life some of its data structures are
+modified and a part of its memory becomes unshared (pages become
+"dirty"), leading to an increase in
+memory consumption. You will remember that the
+<tt class="literal">MaxRequestsPerChild</tt> directive allows you to
+specify the number of requests a child process should serve before it
+is killed. One way to limit the memory consumption of a
+<a name="pmodperl-CHP-14-ITERM-5193" />process is to kill it and let Apache
+replace it with a newly started process, which again will have most
+of its memory shared with the Apache parent. The new child process
+will then serve requests, and eventually the cycle will be repeated.</p>
+
+<p>This is a fairly crude means of limiting unshared memory, and you
+will probably need to tune <tt class="literal">MaxRequestsPerChild</tt>,
+eventually finding an optimum value. If, as is likely, your service
+is undergoing constant changes, this is an inconvenient solution.
+You'll have to retune this number again and again to
+adapt to the ever-changing code base.</p>
+
+<p>You really want to set some guardian to watch the shared size and
+kill the process if it goes below some limit. This way, processes
+will not be killed unnecessarily.</p>
+
+<p>To set a shared memory lower limit of 4 MB using
+<tt class="literal">Apache::GTopLimit</tt>, add the following code into the
+<em class="emphasis">startup.pl</em> file:</p>
+
+<blockquote><pre class="code">use Apache::GTopLimit;
+$Apache::GTopLimit::MIN_PROCESS_SHARED_SIZE = 4096;</pre></blockquote>
+
+<p>and add this line to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlFixupHandler Apache::GTopLimit</pre></blockquote>
+
+<p>Don't forget to restart the server for the changes
+to take effect.</p>
+
+<p>Adding these lines has the effect that as soon as a child process
+shares less than 4 MB of memory (the corollary being that it must
+therefore be occupying a lot of memory with its unique pages), it
+will be killed after completing its current request, and, as a
+consequence, a new child will take its place.</p>
+
+<p>If you use <tt class="literal">Apache::SizeLimit</tt> you can accomplish
+the same by adding this to <em class="emphasis">startup.pl</em>:</p>
+
+<blockquote><pre class="code">use Apache::SizeLimit;
+$Apache::SizeLimit::MIN_SHARE_SIZE = 4096;</pre></blockquote>
+
+<p>and this to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlFixupHandler Apache::SizeLimit</pre></blockquote>
+
+<p>If you want to set this limit for only some requests (presumably the
+ones you think are likely to cause memory to become unshared), you
+can register a post-processing check using the
+<tt class="literal">set_min_shared_size( )</tt> function. For example:</p>
+
+<blockquote><pre class="code">use Apache::GTopLimit;
+if ($need_to_limit) {
+    # make sure that at least 4MB are shared
+    Apache::GTopLimit-&gt;set_min_shared_size(4096);
+}</pre></blockquote>
+
+<p>or for <tt class="literal">Apache::SizeLimit</tt>:</p>
+
+<blockquote><pre class="code">use Apache::SizeLimit;
+if ($need_to_limit) {
+    # make sure that at least 4MB are shared
+    Apache::SizeLimit-&gt;setmin(4096);
+}</pre></blockquote>
+
+<p>Since accessing the process information adds a little overhead, you
+may want to check the process size only every <em class="emphasis">N</em>
+times. In this case, set the
+<tt class="literal">$Apache::GTopLimit::CHECK_EVERY_N_REQUESTS</tt>
+variable. For example, to test the size every other time, put the
+following in your <em class="emphasis">startup.pl</em> file:</p>
+
+<blockquote><pre class="code">$Apache::GTopLimit::CHECK_EVERY_N_REQUESTS = 2;</pre></blockquote>
+
+<p>or, for <tt class="literal">Apache::SizeLimit</tt>:</p>
+
+<blockquote><pre class="code">$Apache::SizeLimit::CHECK_EVERY_N_REQUESTS = 2;</pre></blockquote>
+
+<p>You can run the <tt class="literal">Apache::GTopLimit</tt> module in debug
+mode by setting:</p>
+
+<blockquote><pre class="code">PerlSetVar Apache::GTopLimit::DEBUG 1</pre></blockquote>
+
+<p>in <em class="emphasis">httpd.conf</em>. It's important
+that this setting appears before the
+<tt class="literal">Apache::GTopLimit</tt> module is loaded.</p>
+
+<p>When debug mode is turned on, the module reports in the
+<em class="emphasis">error_log</em> file the memory usage of the current
+process and also when it detects that at least one of the thresholds
+was crossed and the process is going to be killed.</p>
+
+<p><tt class="literal">Apache::SizeLimit</tt> controls the debug level via the
+<tt class="literal">$Apache::SizeLimit::DEBUG</tt> variable:</p>
+
+<blockquote><pre class="code">$Apache::SizeLimit::DEBUG = 1;</pre></blockquote>
+
+<p>which can be modified any time, even after the module has been loaded.</p>
+
+<a name="pmodperl-CHP-14-SECT-1.1.1" /><div class="sect3">
+<h3 class="sect3">14.1.1.1. Potential drawbacks of memory-sharing restrictions</h3>
+
+<p>In <a href="ch11_01.html">Chapter 11</a> we devised a formula to calculate the
+optimum value for the <tt class="literal">MaxClients</tt> directive when
+sharing is taking place. In the same section, we warned that
+it's very important that the system not be heavily
+engaged in swapping. Some systems do swap in and out every so often
+even if they have plenty of real memory available, and
+that's OK. The following discussion applies to
+conditions when there is hardly any free memory available.</p>
+
+<p>If the system uses almost all of its real memory (including the
+cache), there is a danger of the parent process's
+memory pages being swapped out (i.e., written to a swap device). If
+this happens, the memory-usage reporting tools will report all those
+swapped out pages as nonshared, even though in reality these pages
+are still shared on most OSs. When these pages are getting swapped
+in, the sharing will be reported back to normal after a certain
+amount of time. If a big chunk of the memory shared with child
+processes is swapped out, it's most likely that
+<tt class="literal">Apache::SizeLimit</tt> or
+<tt class="literal">Apache::GTopLimit</tt> will notice that the shared
+memory threshold was crossed and as a result kill those processes. If
+many of the parent process's pages are swapped out,
+and the newly created child process is already starting with shared
+memory below the limit, it'll be killed immediately
+after serving a single request (assuming that the
+<tt class="literal">$CHECK_EVERY_N_REQUESTS</tt> variable is set to
+<tt class="literal">1</tt>). This is a very bad situation that will
+eventually lead to a state where the system won't
+respond at all, as it'll be heavily engaged in the
+swapping process.</p>
+
+<p>This effect may be less or more severe depending on the memory
+manager's implementation, and it certainly varies
+from OS to OS and between kernel versions. Therefore, you should be
+aware of this potential problem and simply try to avoid situations
+where the system needs to swap at all, by adding more memory,
+reducing the number of child servers, or spreading the load across
+more machines (if reducing the number of child servers is not an
+option because <a name="pmodperl-CHP-14-ITERM-5194" />of the <a name="pmodperl-CHP-14-ITERM-5195" />request-rate demands).</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-14-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">14.1.2. Defining the Maximum Memory Size Threshold</h3>
+
+<p>No less important than
+<a name="pmodperl-CHP-14-ITERM-5196" />maximizing
+<a name="pmodperl-CHP-14-ITERM-5197" />shared memory is restricting the absolute
+size of the processes. If the processes grow after each request, and
+if nothing restricts them from growing, you can easily run out of
+memory.</p>
+
+<p>Again you can set the <tt class="literal">MaxRequestsPerChild</tt>
+directive to kill the processes after a few requests have been
+served. But as we explained in the previous section, this solution is
+not as good as one that monitors the process size and kills it only
+when some limit is reached.</p>
+
+<p>If you have <tt class="literal">Apache::GTopLimit</tt> (described in the
+previous section), you can limit a process's memory
+usage by setting the
+<tt class="literal">$Apache::GTopLimit::MAX_PROCESS_SIZE</tt> directive.
+For example, if you want processes to be killed when they reach 10
+MB, you should put the following in your
+<em class="emphasis">startup.pl</em> file:</p>
+
+<blockquote><pre class="code">$Apache::GTopLimit::MAX_PROCESS_SIZE = 10240;</pre></blockquote>
+
+<p>Just as when limiting shared memory, you can set a limit for the
+current process using the <tt class="literal">set_max_size( )</tt> method
+in your code:</p>
+
+<blockquote><pre class="code">use Apache::GTopLimit;
+Apache::GTopLimit-&gt;set_max_size(10000);</pre></blockquote>
+
+<p>For <tt class="literal">Apache::SizeLimit</tt>, the equivalents are:</p>
+
+<blockquote><pre class="code">use Apache::SizeLimit;
+$Apache::SizeLimit::MAX_PROCESS_SIZE = 10240;</pre></blockquote>
+
+<p>and:</p>
+
+<blockquote><pre class="code">use Apache::SizeLimit;
+Apache::SizeLimit-&gt;setmax(10240);</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-14-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">14.1.3. Defining the Maximum Unshared Memory Size Threshold</h3>
+
+<p>Instead of setting the shared and total memory usage thresholds, you
+can set a single threshold that measures the amount of unshared
+memory by subtracting the shared memory size from the total memory
+size.</p>
+
+<p>Both modules allow you to set the thresholds in similar ways. With
+<tt class="literal">Apache::GTopLimit</tt>, you can set the unshared memory
+threshold server-wide with:</p>
+
+<blockquote><pre class="code">$Apache::GTopLimit::MAX_PROCESS_UNSHARED_SIZE = 6144;</pre></blockquote>
+
+<p>and locally for a handler with:</p>
+
+<blockquote><pre class="code">Apache::GTopLimit-&gt;set_max_unshared_size(6144);</pre></blockquote>
+
+<p>If you are using <tt class="literal">Apache::SizeLimit</tt>, the
+corresponding settings would be:</p>
+
+<blockquote><pre class="code">$Apache::SizeLimit::MAX_UNSHARED_SIZE = 6144;</pre></blockquote>
+
+<p>and:</p>
+
+<blockquote><pre class="code">Apache::SizeLimit-&gt;setmax_unshared(6144);</pre></blockquote>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_13.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch14_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">13.13. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">14.2. Coding for a Smaller Memory Footprint</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

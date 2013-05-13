@@ -1,0 +1,1186 @@
+<html><head><title>Installing mod_perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch02_09.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch03_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 3. Installing mod_perl</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch03_01.html#pmodperl-CHP-3-SECT-1">Configuring the Source</a><br />
+<a href="ch03_02.html">Building mod_perl (make)</a><br />
+<a href="ch03_03.html">Testing the Server (make test)</a><br />
+<a href="ch03_04.html">Installation (make install)</a><br />
+<a href="ch03_05.html">Installation Scenarios for Standalone mod_perl</a><br />
+<a href="ch03_06.html">Building mod_perl with Other Components</a><br />
+<a href="ch03_07.html">Installing mod_perl with the CPAN.pm Interactive Shell</a><br />
+<a href="ch03_08.html">Installing mod_perl on Multiple Machines</a><br />
+<a href="ch03_09.html">Installation into a Nonstandard Directory</a><br />
+<a href="ch03_10.html">How Can I Tell if mod_perl Is Running?</a><br />
+<a href="ch03_11.html">General Notes</a><br />
+<a href="ch03_12.html">References</a><br /></p></div><p>In <a href="ch02_01.html">Chapter 2</a>, we presented a basic mod_perl
+installation. In this chapter, we will talk about various ways in
+which mod_perl can be installed (using a variety of installation
+parameters), as well as prepackaged binary installations, and more.</p><p><a href="ch02_01.html">Chapter 2</a> showed you the following
+<a name="pmodperl-CHP-3-ITERM-3490" /><a name="pmodperl-CHP-3-ITERM-3491" /><a name="pmodperl-CHP-3-ITERM-3492" />commands to
+build and install a basic mod_perl-enabled Apache server on almost
+any standard flavor of Unix.</p><p>First, download
+<em class="emphasis"><a href="http://www.apache.org/dist/httpd/apache_1.3.xx.tar.gz">http://www.apache.org/dist/httpd/apache_1.3.xx.tar.gz</a></em>
+and 
+<em class="emphasis">
+<a href="http://perl.apache.org/dist/mod_perl-1.xx.tar.gz">
+http://perl.apache.org/dist/mod_perl-1.xx.tar.gz</a></em>.
+Then, issue the following commands:</p><blockquote><pre class="code">panic% cd /home/stas/src
+panic% tar xzvf apache_1.3.xx.tar.gz
+panic% tar xzvf mod_perl-1.xx.tar.gz
+panic% cd mod_perl-1.xx
+panic% perl Makefile.PL APACHE_SRC=../apache_1.3.xx/src \
+  DO_HTTPD=1 USE_APACI=1 EVERYTHING=1
+panic% make &amp;&amp; make test
+panic# make install
+panic# cd ../apache_1.3.xx
+panic# make install</pre></blockquote><p>As usual, replace <em class="emphasis">1.xx</em> and
+<em class="emphasis">1.3.xx</em> with the real version numbers of mod_perl
+and Apache, respectively.</p><p>You can then add a few configuration lines to
+<em class="emphasis">httpd.conf</em> (the Apache configuration file),
+start the server, and enjoy mod_perl. This should work just fine.
+Why, then, are you now reading a 50-page chapter on installing
+mod_perl?</p><p>You're reading this chapter for the same reason you
+bought this book. Sure, the instructions above will get you a working
+version of mod_perl. But the average reader of this book
+won't want to stop there. If you're
+using mod_perl, it's because you want to improve the
+performance of your web server. And when you're
+concerned with performance, you're always looking
+for ways to eke a little bit more out of your server. In essence,
+that's what this book is about: getting the most out
+of your mod_perl-enabled Apache server. And it all starts at the
+beginning, with the installation of the software.</p><p>In the basic mod_perl installation, the
+<a name="pmodperl-CHP-3-ITERM-3493" /><a name="pmodperl-CHP-3-ITERM-3494" /><a name="pmodperl-CHP-3-ITERM-3495" />parameter
+<tt class="literal">EVERYTHING=1</tt> enables a lot of options for you,
+whether you actually need them or not. You may want to enable only
+the required options, to squeeze even more juice out of mod_perl. You
+may want to build mod_perl as a loadable object instead of compiling
+it into Apache, so that it can be upgraded without rebuilding Apache
+itself. You may also want to install other Apache components, such as
+PHP or mod_ssl, alongside mod_perl.</p><p>To accomplish any of these tasks, you will need to understand various
+techniques for mod_perl configuration and building. You need to know
+what configuration parameters are available to you and when and how
+to use them.</p><p>As with Perl, in mod_perl simple things are simple. But when you need
+to accomplish more complicated tasks, you may have to invest some
+time to gain a deeper understanding of the process. In this chapter,
+we will take the following route. We'll start with a
+detailed explanation of the four stages of the mod_perl installation
+process, then continue on with the different paths each installation
+might take according to your goal, followed by a few copy-and-paste
+real-world installation scenarios. Toward the end of the chapter we
+will show you various approaches that might make the installation
+easier, by automating most of the steps. Finally,
+we'll cover some of the general issues that new
+users might stumble on while installing mod_perl.</p><div class="sect1"><a name="pmodperl-CHP-3-SECT-1" />
+<h2 class="sect1">3.1. Configuring the Source</h2>
+
+<p>Before building <a name="pmodperl-CHP-3-ITERM-3496" />and installing mod_perl you
+will have to configure it, as you would configure any other Perl
+module:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL [parameters].</pre></blockquote>
+
+<a name="pmodperl-CHP-3-SIDEBAR-1" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Perl Installation Requirements</h4>
+
+<p>Make sure you have Perl installed! Use the latest stable
+<a name="pmodperl-CHP-3-ITERM-3497" /><a name="pmodperl-CHP-3-ITERM-3498" />version, if possible. To determine
+your version of Perl, run the following command on the command line:</p>
+
+<blockquote><pre class="code">panic% perl -v</pre></blockquote>
+
+<p>You will need at least Perl Version 5.004. If you
+don't have it, install it. Follow the instructions
+in the distribution's <em class="filename">INSTALL</em>
+file. The only thing to watch for is that during the configuration
+stage (while running <em class="emphasis">./Configure</em>) you make sure
+you can dynamically load Perl module extensions. That is, answer
+<tt class="literal">YES</tt> to the following question:</p>
+
+<blockquote><pre class="code">Do you wish to use dynamic loading? [y]</pre></blockquote>
+</td></tr></table><p></blockquote>
+
+<p>In this section, we will explain each of the parameters accepted by
+the <em class="emphasis">Makefile.PL</em> file for mod_perl First,
+however, lets talk about how the mod_perl configuration dovetails
+with Apache's configuration. The source
+configuration mechanism in Apache 1.3 provides four major features
+(which of course are available to mod_perl):</p>
+
+<ul><li>
+<p>Apache
+<a name="pmodperl-CHP-3-ITERM-3499" /><a name="pmodperl-CHP-3-ITERM-3500" />modules can use per-module
+configuration <a name="pmodperl-CHP-3-ITERM-3501" />scripts to link themselves into
+the Apache configuration process. This feature lets you automatically
+adjust the configuration and build parameters from the Apache module
+sources. It is triggered by
+<em class="emphasis">ConfigStart/ConfigEnd</em> sections inside
+<em class="emphasis">modulename.module</em> files (e.g., see the file
+<em class="emphasis">libperl.module</em> in the mod_perl distribution).</p>
+</li><li>
+<p>The <em class="emphasis">APache AutoConf-style
+Interface</em><a name="pmodperl-CHP-3-ITERM-3502" /> (APACI)
+<a name="pmodperl-CHP-3-ITERM-3503" />is the top-level
+<em class="emphasis">configure</em> script from Apache 1.3; it provides a
+GNU <a name="pmodperl-CHP-3-ITERM-3504" /><a name="pmodperl-CHP-3-ITERM-3505" />Autoconf-style interface to the
+Apache configuration process. APACI is useful for configuring the
+source tree without manually editing any
+<em class="emphasis">src/Configuration</em> files. Any parameterization
+can be done via command-line options to the
+<em class="emphasis">configure</em> script. Internally, this is just a
+nifty wrapper over the old <em class="emphasis">src/Configure</em> script.</p>
+
+<p>Since Apache 1.3, APACI is the best way to install mod_perl as
+cleanly as possible. However, the complete Apache 1.3 source
+configuration mechanism is available only under Unix at this
+writing&#8212;it doesn't work on Win32.</p>
+</li><li>
+<p><em class="emphasis">Dynamic shared object</em> (DSO)
+support<a name="pmodperl-CHP-3-ITERM-3506" /><a name="pmodperl-CHP-3-ITERM-3507" /> is one of the most
+interesting features in Apache 1.3. It allows Apache
+modules<a name="pmodperl-CHP-3-ITERM-3508" /> to be built as so-called DSOs
+(usually named <em class="emphasis">modulename.so</em>), which can be
+loaded via the
+<tt class="literal">LoadModule</tt><a name="pmodperl-CHP-3-ITERM-3509" />
+directive in Apache's
+<em class="emphasis">httpd.conf</em> file. The benefit is that the modules
+become part of the <em class="emphasis">httpd</em> executable only on
+demand; they aren't loaded into the address space of
+the <em class="emphasis">httpd</em> executable until the user asks for
+them to be. The benefits of DSO support are most evident in relation
+to memory consumption and added flexibility (in that you
+won't have to recompile your
+<em class="emphasis">httpd</em> each time you want to add, remove, or
+upgrade a module).</p>
+
+<p>The DSO mechanism is provided by Apache's
+<tt class="literal">mod_so</tt><a name="pmodperl-CHP-3-ITERM-3510" /><a name="pmodperl-CHP-3-ITERM-3511" />
+module, which needs to be compiled into the
+<em class="emphasis">httpd</em> binary with:</p>
+<blockquote><pre class="code">panic% ./configure --enable-module=so</pre></blockquote>
+
+<p>The usage of any <em class="emphasis">&#8212;enable-shared</em> option
+automatically implies an <em class="emphasis">&#8212;enable-module=so</em>
+option, because the bootstrapping module <tt class="literal">mod_so</tt> is
+always needed for DSO support. So if, for example, you want the
+module <tt class="literal">mod_dir</tt> to be built as a DSO, you can
+write:</p>
+<blockquote><pre class="code">panic% ./configure --enable-shared=dir</pre></blockquote>
+
+<p>and the DSO support will be added automatically.</p>
+</li>
+<li>
+<p>The <em class="emphasis">APache eXtension
+Support</em><a name="pmodperl-CHP-3-ITERM-3512" /><a name="pmodperl-CHP-3-ITERM-3513" /> tool (<tt class="literal">APXS</tt>)
+is a tool from Apache 1.3 that can be used to build an Apache module
+as a DSO even outside the Apache source tree. <tt class="literal">APXS</tt>
+is to Apache what
+<tt class="literal">MakeMaker</tt><a name="pmodperl-CHP-3-ITERM-3514" />
+and <tt class="literal">XS</tt><a name="pmodperl-CHP-3-ITERM-3515" /> are to Perl.<a href="#FOOTNOTE-16">[16]</a> It knows the
+platform-dependent build parameters for making DSO files and provides
+an easy way to run the build commands with them.</p>
+<blockquote><a name="FOOTNOTE-16" /><p> [16]<tt class="literal">MakeMaker</tt> allows easy, automatic
+configuration, building, testing, and installation of Perl modules,
+while <tt class="literal">XS</tt> allows you to call functions implemented
+in C/C++ from Perl code.</p> </blockquote>
+</li></ul>
+<a name="pmodperl-CHP-3-SIDEBAR-2" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Pros and Cons of Building mod_perl as a DSO</h4>
+
+<p>As of Apache 1.3, the <a name="pmodperl-CHP-3-ITERM-3516" /><a name="pmodperl-CHP-3-ITERM-3517" />configuration system
+supports two optional features for taking advantage of the modular
+DSO approach: compilation of the Apache core program into a DSO
+library for shared usage, and compilation of the Apache modules into
+DSO files for explicit loading at runtime.</p>
+
+<p>Should you build mod_perl as a DSO? Let's study the
+pros and cons of this installation method, so you can decide for
+yourself.</p>
+
+<p>Pros:</p>
+
+<ul><li>
+<p>The server package is
+more<a name="pmodperl-CHP-3-ITERM-3518" /><a name="pmodperl-CHP-3-ITERM-3519" /> flexible because the actual
+server executable can be assembled at runtime via
+<tt class="literal">LoadModule</tt> configuration commands in
+<em class="emphasis">httpd.conf</em> instead of via
+<tt class="literal">AddModule</tt> commands in the
+<em class="emphasis">Configuration</em> file at build time. This allows
+you to run different server instances (e.g., standard and SSL
+servers, or servers with and without mod_perl) with only one Apache
+installation; the only thing you need is different configuration
+files (or, by judicious use of <tt class="literal">IfDefine</tt>, different
+startup scripts).</p>
+</li>
+<li>
+<p>The server package can
+<a name="pmodperl-CHP-3-ITERM-3520" />easily be extended with
+<a name="pmodperl-CHP-3-ITERM-3521" />third-party
+<a name="pmodperl-CHP-3-ITERM-3522" />modules even
+after installation. This is especially helpful for vendor package
+maintainers who can create an Apache core package and additional
+packages containing extensions such as PHP, mod_perl, mod_fastcgi,
+etc.</p>
+</li>
+<li>
+<p>DSO support allows easier Apache
+<a name="pmodperl-CHP-3-ITERM-3523" /><a name="pmodperl-CHP-3-ITERM-3524" />module prototyping, because with the
+DSO/<tt class="literal">APXS</tt> pair you can work outside the Apache
+source tree and need only an <em class="emphasis">apxs -i</em> command
+followed by an <em class="emphasis">apachectl restart</em> to bring a new
+version of your currently developed module into the running Apache
+server.</p>
+</li></ul>
+<p>Cons:</p>
+
+<ul><li>
+<p>The DSO mechanism<a name="pmodperl-CHP-3-ITERM-3525" /><a name="pmodperl-CHP-3-ITERM-3526" /> cannot be used on every platform,
+because not all operating systems support shared libraries.</p>
+</li>
+<li>
+<p>The server starts up
+<a name="pmodperl-CHP-3-ITERM-3527" />approximately 20% slower because of the
+overhead of the symbol-resolving the Unix loader now has to do.</p>
+</li>
+<li>
+<p>The server runs approximately 5% slower on some platforms, because
+position-independent code (PIC) sometimes needs complicated assembler
+tricks for relative addressing, which are not necessarily as fast as
+those for absolute addressing.</p>
+</li>
+<li>
+<p>Because DSO modules cannot be linked against other DSO-based
+libraries (<em class="emphasis">ld -lfoo</em>) on all platforms (for
+instance, <em class="emphasis">a.out</em>-based platforms usually
+don't provide this functionality, while ELF-based
+platforms do), you cannot use the DSO mechanism for all types of
+modules. In other words, modules compiled as DSO files are restricted
+to use symbols only from the Apache core, from the C library
+(<em class="emphasis">libc</em>) and from any other dynamic or static
+libraries used by the Apache core, or from static library archives
+(<em class="emphasis">libfoo.a</em>) containing position-independent code.
+The only way you can use other code is to either make sure the Apache
+core itself already contains a reference to it, load the code
+yourself via <tt class="literal">dlopen( )</tt>, or enable the
+<tt class="literal">SHARED_CHAIN</tt> rule while building Apache (if your
+platform supports linking DSO files against DSO libraries). This,
+however, won't be of much significance to you if
+you're writing modules only in Perl.</p>
+</li>
+<li>
+<p>Under some platforms (e.g., many SVR4 systems), there is no way to
+force the linker to export all global symbols for use in DSOs when
+linking the Apache <em class="emphasis">httpd</em> executable program. But
+without the visibility of the Apache core symbols, no standard Apache
+module could be used as a DSO. The only workaround here is to use the
+<tt class="literal">SHARED_CORE</tt> feature, because in this way the
+global symbols are forced to be exported. As a consequence, the
+Apache <em class="emphasis">src/Configure</em> script automatically
+enforces <tt class="literal">SHARED_CORE</tt> on these platforms when DSO
+features are used in the <em class="emphasis">Configuration</em> file or
+on the <em class="emphasis">configure</em> command line.</p>
+</li></ul></td></tr></table><p></blockquote>
+
+<p>Together, these four features provide a way to integrate mod_perl
+into Apache in a very clean and smooth way. No patching of the Apache
+source tree is usually required, and for <tt class="literal">APXS</tt>
+support, not even the Apache source tree is needed.</p>
+
+<p>To benefit from the above features, a hybrid build environment was
+created for the Apache side of mod_perl. See <a href="ch03_05.html#pmodperl-CHP-3-SECT-5">Section 3.5</a>, later in this chapter, for details.</p>
+
+<p>Once the overview of the four building steps is complete, we will
+return to each of the above configuration mechanisms when describing
+different installation<a name="pmodperl-CHP-3-ITERM-3528" /> passes.</p>
+
+<a name="pmodperl-CHP-3-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">3.1.1. Controlling the Build Process</h3>
+
+<p>The configuration<a name="pmodperl-CHP-3-ITERM-3529" /><a name="pmodperl-CHP-3-ITERM-3530" /><a name="pmodperl-CHP-3-ITERM-3531" /> stage of the build is performed by the
+command <em class="emphasis">perl Makefile.PL</em>, which accepts various
+parameters. This section covers all of the configuration parameters,
+grouped by their functionality.</p>
+
+<p>Of course, you should keep in mind that these options are cumulative.
+We display only one or two options being used at once, but you should
+use the ones you want to enable all at once, in one <a name="pmodperl-CHP-3-ITERM-3532" /><a name="pmodperl-CHP-3-ITERM-3533" />call
+to <em class="emphasis">perl Makefile.PL</em>.</p>
+
+<dl>
+<a name="pmodperl-CHP-3-ITERM-3537" /><a name="pmodperl-CHP-3-ITERM-3536" /><a name="pmodperl-CHP-3-ITERM-3535" /><a name="pmodperl-CHP-3-ITERM-3534" /><dt><b><tt class="literal">APACHE_SRC</tt>, <tt class="literal">DO_HTTPD</tt>, <tt class="literal">NO_HTTPD</tt>, <tt class="literal">PREP_HTTPD</tt></b></dt>
+<dd><p>
+These four parameters are tightly interconnected, as they control the
+way in which the Apache source is handled.</p>
+
+<p>Typically, when you want mod_perl to be compiled statically with
+Apache without adding any extra components, you specify the location
+of the Apache source tree using the <tt class="literal">APACHE_SRC</tt>
+parameter and use the <tt class="literal">DO_HTTPD=1</tt> parameter to tell
+the installation script to build the <em class="emphasis">httpd</em>
+executable:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL APACHE_SRC=../apache_1.3.xx/src DO_HTTPD=1</pre></blockquote>
+
+<p>If no <tt class="literal">APACHE_SRC</tt> is specified,
+<em class="emphasis">Makefile.PL</em> makes an intelligent guess by
+looking at the directories at the same level as the mod_perl sources
+and suggesting a directory with the highest version of Apache found
+there.</p>
+
+<p>By default, the configuration process will ask you to confirm whether
+the location of the source tree is correct before continuing. If you
+use <tt class="literal">DO_HTTPD=1</tt> or <tt class="literal">NO_HTTPD=1</tt>,
+the first Apache source tree found or the one you specified will be
+used for the rest of the build process.</p>
+
+<p>If you don't use <tt class="literal">DO_HTTPD=1</tt>, you
+will be prompted by the following question:</p>
+
+<blockquote><pre class="code">Shall I build httpd in ../apache_1.3.xx/src for you?</pre></blockquote>
+
+<p>Note that if you set <tt class="literal">DO_HTTPD=1</tt> but do not use
+<tt class="literal">APACHE_SRC=../apache_1.3.xx/src</tt>, the first Apache
+source tree found will be used to configure and build against.
+Therefore, you should always use an explicit
+<tt class="literal">APACHE_SRC</tt> parameter, to avoid confusion.</p>
+
+<p>If you don't want to build the
+<em class="emphasis">httpd</em> in the Apache source tree because you
+might need to add extra third-party modules, you should use
+<tt class="literal">NO_HTTPD=1</tt> instead of
+<tt class="literal">DO_HTTPD=1</tt>. This option will install all the files
+that are needed to build mod_perl in the Apache source tree, but it
+will not build <em class="emphasis">httpd</em> itself.</p>
+
+<p><tt class="literal">PREP_HTTPD=1</tt> is similar to
+<tt class="literal">NO_HTTPD=1</tt>, but if you set this parameter you will
+be asked to confirm the location of the Apache source directory even
+if you have specified the <tt class="literal">APACHE_SRC</tt> parameter.</p>
+
+<p>If you choose not to build the binary, you will have to do that
+manually. Building an <em class="emphasis">httpd</em> binary is covered in
+an upcoming section. In any case, you will need to run <em class="emphasis">make
+install</em> in the mod_perl source tree so the Perl side of
+mod_perl will be installed. Note that mod_perl's
+<em class="emphasis">make test</em> won't work until you
+have built the server.</p>
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3538" /><dt><b><tt class="literal">APACHE_HEADER_INSTALL</tt></b></dt>
+<dd><p>
+When Apache and <a name="pmodperl-CHP-3-ITERM-3539" />mod_perl are installed, you may need
+to build other Perl modules that use Apache C functions, such as
+<tt class="literal">HTML::Embperl</tt> or <tt class="literal">Apache::Peek</tt>.
+These modules usually will fail to build if Apache header files
+aren't installed in the Perl tree. By default, the
+Apache source header files are installed into the
+<em class="emphasis">$Config{sitearchexp}/auto/Apache/include</em>
+directory.<a href="#FOOTNOTE-17">[17]</a> If you don't want
+or need these headers to be installed, you can change this behavior
+by using the <tt class="literal">APACHE_HEADER_INSTALL=0</tt> parameter.</p> <blockquote><a name="FOOTNOTE-17" /><p> [17]<em class="emphasis">%Config</em> is defined in
+the <em class="emphasis">Config.pm</em> file in your Perl
+installation.</p> </blockquote>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3540" /><dt><b><tt class="literal">USE_APACI</tt></b></dt>
+<dd><p>
+The <tt class="literal">USE_APACI</tt> parameter tells mod_perl to
+configure Apache using the flexible <a name="pmodperl-CHP-3-ITERM-3541" />APACI. The alternative is the older
+system, which required a file named
+<em class="emphasis">src/Configuration</em> to be edited manually. To
+enable APACI, use:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL USE_APACI=1</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3542" /><dt><b><tt class="literal">APACI_ARGS</tt></b></dt>
+<dd><p>
+When you use the <tt class="literal">USE_APACI=1</tt> parameter, you can
+tell <em class="emphasis">Makefile.PL</em> to pass any arguments you want
+to the Apache <em class="emphasis">./configure</em> utility. For example:</p>
+<blockquote><pre class="code">panic% perl Makefile.PL USE_APACI=1 \
+    APACI_ARGS='--sbindir=/home/httpd/httpd_perl/sbin, \
+        --sysconfdir=/home/httpd/httpd_perl/etc'</pre></blockquote>
+
+<p>Note that the <tt class="literal">APACI_ARGS</tt> argument must be passed
+as a single long line if you work with a C-style shell (such as
+<em class="emphasis">csh</em> or <em class="emphasis">tcsh</em>), as those
+shells seem to corrupt multi-lined values enclosed inside single
+quotes.</p>
+
+<p>Of course, if you want the default Apache directory layout but a
+different root directory
+(<em class="emphasis">/home/httpd/httpd_perl/</em>, in our case), the
+following is the simplest way to do so:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL USE_APACI=1 \
+    APACI_ARGS='--prefix=/home/httpd/httpd_perl'</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3543" /><dt><b><tt class="literal">ADD_MODULE</tt></b></dt>
+<dd><p>
+This parameter enables building of built-in Apache
+<a name="pmodperl-CHP-3-ITERM-3544" />modules. For example,
+to enable the mod_rewrite and mod_proxy modules, you can do the
+following:</p>
+<blockquote><pre class="code">panic% perl Makefile.PL ADD_MODULE=proxy,rewrite</pre></blockquote>
+
+<p>If you are already using <tt class="literal">APACI_ARGS</tt>, you can add
+the usual Apache <em class="emphasis">./configure</em> directives as
+follows:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL USE_APACI=1 \
+    APACI_ARGS='--enable-module=proxy --enable-module=rewrite'</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3545" /><dt><b><tt class="literal">APACHE_PREFIX</tt></b></dt>
+<dd><p>
+As an alternative to:</p>
+<blockquote><pre class="code">APACI_ARGS='--prefix=/home/httpd/httpd_perl'</pre></blockquote>
+
+<p>you can use the <tt class="literal">APACHE_PREFIX</tt> parameter. When
+<tt class="literal">USE_APACI</tt> is enabled, this attribute specifies the
+same <em class="emphasis">&#8212;prefix</em> option.</p>
+
+<p>Additionally, the <tt class="literal">APACHE_PREFIX</tt> option
+automatically executes <em class="emphasis">make install</em> in the
+Apache source directory, which makes the following commands:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL APACHE_SRC=../apache_1.3.xx/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+    APACI_ARGS='--prefix=/home/httpd/httpd_perl'
+panic% make &amp;&amp; make test
+panic# make install
+panic# cd ../apache_1.3.xx
+panic# make install</pre></blockquote>
+
+<p>equivalent to these commands:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL APACHE_SRC=../apache_1.3.xx/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+    APACHE_PREFIX=/home/httpd/httpd_perl
+panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3546" /><dt><b><tt class="literal">PERL_STATIC_EXTS</tt></b></dt>
+<dd><p>
+Normally, if a C code extension is statically linked with Perl, it is
+listed in <em class="emphasis">Config.pm</em>'s
+<em class="emphasis">$Config{static_exts}</em>, in which case mod_perl
+will also statically link this extension with
+<em class="emphasis">httpd</em>. However, if an extension is statically
+linked with Perl after it is installed, it will not be listed in
+<em class="emphasis">Config.pm</em>. You can either edit
+<em class="emphasis">Config.pm</em> and add these extensions, or configure
+mod_perl like this:</p>
+<blockquote><pre class="code">panic% perl Makefile.PL "PERL_STATIC_EXTS=DBI DBD::Oracle"</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3547" /><dt><b><tt class="literal">DYNAMIC</tt></b></dt>
+<dd><p>
+This option tells mod_perl to build the <tt class="literal">Apache::*</tt>
+API extensions as shared libraries. The default is to link these
+modules statically with the <em class="emphasis">httpd</em> executable.
+This can save some memory if you use these API features only
+occasionally. To enable this option, use:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL DYNAMIC=1</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3548" /><dt><b><tt class="literal">USE_APXS</tt></b></dt>
+<dd><p>
+If this option is enabled, mod_perl will be built using
+the<a name="pmodperl-CHP-3-ITERM-3549" /> <tt class="literal">APXS</tt> tool. This
+tool is used to build C API modules in a way that is independent of
+the Apache source tree. mod_perl will look for the
+<em class="emphasis">apxs</em> executable in the location specified by
+<tt class="literal">WITH_APXS</tt>; otherwise, it will check the
+<em class="emphasis">bin</em> and <em class="emphasis">sbin</em> directories
+relative to <tt class="literal">APACHE_PREFIX</tt>. To enable this option,
+use:</p>
+<blockquote><pre class="code">panic% perl Makefile.PL USE_APXS=1</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3550" /><dt><b><tt class="literal">WITH_APXS</tt></b></dt>
+<dd><p>
+This attribute tells mod_perl the location of the
+<em class="emphasis">apxs</em> executable. This is necessary if the binary
+cannot be found in the command path or in the location specified by
+<tt class="literal">APACHE_PREFIX</tt>. For example:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL USE_APXS=1 WITH_APXS=/home/httpd/bin/apxs</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3551" /><dt><b><tt class="literal">USE_DSO</tt></b></dt>
+<dd><p>
+This <a name="pmodperl-CHP-3-ITERM-3552" />option tells mod_perl to build
+itself as a DSO. Although this reduces the apparent size of the
+<em class="emphasis">httpd</em> executable on disk, it
+doesn't actually reduce the memory consumed by each
+<em class="emphasis">httpd</em> process. This is recommended only if you
+are going to be using the mod_perl API only occasionally, or if you
+wish to experiment with its features before you start using it in a
+production environment. To enable this option, use:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL USE_DSO=1</pre></blockquote>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3553" /><dt><b><tt class="literal">SSL_BASE</tt></b></dt>
+<dd><p>
+When building against a mod_ssl-enabled server, this option will tell
+Apache where to look for the SSL <em class="emphasis">include</em> and
+<em class="emphasis">lib</em> subdirectories. For example:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL SSL_BASE=/usr/share/ssl</pre></blockquote>
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3554" /><dt><b><tt class="literal">PERL_DESTRUCT_LEVEL={1,2}</tt></b></dt>
+<dd><p>
+When the Perl interpreter shuts down, this level enables additional
+checks during server shutdown to make sure the
+<a name="pmodperl-CHP-3-ITERM-3555" />interpreter
+has done proper bookkeeping. The default is <tt class="literal">0</tt>. A
+value of <tt class="literal">1</tt> enables full destruction, and
+<tt class="literal">2</tt> enables full destruction with checks. This value
+can also be changed at runtime by setting the environment variable
+<tt class="literal">PERL_DESTRUCT_LEVEL</tt>. We will revisit this
+parameter in <a href="ch05_01.html">Chapter 5</a>.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3556" /><dt><b><tt class="literal">PERL_TRACE</tt></b></dt>
+<dd><p>
+To enable mod_perl <a name="pmodperl-CHP-3-ITERM-3557" />debug tracing, configure mod_perl with
+the <tt class="literal">PERL_TRACE</tt> option:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_TRACE=1</pre></blockquote>
+
+<p>To see the diagnostics, you will also need to set the
+<tt class="literal">MOD_PERL_TRACE</tt> environment variable at runtime.</p>
+
+<p>We will use mod_perl configured with this parameter enabled to show a
+few debugging techniques in <a href="ch21_01.html">Chapter 21</a>.</p>
+
+</dd>
+
+
+<a name="pmodperl-CHP-3-ITERM-3558" /><dt><b><tt class="literal">PERL_DEBUG</tt></b></dt>
+<dd><p>
+This option builds mod_perl and the Apache server with C source code
+debugging enabled (the <em class="emphasis">-g</em> switch). It also
+enables <tt class="literal">PERL_TRACE</tt>, sets
+<tt class="literal">PERL_DESTRUCT_LEVEL</tt> to <tt class="literal">2</tt>, and
+links against the debuggable <em class="emphasis">libperld</em> Perl
+interpreter if one has been installed. You will be able to debug the
+Apache executable and each of its modules with a source-level
+debugger, such as the GNU debugger <em class="emphasis">gdb</em>. To
+enable this option, use:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_DEBUG=1</pre></blockquote>
+
+<p>We will discuss this option in <a href="ch21_01.html">Chapter 21</a>, as it is
+extremely useful to track down bugs or<a name="pmodperl-CHP-3-ITERM-3559" /><a name="pmodperl-CHP-3-ITERM-3560" /> report <a name="pmodperl-CHP-3-ITERM-3561" /><a name="pmodperl-CHP-3-ITERM-3562" /><a name="pmodperl-CHP-3-ITERM-3563" />problems.</p>
+
+</dd>
+
+</dl>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">3.1.2. Activating Callback Hooks</h3>
+
+<p>A callback<a name="pmodperl-CHP-3-ITERM-3564" /><a name="pmodperl-CHP-3-ITERM-3565" /> hook (also known simply as a
+<em class="emphasis">callback</em>) is a reference to a subroutine. In
+Perl, we create subroutine references with
+the<a name="pmodperl-CHP-3-ITERM-3566" /> following syntax:</p>
+
+<blockquote><pre class="code">$callback = \&amp;subroutine;</pre></blockquote>
+
+<p>In this example, <tt class="literal">$callback</tt> contains a reference to
+the subroutine called <tt class="literal">subroutine</tt>. Another way to
+create a callback is to use an anonymous subroutine:</p>
+
+<blockquote><pre class="code">$callback = sub { 'some code' };</pre></blockquote>
+
+<p>Here, <tt class="literal">$callback</tt> contains a reference to the
+anonymous subroutine. Callbacks are used when we want some action
+(subroutine call) to occur when some event takes place. Since we
+don't know exactly when the event will take place,
+we give the <a name="pmodperl-CHP-3-ITERM-3567" />event
+<a name="pmodperl-CHP-3-ITERM-3568" />handler
+a reference to the subroutine we want to be executed. The handler
+will call our subroutine at the right time, effectively
+<em class="emphasis">calling back</em> that subroutine.</p>
+
+<p>By default, most of the callback hooks except for
+<tt class="literal">PerlHandler</tt>,
+<tt class="literal">PerlChildInitHandler</tt>,
+<tt class="literal">PerlChildExitHandler</tt>,
+<tt class="literal">PerlConnectionApi</tt>, and
+<tt class="literal">PerlServerApi</tt> are turned off. You may enable them
+via options to <em class="emphasis">Makefile.PL</em>.</p>
+
+<p>Here is the list of available hooks and the
+<a name="pmodperl-CHP-3-ITERM-3569" />parameters that enable them. The
+Apache request prcessing phases were explained in <a href="ch01_01.html">Chapter 1</a>.</p>
+
+<blockquote><pre class="code">Directive/Hook              Configuration Option
+--------------------------------------------------------
+PerlPostReadRequestHandler  PERL_POST_READ_REQUEST
+PerlTransHandler            PERL_TRANS
+PerlInitHandler             PERL_INIT
+PerlHeaderParserHandler     PERL_HEADER_PARSER
+PerlAuthenHandler           PERL_AUTHEN
+PerlAuthzHandler            PERL_AUTHZ
+PerlAccessHandler           PERL_ACCESS
+PerlTypeHandler             PERL_TYPE
+PerlFixupHandler            PERL_FIXUP
+PerlHandler                 PERL_HANDLER
+PerlLogHandler              PERL_LOG
+PerlCleanupHandler          PERL_CLEANUP
+PerlChildInitHandler        PERL_CHILD_INIT
+PerlChildExitHandler        PERL_CHILD_EXIT
+PerlDispatchHandler         PERL_DISPATCH</pre></blockquote>
+
+<p>As with any parameters that are either defined or not, use
+<tt class="literal">OPTION_FOO=1</tt> to enable them (e.g.,
+<tt class="literal">PERL_AUTHEN=1</tt>).</p>
+
+<p>To enable all callback hooks, use:</p>
+
+<blockquote><pre class="code">ALL_HOOKS=1</pre></blockquote>
+
+<p>There are a few more hooks that won't be enabled by
+default, because they are experimental.</p>
+
+<p>If you are using:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL EVERYTHING=1 ...</pre></blockquote>
+
+<p>it already includes the <tt class="literal">ALL_HOOKS=1</tt> option.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">3.1.3. Activating Standard API Features</h3>
+
+<p>The following options enable
+<a name="pmodperl-CHP-3-ITERM-3570" /><a name="pmodperl-CHP-3-ITERM-3571" />various standard features
+of the mod_perl API. While not absolutely needed,
+they're very handy and there's
+little penalty in including them. Unless specified otherwise, these
+options are all disabled by default. The
+<tt class="literal">EVERYTHING=1</tt> or <tt class="literal">DYNAMIC=1</tt>
+options will enable them en masse. If in doubt, include these.</p>
+
+<dl>
+<a name="pmodperl-CHP-3-ITERM-3572" /><dt><b><tt class="literal">PERL_FILE_API=1</tt></b></dt>
+<dd><p>
+Enables the <tt class="literal">Apache::File</tt> class, which helps with
+the handling of files under mod_perl.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3573" /><dt><b><tt class="literal">PERL_TABLE_API=1</tt></b></dt>
+<dd><p>
+Enables the <tt class="literal">Apache::Table</tt> class, which provides
+tied access to the Apache Table structure (used for HTTP headers,
+among others).</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3574" /><dt><b><tt class="literal">PERL_LOG_API=1</tt></b></dt>
+<dd><p>
+Enables the <tt class="literal">Apache::Log</tt> class. This class allows
+you to access Apache's more advanced logging
+features.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3575" /><dt><b><tt class="literal">PERL_URI_API=1</tt></b></dt>
+<dd><p>
+Enables the <tt class="literal">Apache::URI</tt> class, which deals with
+the parsing of URIs in a similar way to the Perl
+<tt class="literal">URI::URL</tt> module, but much faster.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3576" /><dt><b><tt class="literal">PERL_UTIL_API=1</tt></b></dt>
+<dd><p>
+Enables the <tt class="literal">Apache::Util</tt> class, allowing you to
+use various functions such as HTML escaping or date parsing, but
+implemented in C.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3577" /><dt><b><tt class="literal">PERL_CONNECTION_API=1</tt></b></dt>
+<dd><p>
+Enables the <tt class="literal">Apache::Connection</tt> class. This class
+is enabled by default. Set the option to <tt class="literal">0</tt> to
+disable it.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-3-ITERM-3578" /><dt><b><tt class="literal">PERL_SERVER_API=1</tt></b></dt>
+<dd><p>
+Enables the <tt class="literal">Apache::Server</tt> class. This class is
+enabled by default. Set the option to <tt class="literal">0</tt> to disable
+it.</p>
+</dd>
+
+</dl>
+
+<p>Please refer to Lincoln Stein and Doug MacEachern's
+<em class="emphasis">Writing Apache Modules with Perl and C</em>
+(O'Reilly) for more information about the Apache
+API.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">3.1.4. Enabling Extra Features</h3>
+
+<p>mod_perl
+comes<a name="pmodperl-CHP-3-ITERM-3579" /><a name="pmodperl-CHP-3-ITERM-3580" /> with a number of other
+features. Most of them are disabled by default. This is the list of
+features and options to enable them:</p>
+
+<ul><li>
+<p><tt class="literal">&lt;Perl&gt;</tt>sections give you a way to configure
+Apache using Perl code in the <em class="emphasis">httpd.conf</em> file
+itself. See <a href="ch04_01.html">Chapter 4</a> for more information.</p>
+<a name="pmodperl-CHP-3-ITERM-3581" /><blockquote><pre class="code">panic% perl Makefile.PL PERL_SECTIONS=1 ...</pre></blockquote>
+</li>
+<li>
+<p>With the <tt class="literal">PERL_SSI</tt><a name="pmodperl-CHP-3-ITERM-3582" /> option, the mod_include module can be
+extended to include a <tt class="literal">#perl</tt> directive.</p>
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_SSI=1</pre></blockquote>
+<p>By enabling <tt class="literal">PERL_SSI</tt>, a new
+<tt class="literal">#perl</tt> element is added to the standard mod_include
+functionality. This element allows server-side includes to call Perl
+subroutines directly. This feature works only when mod_perl is not
+built as a DSO (i.e., when it's built statically).</p>
+</li>
+<li>
+<p>If you develop an Apache module in Perl and you want to create custom
+configuration directives<a href="#FOOTNOTE-18">[18]</a> to be recognized in
+<em class="emphasis">httpd.conf</em>, you need to use
+<tt class="literal">Apache::ModuleConfig</tt> and
+<tt class="literal">Apache::CmdParms</tt>. For these modules to work, you
+will need to enable this option:</p> <blockquote><a name="FOOTNOTE-18" /><p> [18]See Chapters 8 and 9 of
+<em class="emphasis">Writing Apache Modules with Perl and C</em>
+(O'Reilly).</p> </blockquote>
+<a name="pmodperl-CHP-3-ITERM-3583" /><blockquote><pre class="code">panic% perl Makefile.PL PERL_DIRECTIVE_HANDLERS=1</pre></blockquote>
+</li>
+<li>
+<p>The stacked handlers feature explained in <a href="ch04_01.html">Chapter 4</a> requires this parameter to be enabled:</p>
+<a name="pmodperl-CHP-3-ITERM-3584" /><a name="pmodperl-CHP-3-ITERM-3585" /><a name="pmodperl-CHP-3-ITERM-3586" /><blockquote><pre class="code">panic% perl Makefile.PL PERL_STACKED_HANDLERS=1</pre></blockquote>
+</li>
+<li>
+<p>The method handlers feature discussed in <a href="ch04_01.html">Chapter 4</a>
+requires this parameter to be enabled:</p>
+<a name="pmodperl-CHP-3-ITERM-3587" /><a name="pmodperl-CHP-3-ITERM-3588" /><a name="pmodperl-CHP-3-ITERM-3589" /><blockquote><pre class="code">panic% perl Makefile.PL PERL_METHOD_HANDLERS=1</pre></blockquote>
+</li>
+<li>
+<p>To enable all phase callback handlers, all API modules, and all
+miscellaneous features, use the
+"catch-all" option we used when we
+first compiled mod_perl:</p>
+
+<a name="pmodperl-CHP-3-ITERM-3590" /><blockquote><pre class="code">panic% perl Makefile.PL EVERYTHING=1</pre></blockquote>
+</li></ul>
+</div>
+<a name="pmodperl-CHP-3-SECT-1.5" /><div class="sect2">
+<h3 class="sect2">3.1.5. Reusing Configuration Parameters</h3>
+
+<p>When you have to
+<a name="pmodperl-CHP-3-ITERM-3591" /><a name="pmodperl-CHP-3-ITERM-3592" /><a name="pmodperl-CHP-3-ITERM-3593" />upgrade the server,
+it's sometimes hard to remember what parameters you
+used in the previous mod_perl build. So it's a good
+idea to save them in a file.</p>
+
+<p>One way to save parameters is to create
+<a name="pmodperl-CHP-3-ITERM-3594" />a file (e.g.,
+<em class="emphasis">~/.mod_perl_build_options</em>) with the following
+contents:</p>
+
+<blockquote><pre class="code">APACHE_SRC=../apache_1.3.xx/src DO_HTTPD=1 USE_APACI=1 \
+EVERYTHING=1</pre></blockquote>
+
+<p>Then build the server with the following command:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL `cat ~/.mod_perl_build_options`
+panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+<p>But mod_perl has a standard method to perform this trick. If a file
+named
+<em class="emphasis">makepl_args.mod_perl</em><a name="pmodperl-CHP-3-ITERM-3595" /> is found in the same
+directory<a name="pmodperl-CHP-3-ITERM-3596" /><a name="pmodperl-CHP-3-ITERM-3597" /> as the mod_perl build location, it will
+be read in by <em class="emphasis">Makefile.PL</em>. Parameters supplied
+at the command line will override the parameters given in this file.</p>
+
+<p>The <em class="emphasis">makepl_args.mod_perl</em> file can also be
+located in your home directory or in the <em class="emphasis">../</em>
+directory relative to the mod_perl distribution directory. The
+filename can also start with a dot
+(<em class="emphasis">.makepl_args.mod_perl</em>), so you can keep
+it<a name="pmodperl-CHP-3-ITERM-3598" />
+nicely hidden along with the rest of the dot files in your home
+directory. So, <em class="emphasis">Makefile.PL</em> will look for the
+following files (in this order), using the first one it comes across:</p>
+
+<blockquote><pre class="code">./makepl_args.mod_perl
+../makepl_args.mod_perl
+./.makepl_args.mod_perl
+../.makepl_args.mod_perl
+$ENV{HOME}/.makepl_args.mod_perl</pre></blockquote>
+
+<p>For example:</p>
+
+<blockquote><pre class="code">panic% ls -1 /home/stas/src
+apache_1.3.xx/
+makepl_args.mod_perl
+mod_perl-1.xx/
+
+panic% cat makepl_args.mod_perl
+APACHE_SRC=../apache_1.3.xx/src
+DO_HTTPD=1
+USE_APACI=1
+EVERYTHING=1
+
+panic% cd mod_perl-1.xx
+panic% perl Makefile.PL
+panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+<p>Now the parameters from the <em class="emphasis">makepl_args.mod_perl</em>
+file will be used automatically, as if they were entered directly.</p>
+
+<p>In the sample <em class="emphasis">makepl_args.mod_perl</em> file in the
+<em class="emphasis">eg/</em> directory of the mod_perl distribution
+package, you might find a few options enabling some experimental
+features for you to play with, too!</p>
+
+<p>If you are faced with a compiled Apache and no trace of the
+parameters used to build it, you can usually still find them if
+<em class="emphasis">make clean</em> was not run on the sources. You will
+find the Apache-specific parameters in
+<em class="emphasis">apache_1.3.xx/config.status</em> and the mod_perl
+parameters in
+<em class="emphasis">mod_perl-1.xx/apaci/mod_perl.config</em>.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-1.6" /><div class="sect2">
+<h3 class="sect2">3.1.6. Discovering Whether a Feature Was Enabled</h3>
+
+<p>mod_perl <a name="pmodperl-CHP-3-ITERM-3599" />Version 1.25
+introduced
+<tt class="literal">Apache::MyConfig</tt><a name="pmodperl-CHP-3-ITERM-3600" />, which provides access to the various
+hooks and features set when mod_perl was built. This circumvents the
+need to set up a live server just to find out if a certain callback
+hook is available.</p>
+
+<p>To see whether some feature was built in or not, check the
+<tt class="literal">%Apache::MyConfig::Setup</tt> hash. For example,
+suppose we install mod_perl with the following options:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL EVERYTHING=1</pre></blockquote>
+
+<p>but the next day we can't remember which callback
+hooks were enabled. We want to know whether the
+<tt class="literal">PERL_LOG</tt> callback hook is available. One of the
+ways to find an answer is to run the following code:</p>
+
+<blockquote><pre class="code">panic% perl -MApache::MyConfig -e 'print $Apache::MyConfig::Setup{PERL_LOG}'</pre></blockquote>
+
+<p>If it prints <tt class="literal">1</tt>, that means the
+<tt class="literal">PERL_LOG</tt> callback hook is enabled (which it should
+be, as <tt class="literal">EVERYTHING=1</tt> enables them all).</p>
+
+<p>Another approach is to configure
+<tt class="literal">Apache::Status</tt><a name="pmodperl-CHP-3-ITERM-3601" /> (see <a href="ch09_01.html">Chapter 9</a>) and
+run <em class="emphasis">http://localhost/perl-status?hooks</em> to check
+for enabled hooks.</p>
+
+<p>If you want to check for the existence of
+<a name="pmodperl-CHP-3-ITERM-3602" />various hooks within your handlers, you
+can use the script shown in <a href="ch03_01.html#pmodperl-CHP-3-EX-1">Example 3-1</a>.</p>
+
+<a name="pmodperl-CHP-3-EX-1" /><div class="example">
+<h4 class="objtitle">Example 3-1. test_hooks.pl</h4>
+<blockquote><pre class="code">use mod_perl_hooks;
+
+for my $hook (mod_perl::hooks( )) {
+    if (mod_perl::hook($hook)) {
+        print "$hook is enabled\n";
+    }
+    else {
+        print "$hook is not enabled\n";
+    }
+}</pre></blockquote>
+</div>
+
+<p>You can also try to look at the symbols inside the
+<em class="emphasis">httpd</em> executable with the help of
+<em class="emphasis">nm(1)</em> or a similar utility. For example, if you
+want to see whether you enabled <tt class="literal">PERL_LOG=1</tt> while
+building mod_perl, you can search for a symbol with the same name but
+in lowercase:</p>
+
+<blockquote><pre class="code">panic% nm httpd | grep perl_log
+08071724 T perl_logger</pre></blockquote>
+
+<p>This shows that <tt class="literal">PERL_LOG=1</tt> was enabled. But this
+approach will work only if you have an unstripped
+<em class="emphasis">httpd</em> binary. By default, <em class="emphasis">make
+install</em> strips the binary before installing it, thus
+removing the symbol names to save space. Use the
+<em class="emphasis">&#8212;without-execstrip ./configure</em> option to
+prevent stripping during the <em class="emphasis">make install</em> phase.
+<a href="#FOOTNOTE-19">[19]</a></p> <blockquote><a name="FOOTNOTE-19" /><p> [19]You might need the unstripped version for debugging
+reasons too.</p> </blockquote>
+
+<p>Yet another approach that will work in most cases is to try to use
+the feature in question. If it wasn't configured,
+Apache will give an error message.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-1.7" /><div class="sect2">
+<h3 class="sect2">3.1.7. Using an Alternative Configuration File</h3>
+
+<p>By default,
+<a name="pmodperl-CHP-3-ITERM-3603" />mod_perl provides its own
+copy of the <em class="emphasis">Configuration</em> file to
+Apache's <em class="emphasis">configure</em> utility. If
+you want to pass it your own version, do this:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL CONFIG=Configuration.custom</pre></blockquote>
+
+<p>where
+<em class="emphasis">Configuration.custom</em><a name="pmodperl-CHP-3-ITERM-3604" /> is the pathname of the file
+<em class="emphasis">relative</em> to the Apache source tree you build
+against.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-1.8" /><div class="sect2">
+<h3 class="sect2">3.1.8. perl Makefile.PL Troubleshooting</h3>
+
+<p>During the configuration (<em class="emphasis">perl
+Makefile.PL</em><a name="pmodperl-CHP-3-ITERM-3605" /><a name="pmodperl-CHP-3-ITERM-3606" /><a name="pmodperl-CHP-3-ITERM-3607" />) stage, you may encounter some of
+these problems. To help you avoid them, let's study
+them, find out why they happened, and discuss how to fix them.</p>
+
+<a name="pmodperl-CHP-3-SECT-1.8.1" /><div class="sect3">
+<h3 class="sect3">3.1.8.1. A test compilation with your Makefile configuration failed...</h3>
+
+<p>When you see the
+following<a name="pmodperl-CHP-3-ITERM-3608" /> error during the
+<em class="emphasis">perl Makefile.PL</em> stage:</p>
+
+<blockquote><pre class="code">** A test compilation with your Makefile configuration
+** failed. This is most likely because your C compiler
+** is not ANSI. Apache requires an ANSI C Compiler, such
+** as gcc. The above error message from your compiler
+** will also provide a clue.
+ Aborting!</pre></blockquote>
+
+<p>it's possible that you have a problem with a
+compiler. It may be improperly installed or not installed at all.
+Sometimes the reason is that your Perl executable was built on a
+different machine, and the software installed on your machine is not
+the same. Generally this happens when you install prebuilt packages,
+such as <em class="emphasis">rpm</em> or <em class="emphasis">deb</em>. You may
+find that the dependencies weren't properly defined
+in the Perl binary package and you were allowed to install it even
+though some essential packages were not installed.</p>
+
+<p>The most frequent pitfall is a missing <tt class="literal">gdbm</tt>
+library (see the next section).</p>
+
+<p>But why guess, when we can actually see the real error message and
+understand what the real problem is? To get a real error message,
+edit the Apache <em class="emphasis">src/Configure</em> script. Around
+line 2140, you should see a line like this:</p>
+
+<blockquote><pre class="code">if ./helpers/TestCompile sanity; then</pre></blockquote>
+
+<p>Add the <em class="emphasis">-v</em> option, as follows:</p>
+
+<blockquote><pre class="code">if ./helpers/TestCompile -v sanity; then</pre></blockquote>
+
+<p>and try again. Now you should get a useful error message.</p>
+
+</div>
+
+<a name="pmodperl-CHP-3-SECT-1.8.2" /><div class="sect3">
+<h3 class="sect3">3.1.8.2. Missing or misconfigured libgdbm.so</h3>
+
+<p>On some <a name="pmodperl-CHP-3-ITERM-3609" /><a name="pmodperl-CHP-3-ITERM-3610" />Red Hat Linux systems, you might
+encounter a problem during the <em class="emphasis">perl Makefile.PL</em>
+stage, when Perl was installed from an <em class="emphasis">rpm</em>
+package built with the <tt class="literal">gdbm</tt>
+<a name="pmodperl-CHP-3-ITERM-3611" />library, but <tt class="literal">libgdbm</tt>
+isn't actually installed. If this happens to you,
+make sure you install it before proceeding with the build process.</p>
+
+<p>You can check how Perl was built by running the <em class="emphasis">perl
+-V</em> command:</p>
+
+<blockquote><pre class="code">panic% perl -V | grep libs</pre></blockquote>
+
+<p>You should see output similar to this:</p>
+
+<blockquote><pre class="code">libs=-lnsl -lndbm -lgdbm -ldb -ldl -lm -lc -lposix -lcrypt</pre></blockquote>
+
+<p>Sometimes the problem is even more obscure: you do have
+<tt class="literal">libgdbm</tt> installed, but it's not
+installed properly. Do this:</p>
+
+<blockquote><pre class="code">panic% ls /usr/lib/libgdbm.so*</pre></blockquote>
+
+<p>If you get at least three lines, like we do:</p>
+
+<blockquote><pre class="code">lrwxrwxrwx   /usr/lib/libgdbm.so -&gt; libgdbm.so.2.0.0
+lrwxrwxrwx   /usr/lib/libgdbm.so.2 -&gt; libgdbm.so.2.0.0
+-rw-r--r--   /usr/lib/libgdbm.so.2.0.0</pre></blockquote>
+
+<p>you are all set. On some installations, the
+<em class="emphasis">libgdbm.so</em> <a name="pmodperl-CHP-3-ITERM-3612" />symbolic link is missing, so you get
+only:</p>
+
+<blockquote><pre class="code">lrwxrwxrwx   /usr/lib/libgdbm.so.2 -&gt; libgdbm.so.2.0.0
+-rw-r--r--   /usr/lib/libgdbm.so.2.0.0</pre></blockquote>
+
+<p>To fix this problem, add the missing symbolic link:</p>
+
+<blockquote><pre class="code">panic% cd /usr/lib
+panic% ln -s libgdbm.so.2.0.0 libgdbm.so</pre></blockquote>
+
+<p>Now you should be able to build mod_perl without any problems.</p>
+
+<p>Note that you might need to prepare this symbolic link as well:</p>
+
+<blockquote><pre class="code">lrwxrwxrwx   /usr/lib/libgdbm.so.2 -&gt; libgdbm.so.2.0.0</pre></blockquote>
+
+<p>with the command:</p>
+
+<blockquote><pre class="code">panic% ln -s libgdbm.so.2.0.0 libgdbm.so.2</pre></blockquote>
+
+<p>Of course, if a new version of the <tt class="literal">libgdbm</tt> library
+was released between the moment we wrote this sentence and the moment
+you're reading it, you will have to adjust the
+version numbers. We didn't use the usual
+<em class="emphasis">xx.xx</em> version replacement here, to make it
+easier to understand how the symbolic links should be set.</p>
+
+<a name="pmodperl-CHP-3-SIDEBAR-3" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">About the gdbm, db, and ndbm Libraries</h4>
+
+<p>If you need to have the <tt class="literal">dbm</tt><a name="pmodperl-CHP-3-ITERM-3613" /><a name="pmodperl-CHP-3-ITERM-3614" /><a name="pmodperl-CHP-3-ITERM-3615" /> library linked in, you should know
+that both the <tt class="literal">gdbm</tt> and <tt class="literal">db</tt>
+libraries offer <tt class="literal">ndbm</tt> emulation, which is the
+interface that Apache actually uses. So when you build mod_perl, you
+end up using whichever library was linked first by the Perl
+compilation. If you build Apache without mod_perl, you end up with
+whatever appears to be be your <tt class="literal">ndbm</tt> library, which
+will vary between systems, and especially Linux distributions. So you
+may have to work a bit to get both Apache and Perl to use the same
+library, and you are likely to have trouble copying the
+<em class="emphasis">dbm</em> file from one system to another or even
+using it after an upgrade.</p>
+</td></tr></table><p></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-3-SECT-1.8.3" /><div class="sect3">
+<h3 class="sect3">3.1.8.3. Undefined reference to `PL_perl_destruct_level'</h3>
+<a name="pmodperl-CHP-3-ITERM-3616" />
+<p>When manually building mod_perl using the shared library:</p>
+
+<blockquote><pre class="code">panic% cd mod_perl-1.xx
+panic% perl Makefile.PL PREP_HTTPD=1
+panic% make &amp;&amp; make test
+panic# make install
+
+panic% cd ../apache_1.3.xx
+panic% ./configure --with-layout=RedHat --target=perlhttpd 
+    --activate-module=src/modules/perl/libperl.a</pre></blockquote>
+
+<p>you might see the following output:</p>
+
+<blockquote><pre class="code">gcc -c  -I./os/unix -I./include   -DLINUX=2 -DTARGET=\"perlhttpd\"
+-DUSE_HSREGEX -DUSE_EXPAT -I./lib/expat-lite `./apaci` buildmark.c
+gcc  -DLINUX=2 -DTARGET=\"perlhttpd\" -DUSE_HSREGEX -DUSE_EXPAT 
+-I./lib/expat-lite `./apaci`    \
+      -o perlhttpd buildmark.o modules.o modules/perl/libperl.a 
+modules/standard/libstandard.a main/libmain.a ./os/unix/libos.a ap/libap.a 
+regex/libregex.a lib/expat-lite/libexpat.a  -lm -lcrypt
+modules/perl/libperl.a(mod_perl.o): In function `perl_shutdown':
+mod_perl.o(.text+0xf8): undefined reference to `PL_perl_destruct_level'
+mod_perl.o(.text+0x102): undefined reference to `PL_perl_destruct_level'
+mod_perl.o(.text+0x10c): undefined reference to `PL_perl_destruct_level'
+mod_perl.o(.text+0x13b): undefined reference to `Perl_av_undef'
+[more errors snipped]</pre></blockquote>
+
+<p>This happens when Perl was built statically linked, with no shared
+<tt class="literal">libperl.a</tt>. Build a dynamically linked Perl (with
+<tt class="literal">libperl.a</tt>) and the problem will
+<a name="pmodperl-CHP-3-ITERM-3617" /><a name="pmodperl-CHP-3-ITERM-3618" /><a name="pmodperl-CHP-3-ITERM-3619" />disappear.</p>
+
+</div>
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch02_09.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch03_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">2.9. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">3.2. Building mod_perl </td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

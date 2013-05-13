@@ -1,0 +1,791 @@
+<html><head><title>Configuring mod_perl 2.0 (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch24_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch24_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">24.5. Configuring mod_perl 2.0</h2>
+
+<p>Similar to mod_perl 1.0, in order to use mod_perl 2.0 a few
+configuration settings should be added to
+<em class="emphasis">httpd.conf</em>. They are quite similar to the 1.0
+settings, but some directives were renamed and new directives were
+added.</p>
+
+<a name="pmodperl-CHP-24-SECT-5.1" /><div class="sect2">
+<h3 class="sect2">24.5.1. Enabling mod_perl</h3>
+
+<p>To enable mod_perl as a DSO, add
+<a name="pmodperl-CHP-24-ITERM-5900" /><a name="pmodperl-CHP-24-ITERM-5901" />this to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">LoadModule perl_module modules/mod_perl.so</pre></blockquote>
+
+<p>This setting specifies the location of the mod_perl module relative
+to the <tt class="literal">ServerRoot</tt>setting, so you should put it
+somewhere after <tt class="literal">ServerRoot</tt> is specified.</p>
+
+<p>Win32 users need to make sure that the path to the Perl binary (e.g.,
+<em class="emphasis">C:\Perl\bin</em>) is in the <tt class="literal">PATH</tt>
+environment variable. You could also add the directive:</p>
+
+<blockquote><pre class="code">LoadFile "/Path/to/your/Perl/bin/perl5x.dll"</pre></blockquote>
+
+<p>to <em class="emphasis">httpd.conf</em> to load your Perl DLL, before
+loading <em class="emphasis">mod_perl.so</em>.</p>
+
+</div>
+<a name="pmodperl-CHP-24-SECT-5.2" /><div class="sect2">
+<h3 class="sect2">24.5.2. Accessing the mod_perl 2.0 Modules</h3>
+
+<p>To prevent you from
+<a name="pmodperl-CHP-24-ITERM-5902" /><a name="pmodperl-CHP-24-ITERM-5903" />inadvertently loading mod_perl 1.0
+modules, mod_perl 2.0 Perl modules are installed into dedicated
+directories under <em class="emphasis">Apache2/</em>. The
+<tt class="literal">Apache2</tt> module prepends the locations of the
+mod_perl 2.0 libraries to <tt class="literal">@INC</tt>:
+<tt class="literal">@INC</tt> is the same as the core
+<tt class="literal">@INC</tt>, but with <em class="emphasis">Apache2/</em>
+prepended. This module has to be loaded just after mod_perl has been
+enabled. This can be accomplished with:</p>
+
+<blockquote><pre class="code">use Apache2 ( );</pre></blockquote>
+
+<p>in the startup file. If you don't use a startup
+file, you can add:</p>
+
+<blockquote><pre class="code">PerlModule Apache2</pre></blockquote>
+
+<p>to <em class="emphasis">httpd.conf</em>, due to the order in which the
+<tt class="literal">PerlRequire</tt> and <tt class="literal">PerlModule</tt>
+directives are processed.</p>
+
+</div>
+<a name="pmodperl-CHP-24-SECT-5.3" /><div class="sect2">
+<h3 class="sect2">24.5.3. Startup File</h3>
+
+<p>Next, a startup file with
+<a name="pmodperl-CHP-24-ITERM-5904" /><a name="pmodperl-CHP-24-ITERM-5905" /><a name="pmodperl-CHP-24-ITERM-5906" />Perl code usually is
+loaded:</p>
+
+<blockquote><pre class="code">PerlRequire "/home/httpd/httpd-2.0/perl/startup.pl"</pre></blockquote>
+
+<p>It's used to adjust Perl module search paths in
+<tt class="literal">@INC</tt>, preload commonly used modules, precompile
+constants, etc. A typical <em class="emphasis">startup.pl</em> file for
+mod_perl 2.0 is shown in <a href="ch24_05.html#pmodperl-CHP-24-EX-1">Example 24-1</a>.</p>
+
+<a name="pmodperl-CHP-24-EX-1" /><div class="example">
+<h4 class="objtitle">Example 24-1. startup.pl</h4>
+<blockquote><pre class="code">use Apache2 ( );
+
+use lib qw(/home/httpd/perl);
+
+# enable if the mod_perl 1.0 compatibility is needed
+# use Apache::compat ( );
+
+# preload all mp2 modules
+# use ModPerl::MethodLookup;
+# ModPerl::MethodLookup::preload_all_modules( );
+
+use ModPerl::Util ( ); #for CORE::GLOBAL::exit
+
+use Apache::RequestRec ( );
+use Apache::RequestIO ( );
+use Apache::RequestUtil ( );
+
+use Apache::Server ( );
+use Apache::ServerUtil ( );
+use Apache::Connection ( );
+use Apache::Log ( );
+
+use APR::Table ( );
+
+use ModPerl::Registry ( );
+
+use Apache::Const -compile =&gt; ':common';
+use APR::Const -compile =&gt; ':common';
+
+1;</pre></blockquote>
+</div>
+
+<p>In this file the <tt class="literal">Apache2</tt> module is loaded, so the
+2.0 modules will be found. Afterwards, <tt class="literal">@INC</tt> is
+adjusted to include nonstandard directories with Perl modules:</p>
+
+<blockquote><pre class="code">use lib qw(/home/httpd/perl);</pre></blockquote>
+
+<p>If you need to use the backward-compatibility layer, to get 1.0
+modules that haven't yet been ported to work with
+mod_perl 2.0, load <tt class="literal">Apache::compat</tt>:</p>
+
+<blockquote><pre class="code">use Apache::compat ( );</pre></blockquote>
+
+<p>Next, preload the commonly used mod_perl 2.0 modules and precompile
+the common constants. You can preload all mod_perl 2.0 modules by
+uncommenting the following two lines:</p>
+
+<blockquote><pre class="code">use ModPerl::MethodLookup;
+ModPerl::MethodLookup::preload_all_modules( );</pre></blockquote>
+
+<p>Finally, the <em class="emphasis">startup.pl</em> file must be terminated
+with <tt class="literal">1;</tt>.</p>
+
+</div>
+<a name="pmodperl-CHP-24-SECT-5.4" /><div class="sect2">
+<h3 class="sect2">24.5.4. Perl's Command-Line Switches</h3>
+
+<p>Now you can pass Perl's
+<a name="pmodperl-CHP-24-ITERM-5907" /><a name="pmodperl-CHP-24-ITERM-5908" /><a name="pmodperl-CHP-24-ITERM-5909" /><a name="pmodperl-CHP-24-ITERM-5910" />command-line switches in
+<em class="emphasis">httpd.conf</em> by using the
+<tt class="literal">PerlSwitches</tt> directive, instead of using
+complicated workarounds.</p>
+
+<p>For example, to enable warnings and taint checking, add:</p>
+
+<blockquote><pre class="code">PerlSwitches -wT</pre></blockquote>
+
+<p>The <em class="emphasis">-I</em> command-line switch can be used to adjust
+<tt class="literal">@INC</tt> values:</p>
+
+<blockquote><pre class="code">PerlSwitches -I/home/stas/modperl</pre></blockquote>
+
+<p>For example, you can use that technique to set different
+<tt class="literal">@INC</tt> values for different virtual hosts, as we
+will see later.</p>
+
+</div>
+<a name="pmodperl-CHP-24-SECT-5.5" /><div class="sect2">
+<h3 class="sect2">24.5.5. mod_perl 2.0 Core Handlers</h3>
+
+<p>mod_perl 2.0 provides two types of core handlers:
+<tt class="literal">modperl</tt> and <tt class="literal">perl-script</tt>.</p>
+
+<a name="pmodperl-CHP-24-SECT-5.5.1" /><div class="sect3">
+<h3 class="sect3">24.5.5.1. modperl</h3>
+
+<p>modperl is configured as:</p>
+
+<blockquote><pre class="code">SetHandler modperl</pre></blockquote>
+
+<p>This is the bare mod_perl
+<a name="pmodperl-CHP-24-ITERM-5911" /><a name="pmodperl-CHP-24-ITERM-5912" /><a name="pmodperl-CHP-24-ITERM-5913" /><a name="pmodperl-CHP-24-ITERM-5914" />handler type, which just calls the
+<tt class="literal">Perl*Handler</tt>'s callback function.
+If you don't need the features provided by the
+<tt class="literal">perl-script</tt> handler, with the
+<tt class="literal">modperl</tt> handler, you can gain even more
+performance. (This handler isn't available in
+mod_perl 1.0.)</p>
+
+<p>Unless the <tt class="literal">Perl*Handler</tt> callback running under the
+<tt class="literal">modperl</tt> handler is configured with:</p>
+
+<blockquote><pre class="code">PerlOptions +SetupEnv</pre></blockquote>
+
+<p>or calls:</p>
+
+<blockquote><pre class="code">$r-&gt;subprocess_env;</pre></blockquote>
+
+<p>in a void context (which has the same effect as <tt class="literal">PerlOptions
++SetupEnv</tt> for the handler that called it), only the
+following environment variables are accessible via
+<tt class="literal">%ENV</tt>:</p>
+
+<ul><li>
+<p><tt class="literal">MOD_PERL</tt> and <tt class="literal">GATEWAY_INTERFACE</tt>
+(always)</p>
+</li><li>
+<p><tt class="literal">PATH</tt> and <tt class="literal">TZ</tt> (if you had them
+defined in the shell or <em class="emphasis">httpd.conf</em>)</p>
+</li></ul>
+<p>Therefore, if you don't want to add the overhead of
+populating <tt class="literal">%ENV</tt> when you simply want to pass some
+configuration variables from <em class="emphasis">httpd.conf</em>,
+consider using <tt class="literal">PerlSetVar</tt> and
+<tt class="literal">PerlAddVar</tt> instead of
+<tt class="literal">PerlSetEnv</tt> and <tt class="literal">PerlPassEnv</tt>.</p>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.5.2" /><div class="sect3">
+<h3 class="sect3">24.5.5.2. perl-script</h3>
+
+<p><tt class="literal">perl-script</tt> is
+<a name="pmodperl-CHP-24-ITERM-5915" /><a name="pmodperl-CHP-24-ITERM-5916" /><a name="pmodperl-CHP-24-ITERM-5917" /><a name="pmodperl-CHP-24-ITERM-5918" />configured as:</p>
+
+<blockquote><pre class="code">SetHandler perl-script</pre></blockquote>
+
+<p>Most mod_perl handlers use the <tt class="literal">perl-script</tt>
+handler. Here are a few things to note:</p>
+
+<ul><li>
+<p><tt class="literal">PerlOptions +GlobalRequest</tt> is in effect unless:</p>
+
+<blockquote><pre class="code">PerlOptions -GlobalRequest</pre></blockquote>
+
+<p>is specified.</p>
+</li><li>
+<p><tt class="literal">PerlOptions +SetupEnv</tt> is in effect unless:</p>
+
+<blockquote><pre class="code">PerlOptions -SetupEnv</pre></blockquote>
+
+<p>is specified.</p>
+</li><li>
+<p><tt class="literal">STDOUT</tt> and <tt class="literal">STDOUT</tt> get tied to
+the request object <tt class="literal">$r</tt>, which makes it possible to
+read from <tt class="literal">STDIN</tt> and print directly to
+<tt class="literal">STDOUT</tt> via <tt class="literal">print( )</tt>, instead of
+having to use implicit calls like <tt class="literal">$r-&gt;print( )</tt>.</p>
+</li><li>
+<p>Several special global Perl variables are saved before the handler is
+called and restored afterward (as in mod_perl 1.0). These include
+<tt class="literal">%ENV</tt>, <tt class="literal">@INC</tt>,
+<tt class="literal">$/</tt>, and
+<tt class="literal">STDOUT</tt>'s <tt class="literal">$|</tt>
+and <tt class="literal">END</tt> blocks.</p>
+</li></ul>
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.5.3" /><div class="sect3">
+<h3 class="sect3">24.5.5.3. A simple response handler example</h3>
+
+<p>Let's demonstrate
+<a name="pmodperl-CHP-24-ITERM-5919" /><a name="pmodperl-CHP-24-ITERM-5920" />the differences between the
+<tt class="literal">modperl</tt> and <tt class="literal">perl-script</tt> core
+handlers. <a href="ch24_05.html#pmodperl-CHP-24-EX-2">Example 24-2</a> represents a simple mod_perl
+response handler that prints out the environment variables as seen by
+it.</p>
+
+<a name="pmodperl-CHP-24-EX-2" /><div class="example">
+<h4 class="objtitle">Example 24-2. Apache/PrintEnv1.pm</h4>
+<blockquote><pre class="code">package Apache::PrintEnv1;
+
+use strict;
+use warnings;
+
+use Apache::RequestRec ( ); # for $r-&gt;content_type
+
+use Apache::Const -compile =&gt; 'OK';
+
+sub handler {
+    my $r = shift;
+
+    $r-&gt;content_type('text/plain');
+    for (sort keys %ENV){
+        print "$_ =&gt; $ENV{$_}\n";
+    }
+
+    return Apache::OK;
+}
+
+1;</pre></blockquote>
+</div>
+
+<p>This is the required configuration for the
+<tt class="literal">perl-script</tt> handler:</p>
+
+<blockquote><pre class="code">PerlModule Apache::PrintEnv1
+&lt;Location /print_env1&gt;
+    SetHandler perl-script
+    PerlResponseHandler Apache::PrintEnv1
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now issue a request to
+<em class="emphasis">http://localhost/print_env1</em>, and you should see
+all the environment variables printed out.</p>
+
+<p>The same response handler, adjusted to work with the
+<tt class="literal">modperl</tt> core handler, is shown in <a href="ch24_05.html#pmodperl-CHP-24-EX-3">Example 24-3</a>.</p>
+
+<a name="pmodperl-CHP-24-EX-3" /><div class="example">
+<h4 class="objtitle">Example 24-3. Apache/PrintEnv2.pm</h4>
+<blockquote><pre class="code">package Apache::PrintEnv2;
+
+use strict;
+use warnings;
+
+use Apache::RequestRec ( ); # for $r-&gt;content_type
+use Apache::RequestIO ( );  # for $r-&gt;print
+
+use Apache::Const -compile =&gt; 'OK';
+
+sub handler {
+    my $r = shift;
+
+    $r-&gt;content_type('text/plain');
+    $r-&gt;subprocess_env;
+    for (sort keys %ENV){
+        $r-&gt;print("$_ =&gt; $ENV{$_}\n");
+    }
+
+    return Apache::OK;
+}
+
+1;</pre></blockquote>
+</div>
+
+<p>The configuration now will look like this:</p>
+
+<blockquote><pre class="code">PerlModule Apache::PrintEnv2
+&lt;Location /print_env2&gt;
+    SetHandler modperl
+    PerlResponseHandler Apache::PrintEnv2
+&lt;/Location&gt;</pre></blockquote>
+
+<p><tt class="literal">Apache::PrintEnv2</tt> cannot use <tt class="literal">print(
+)</tt>, so it uses <tt class="literal">$r-&gt;print( )</tt> to
+generate a response. Under the <tt class="literal">modperl</tt> core
+handler, <tt class="literal">%ENV</tt> is not populated by default;
+therefore, <tt class="literal">subprocess_env( )</tt> is called in a void
+context. Alternatively, we could configure this section to do:</p>
+
+<blockquote><pre class="code">PerlOptions +SetupEnv</pre></blockquote>
+
+<p>If you issue a request to
+<em class="emphasis">http://localhost/print_env2</em>, you should see all
+the environment variables printed out as with
+<em class="emphasis">http://localhost/print_env1</em>.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-24-SECT-5.6" /><div class="sect2">
+<h3 class="sect2">24.5.6. PerlOptions Directive</h3>
+
+<p>The <tt class="literal">PerlOptions</tt> directive <a name="pmodperl-CHP-24-ITERM-5921" /><a name="pmodperl-CHP-24-ITERM-5922" /><a name="pmodperl-CHP-24-ITERM-5923" /><a name="pmodperl-CHP-24-ITERM-5924" />provides fine-grained
+configuration for what were compile-time-only options in the first
+mod_perl generation. It also provides control over what class of
+<tt class="literal">PerlInterpreter</tt> is used for a
+<tt class="literal">&lt;VirtualHost&gt;</tt> or location configured with
+<tt class="literal">&lt;Location&gt;</tt>,
+<tt class="literal">&lt;Directory&gt;</tt>, etc.</p>
+
+<p>Options are enabled by prepending <tt class="literal">+</tt> and disabled
+with <tt class="literal">-</tt>. The options are discussed in the following
+sections.</p>
+
+<a name="pmodperl-CHP-24-SECT-5.6.1" /><div class="sect3">
+<h3 class="sect3">24.5.6.1. Enable</h3>
+
+<p>On by default; can be used to <a name="pmodperl-CHP-24-ITERM-5925" />disable mod_perl for a
+given <tt class="literal">&lt;VirtualHost&gt;</tt>. For example:</p>
+
+<blockquote><pre class="code">&lt;VirtualHost ...&gt;
+    PerlOptions -Enable
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.2" /><div class="sect3">
+<h3 class="sect3">24.5.6.2. Clone</h3>
+
+<p>Share the parent Perl interpreter, <a name="pmodperl-CHP-24-ITERM-5926" />but give the
+<tt class="literal">&lt;VirtualHost&gt;</tt> its own interpreter pool. For
+example, should you wish to fine-tune interpreter pools for a given
+virtual host:</p>
+
+<blockquote><pre class="code">&lt;VirtualHost ...&gt;
+    PerlOptions +Clone
+    PerlInterpStart 2
+    PerlInterpMax 2
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+<p>This might be worthwhile in the case where certain hosts have their
+own sets of large modules, used only in each host. Tuning each host
+to have its own pool means that the hosts will continue to reuse the
+Perl allocations in their specific modules.</p>
+
+<p>When cloning a Perl interpreter, to inherit the parent Perl
+interpreter's <tt class="literal">PerlSwitches</tt>, use:</p>
+
+<blockquote><pre class="code">&lt;VirtualHost ...&gt;
+    ...
+    PerlSwitches +inherit
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.3" /><div class="sect3">
+<h3 class="sect3">24.5.6.3. Parent</h3>
+
+<p>Create a new parent Perl interpreter <a name="pmodperl-CHP-24-ITERM-5927" />for the given
+<tt class="literal">&lt;VirtualHost&gt;</tt> and give it its own
+interpreter pool (implies the <tt class="literal">Clone</tt> option).</p>
+
+<p>A common problem with mod_perl 1.0 was that the namespace was shared
+by all code within the process. Consider two developers using the
+same server, each of whom wants to run a different version of a
+module with the same name. This example will create two parent Perl
+interpreters, one for each <tt class="literal">&lt;VirtualHost&gt;</tt>,
+each with its own namespace and pointing to a different path in
+<tt class="literal">@INC</tt>:</p>
+
+<blockquote><pre class="code">&lt;VirtualHost ...&gt;
+    ServerName dev1
+    PerlOptions +Parent
+    PerlSwitches -Mblib=/home/dev1/lib/perl
+&lt;/VirtualHost&gt;
+
+&lt;VirtualHost ...&gt;
+    ServerName dev2
+    PerlOptions +Parent
+    PerlSwitches -Mblib=/home/dev2/lib/perl
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.4" /><div class="sect3">
+<h3 class="sect3">24.5.6.4. Perl*Handler</h3>
+
+<p>Disable specific <tt class="literal">Perl*Handler</tt>s (all
+<a name="pmodperl-CHP-24-ITERM-5928" />compiled-in handlers are enabled by
+default). The option name is derived from the
+<tt class="literal">Perl*Handler</tt> name, by stripping the
+<tt class="literal">Perl</tt> and <tt class="literal">Handler</tt> parts of the
+word. So <tt class="literal">PerlLogHandler</tt> becomes
+<tt class="literal">Log</tt>, which can be used to disable
+<tt class="literal">PerlLogHandler</tt>:</p>
+
+<blockquote><pre class="code">PerlOptions -Log</pre></blockquote>
+
+<p>Suppose one of the hosts does not want to allow users to configure
+<tt class="literal">PerlAuthenHandler</tt>,
+<tt class="literal">PerlAuthzHandler</tt>,
+<tt class="literal">PerlAccessHandler</tt>, and
+<tt class="literal">&lt;Perl&gt;</tt>sections:</p>
+
+<blockquote><pre class="code">&lt;VirtualHost ...&gt;
+    PerlOptions -Authen -Authz -Access -Sections
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+<p>Or maybe it doesn't want users to configure anything
+but the response handler:</p>
+
+<blockquote><pre class="code">&lt;VirtualHost ...&gt;
+    PerlOptions None +Response
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.5" /><div class="sect3">
+<h3 class="sect3">24.5.6.5. AutoLoad</h3>
+
+<p>Resolve <tt class="literal">Perl*Handler</tt>s at startup time; loads
+<a name="pmodperl-CHP-24-ITERM-5929" />the modules from disk if
+they're not already loaded.</p>
+
+<p>In mod_perl 1.0, configured <tt class="literal">Perl*Handler</tt>s that are
+not fully qualified subroutine names are resolved at request time,
+loading the handler module from disk if needed. In mod_perl 2.0,
+configured <tt class="literal">Perl*Handler</tt>s are resolved at startup
+time. By default, modules are not auto-loaded during startup-time
+resolution. It is possible to enable this feature with:</p>
+
+<blockquote><pre class="code">PerlOptions +Autoload</pre></blockquote>
+
+<p>Consider this configuration:</p>
+
+<blockquote><pre class="code">PerlResponseHandler Apache::Magick</pre></blockquote>
+
+<p>In this case, <tt class="literal">Apache::Magick</tt> is the package name,
+and the subroutine name will default to <tt class="literal">handler</tt>.
+If the <tt class="literal">Apache::Magick</tt> module is not already
+loaded, <tt class="literal">PerlOptions</tt> <tt class="literal">+Autoload</tt>
+will attempt to pull it in at startup time. With this option enabled
+you don't have to explicitly load the handler
+modules. For example, you don't need to add:</p>
+
+<blockquote><pre class="code">PerlModule Apache::Magick</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.6" /><div class="sect3">
+<h3 class="sect3">24.5.6.6. GlobalRequest</h3>
+
+<p>Set up the global <tt class="literal">Apache::RequestRec</tt> object
+<a name="pmodperl-CHP-24-ITERM-5930" />for use with
+<tt class="literal">Apache-&gt;request</tt>. This setting is needed, for
+example, if you use <tt class="literal">CGI.pm</tt> to process the incoming
+request.</p>
+
+<p>This setting is enabled by default for sections configured as:</p>
+
+<blockquote><pre class="code">&lt;Location ...&gt;
+    SetHandler perl-script
+    ...
+&lt;/Location&gt;</pre></blockquote>
+
+<p>And can be disabled with:</p>
+
+<blockquote><pre class="code">&lt;Location ...&gt;
+    SetHandler perl-script
+    PerlOptions -GlobalRequest
+    ...
+&lt;/Location&gt;</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.7" /><div class="sect3">
+<h3 class="sect3">24.5.6.7. ParseHeaders</h3>
+
+<p>Scan output for HTTP headers. This option
+<a name="pmodperl-CHP-24-ITERM-5931" />provides the same functionality as
+mod_perl 1.0's <tt class="literal">PerlSendHeaders</tt>
+option, but it's more robust. It usually must be
+enabled for registry scripts that send the HTTP header with:</p>
+
+<blockquote><pre class="code">print "Content-type: text/html\n\n";</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.8" /><div class="sect3">
+<h3 class="sect3">24.5.6.8. MergeHandlers</h3>
+
+<p>Turn on merging of <tt class="literal">Perl*Handler</tt> arrays. For
+<a name="pmodperl-CHP-24-ITERM-5932" />example, with this setting:</p>
+
+<blockquote><pre class="code">PerlFixupHandler Apache::FixupA
+
+&lt;Location /inside&gt;
+    PerlFixupHandler Apache::FixupB
+&lt;/Location&gt;</pre></blockquote>
+
+<p>a request for <em class="emphasis">/inside</em> runs only
+<tt class="literal">Apache::FixupB</tt> (mod_perl 1.0 behavior). But with
+this configuration:</p>
+
+<blockquote><pre class="code">PerlFixupHandler Apache::FixupA
+
+&lt;Location /inside&gt;
+    PerlOptions +MergeHandlers
+    PerlFixupHandler Apache::FixupB
+&lt;/Location&gt;</pre></blockquote>
+
+<p>a request for <em class="emphasis">/inside</em> will run both the
+<tt class="literal">Apache::FixupA</tt> and
+<tt class="literal">Apache::FixupB</tt> handlers.</p>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.6.9" /><div class="sect3">
+<h3 class="sect3">24.5.6.9. SetupEnv</h3>
+
+<p>Set up environment variables for each <a name="pmodperl-CHP-24-ITERM-5933" />request,
+&#xE0; la mod_cgi.</p>
+
+<p>When this option is enabled, mod_perl fiddles with the environment to
+make it appear as if the code is called under the mod_cgi handler.
+For example, the <tt class="literal">$ENV{QUERY_STRING}</tt> environment
+variable is initialized with the contents of <tt class="literal">Apache::args(
+)</tt>, and the value returned by
+<tt class="literal">Apache::server_hostname( )</tt> is put into
+<tt class="literal">$ENV{SERVER_NAME}</tt>.</p>
+
+<p>Those who have moved to the mod_perl API no longer need this extra
+<tt class="literal">%ENV</tt> population and can gain by disabling it,
+since <tt class="literal">%ENV</tt> population is expensive. Code using the
+<tt class="literal">CGI.pm</tt> module requires <tt class="literal">PerlOptions
++SetupEnv</tt> because that module relies on a properly
+populated CGI environment table.</p>
+
+<p>This option is enabled by default for sections configured as:</p>
+
+<blockquote><pre class="code">&lt;Location ...&gt;
+    SetHandler perl-script
+    ...
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Since this option adds an overhead to each request, if you
+don't need this functionality you can turn it off
+for a certain section:</p>
+
+<blockquote><pre class="code">&lt;Location ...&gt;
+    SetHandler perl-script
+    PerlOptions -SetupEnv
+    ...
+&lt;/Location&gt;</pre></blockquote>
+
+<p>or globally affect the whole server:</p>
+
+<blockquote><pre class="code">PerlOptions -SetupEnv
+&lt;Location ...&gt;
+    ...
+&lt;/Location&gt;</pre></blockquote>
+
+<p>It can still be enabled for sections that need this functionality.</p>
+
+<p>When this option is disabled you can still read environment variables
+set by you. For example, when you use the following configuration:</p>
+
+<blockquote><pre class="code">PerlOptions -SetupEnv
+&lt;Location /perl&gt;
+  PerlSetEnv TEST hi
+  SetHandler perl-script
+  PerlHandler ModPerl::Registry
+  Options +ExecCGI
+&lt;/Location&gt;</pre></blockquote>
+
+<p>and you issue a request for setupenvoff.pl from <a href="ch24_05.html#pmodperl-CHP-24-EX-4">Example 24-4</a>.</p>
+
+<a name="pmodperl-CHP-24-EX-4" /><div class="example">
+<h4 class="objtitle">Example 24-4. setupenvoff.pl</h4>
+<blockquote><pre class="code">use Data::Dumper;
+my $r = Apache-&gt;request( );
+$r-&gt;send_http_header('text/plain');
+print Dumper(\%ENV);</pre></blockquote>
+</div>
+
+<p>you should see something like this:</p>
+
+<blockquote><pre class="code">$VAR1 = {
+          'GATEWAY_INTERFACE' =&gt; 'CGI-Perl/1.1',
+          'MOD_PERL' =&gt; 'mod_perl/2.0.1',
+          'PATH' =&gt; '/bin:/usr/bin',
+          'TEST' =&gt; 'hi'
+        };</pre></blockquote>
+
+<p>Notice<a name="pmodperl-CHP-24-ITERM-5934" />
+that <a name="pmodperl-CHP-24-ITERM-5935" />we
+<a name="pmodperl-CHP-24-ITERM-5936" />got
+<a name="pmodperl-CHP-24-ITERM-5937" />the
+value of the environment variable <tt class="literal">TEST</tt>.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-24-SECT-5.7" /><div class="sect2">
+<h3 class="sect2">24.5.7. Thread-Mode-Specific Directives</h3>
+
+<p>The following directives are enabled <a name="pmodperl-CHP-24-ITERM-5938" /><a name="pmodperl-CHP-24-ITERM-5939" />only
+in a threaded MPM mod_perl:</p>
+
+<a name="pmodperl-CHP-24-SECT-5.7.1" /><div class="sect3">
+<h3 class="sect3">24.5.7.1. PerlInterpStart</h3>
+
+<p>The number of interpreters to clone at startup time.</p>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.7.2" /><div class="sect3">
+<h3 class="sect3">24.5.7.2. PerlInterpMax</h3>
+
+<p>If all running interpreters are in use, mod_perl will clone new
+interpreters to handle the request, up until this number of
+interpreters is reached. When <tt class="literal">PerlInterpMax</tt> is
+reached, mod_perl will block until an interpreter becomes available.</p>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.7.3" /><div class="sect3">
+<h3 class="sect3">24.5.7.3. PerlInterpMinSpare</h3>
+
+<p>The minimum number of available interpreters this parameter will
+clone before a request comes in.</p>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.7.4" /><div class="sect3">
+<h3 class="sect3">24.5.7.4. PerlInterpMaxSpare</h3>
+
+<p>mod_perl will throttle down the number of interpreters to this number
+as those in use become available.</p>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.7.5" /><div class="sect3">
+<h3 class="sect3">24.5.7.5. PerlInterpMaxRequests</h3>
+
+<p>The maximum number of requests an interpreter should serve. The
+interpreter is destroyed and replaced with a fresh clone when this
+number is reached.</p>
+
+</div>
+
+<a name="pmodperl-CHP-24-SECT-5.7.6" /><div class="sect3">
+<h3 class="sect3">24.5.7.6. PerlInterpScope</h3>
+
+<p>As mentioned, when a request in a threaded MPM is handled by
+mod_perl, an interpreter must be pulled from the interpreter pool.
+The interpreter is then available only to the thread that selected
+it, until it is released back into the interpreter pool. By default,
+an interpreter will be held for the lifetime of the request,
+equivalent to this configuration:</p>
+
+<blockquote><pre class="code">PerlInterpScope request</pre></blockquote>
+
+<p>For example, if a <tt class="literal">PerlAccessHandler</tt> is configured,
+an interpreter will be selected before it is run and not released
+until after the logging phase.</p>
+
+<p>Interpreters will be shared across subrequests by default; however,
+it is possible to configure the interpreter scope to be per
+subrequest on a per-directory basis:</p>
+
+<blockquote><pre class="code">PerlInterpScope subrequest</pre></blockquote>
+
+<p>With this configuration, an autoindex-generated page, for example,
+would select an interpreter for each item in the listing that is
+configured with a <tt class="literal">Perl*Handler</tt>.</p>
+
+<p>It is also possible to configure the scope to be per handler:</p>
+
+<blockquote><pre class="code">PerlInterpScope handler</pre></blockquote>
+
+<p>With this configuration, an interpreter will be selected before
+<tt class="literal">PerlAccessHandler</tt>s are run and put back
+immediately afterwards, before Apache moves on to the authentication
+phase. If a <tt class="literal">PerlFixupHandler</tt> is configured further
+down the chain, another interpreter will be selected and again put
+back afterwards, before <tt class="literal">PerlResponseHandler</tt> is
+run.</p>
+
+<p>For protocol handlers, the interpreter is held for the lifetime of
+the connection. However, a C protocol module (e.g., mod_ftp) might
+hook into mod_perl and provide a <tt class="literal">request_rec</tt>
+record. In this case, the default scope is that of the request (the
+download of one file). Should a mod_perl handler want to maintain
+state for the lifetime of an FTP connection, it is possible to do so
+<a name="pmodperl-CHP-24-ITERM-5940" />on a
+<a name="pmodperl-CHP-24-ITERM-5941" />per-<tt class="literal">&lt;VirtualHost&gt;</tt>
+basis:</p>
+
+<blockquote><pre class="code">PerlInterpScope connection</pre></blockquote>
+
+</div>
+</div>
+<a name="pmodperl-CHP-24-SECT-5.8" /><div class="sect2">
+<h3 class="sect2">24.5.8. Retrieving Server Startup Options</h3>
+
+<p>The <em class="emphasis">httpd</em> server startup options can be
+retrieved using <tt class="literal">Apache::exists_config_define( )</tt>.
+For example, to check if the server was started in single-process
+mode:</p>
+
+<blockquote><pre class="code">panic% httpd -DONE_PROCESS</pre></blockquote>
+
+<p>use the following code:</p>
+
+<blockquote><pre class="code">if (Apache::exists_config_define("ONE_PROCESS")) {
+    print "Running in a single process mode";
+}</pre></blockquote>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch24_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch24_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">24.4. Installing mod_perl 2.0</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">24.6. Resources</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

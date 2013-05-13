@@ -1,0 +1,451 @@
+<html><head><title>Method Handlers: The Browse and See, Browse and View Example (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_11.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_13.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">6.12. Method Handlers: The Browse and See, Browse and View Example</h2>
+
+<p>Let's look at an <a name="pmodperl-CHP-6-ITERM-4611" /><a name="pmodperl-CHP-6-ITERM-4612" /><a name="pmodperl-CHP-6-ITERM-4613" />example of the method-handler
+concepts presented in <a href="ch04_01.html">Chapter 4</a>. Suppose you need
+to implement a handler that allows browsing the files in the document
+root and beneath. Directories should be browsable (so you can move up
+and down the directory tree), but files should not be viewable (so
+you can see the available files, but you cannot click to view them).</p>
+
+<p>So let's write a simple <a name="pmodperl-CHP-6-ITERM-4614" />file <a name="pmodperl-CHP-6-ITERM-4615" />browser.
+We know what customers are like, so we suspect that the customer will
+ask for similar customized modules pretty soon. To avoid having to
+duplicate our work later, we decide to start writing a base class
+whose methods can easily be overridden as needed. Our base class is
+called <tt class="literal">Apache::BrowseSee</tt>.</p>
+
+<p>We start the class by declaring the package and using the
+<tt class="literal">strict</tt> pragma:</p>
+
+<blockquote><pre class="code">package Apache::BrowseSee;
+use strict;</pre></blockquote>
+
+<p>Next, we import common constants (e.g., <tt class="literal">OK</tt>,
+<tt class="literal">NOT_FOUND</tt>, etc.), load the
+<tt class="literal">File::Spec::Functions</tt> and
+<tt class="literal">File::Basename</tt> modules, and import a few
+path-manipulation functions that we are going to use:</p>
+
+<blockquote><pre class="code">use Apache::Constants qw(:common);
+use File::Spec::Functions qw(catdir canonpath curdir updir);
+use File::Basename 'dirname';</pre></blockquote>
+
+<p>Now let's look at the functions. We start with the
+simple constructor:</p>
+
+<blockquote><pre class="code">sub new { bless {  }, shift;}</pre></blockquote>
+
+<p>The real entry point, the handler, is prototyped as
+<tt class="literal">($$)</tt>. The handler starts by instantiating its
+object, if it hasn't already been done, and storing
+the <tt class="literal">$r</tt> object, so we don't need
+to pass it to the functions as an argument:</p>
+
+<blockquote><pre class="code">sub handler ($$) {
+    my($self, $r) = @_;
+    $self = $self-&gt;new unless ref $self;
+    $self-&gt;{r} = $r;</pre></blockquote>
+
+<p>Next we retrieve the <tt class="literal">path_info</tt> element of the
+request record:</p>
+
+<blockquote><pre class="code">    $self-&gt;{dir} = $r-&gt;path_info || '/';</pre></blockquote>
+
+<p>For example, if the request was <em class="emphasis">/browse/foo/bar</em>,
+where <em class="emphasis">/browse</em> is the location of the handler,
+the <tt class="literal">path_info</tt> element will be
+<em class="emphasis">/foo/bar</em>. The default value <tt class="literal">/</tt>
+is used when the path is not specified.</p>
+
+<p>Then we reset the entries for <em class="emphasis">dirs</em> and
+<em class="emphasis">files</em>:</p>
+
+<blockquote><pre class="code">    $self-&gt;{dirs}  = {  };
+    $self-&gt;{files} = {  };</pre></blockquote>
+
+<p>This is needed because it's possible that the
+<tt class="literal">$self</tt> object is created outside the handler (e.g.,
+in the startup file) and may persist between requests.</p>
+
+<p>Now an attempt to <a name="pmodperl-CHP-6-ITERM-4616" />fetch the contents of the directory is
+made:</p>
+
+<blockquote><pre class="code">    eval { $self-&gt;fetch( ) };
+    return NOT_FOUND if $@;</pre></blockquote>
+
+<p>If the <tt class="literal">fetch( )</tt> method dies, the error message is
+assigned to <tt class="literal">$@</tt> and we return
+<tt class="literal">NOT_FOUND</tt>. You may choose to approach it
+differently and return an error message explaining what has happened.
+You may also want to log the event before returning:</p>
+
+<blockquote><pre class="code">    warn($@), return NOT_FOUND if $@;</pre></blockquote>
+
+<p>Normally this shouldn't happen, unless a user messes
+with the arguments (something you should always be on the lookout
+for, because they <em class="emphasis">will</em> do it).</p>
+
+<p>When the <tt class="literal">fetch( )</tt> function has completed
+successfully, all that's left is to send the HTTP
+header and start of the HTML via the <tt class="literal">head( )</tt>
+method, render the response, send the end of the HTML via
+<tt class="literal">tail( )</tt>,<a href="#FOOTNOTE-32">[32]</a> and
+finally to return the <tt class="literal">OK</tt> constant to tell the
+server that the request has been fully answered:</p> <blockquote><a name="FOOTNOTE-32" /><p> [32]This could perhaps be
+replaced by a templating system. See <a href="appd_01.html">Appendix D</a> for
+more information about the Template Toolkit.</p> </blockquote>
+
+<blockquote><pre class="code">    $self-&gt;head;
+    $self-&gt;render;
+    $self-&gt;tail;
+
+    return OK;
+}</pre></blockquote>
+
+<p>The response is generated by three functions. The <tt class="literal">head(
+)</tt> method is a very simple one&#8212;it sends the HTTP
+header <tt class="literal">text/html</tt> and prints an HTML preamble using
+the current directory name as a title:</p>
+
+<blockquote><pre class="code">sub head {
+    my $self = shift;
+    $self-&gt;{r}-&gt;send_http_header("text/html");
+    print "&lt;html&gt;&lt;head&gt;&lt;title&gt;Dir: $self-&gt;{dir}&lt;/title&gt;&lt;head&gt;&lt;body&gt;";
+}</pre></blockquote>
+
+<p>The <tt class="literal">tail( )</tt> method finishes the HTML document:</p>
+
+<blockquote><pre class="code">sub tail {
+    my $self = shift;
+    print "&lt;/body&gt;&lt;/html&gt;";
+}</pre></blockquote>
+
+<p>The <tt class="literal">fetch( )</tt> method reads the contents of the
+directory stored in the object's
+<em class="emphasis">dir</em> attribute (relative to the document root)
+and then sorts the contents into two groups, directories and files:</p>
+
+<blockquote><pre class="code">sub fetch {
+    my $self = shift;
+    my $doc_root = Apache-&gt;document_root;
+    my $base_dir = canonpath( catdir($doc_root, $self-&gt;{dir}));
+
+    my $base_entry = $self-&gt;{dir} eq '/' ? '' : $self-&gt;{dir};
+    my $dh = Apache::gensym( );
+    opendir $dh, $base_dir or die "Cannot open $base_dir: $!";
+    for (readdir $dh) {
+        next if $_ eq curdir( );  # usually '.'
+
+        my $full_dir = catdir $base_dir, $_;
+        my $entry = "$base_entry/$_";
+        if (-d $full_dir) {
+            if ($_ eq updir( )) { # '..'
+                $entry = dirname $self-&gt;{dir};
+                next if catdir($base_dir, $entry) eq $doc_root;
+            }
+            $self-&gt;{dirs}{$_} = $entry;
+        }
+        else {
+            $self-&gt;{files}{$_} = $entry;
+        }
+    }
+    closedir $dh;
+}</pre></blockquote>
+
+<p>By using <tt class="literal">canonpath( )</tt>, we make sure that nobody
+messes with the <tt class="literal">path_info</tt> element, by eliminating
+successive slashes and "<tt class="literal">/.</tt>"s on Unix and taking
+appropriate actions on other operating systems. It's
+important to use <tt class="literal">File::Spec</tt> and other
+cross-platform functions when developing applications.</p>
+
+<p>While looping through the directory entries, we skip over the current
+directory entry using the <tt class="literal">curdir( )</tt> function
+imported from <tt class="literal">File::Spec::Functions</tt> (which is
+equivalent to . on Unix) and handle the parent directory entry
+specially by matching the <tt class="literal">updir( )</tt> function (which
+is equivalent to .. on Unix). The function <tt class="literal">dirname(
+)</tt> gives us the parent directory, and afterward we check
+that this directory is different from the document root. If
+it's the same, we skip this entry.</p>
+
+<p>Note that since we use the <tt class="literal">path_info</tt> element to
+pass the directory relative to the document root, we rely on Apache
+to handle the case when users try to mess with the URL and add .. to
+reach files they aren't supposed to reach.</p>
+
+<p>Finally, let's look at the <tt class="literal">render(
+)</tt><a name="pmodperl-CHP-6-ITERM-4617" />
+method:</p>
+
+<blockquote><pre class="code">sub render {
+    my $self = shift;
+    print "&lt;p&gt;Current Directory: &lt;i&gt;$self-&gt;{dir}&lt;/i&gt;&lt;br&gt;";
+
+    my $location = $self-&gt;{r}-&gt;location;
+    print qq{&lt;a href="$location$self-&gt;{dirs}{$_}"&gt;$_&lt;/a&gt;&lt;br&gt;}
+        for sort keys %{ $self-&gt;{dirs} || {  } };
+    print qq{$_&lt;br&gt;}
+        for sort keys %{ $self-&gt;{files} || {  } };
+}</pre></blockquote>
+
+<p>The <tt class="literal">render( )</tt> method actually takes the files and
+directories prepared in the <tt class="literal">fetch( )</tt> method and
+displays them to the user. First the name of the current directory is
+displayed, followed by the directories and finally the files. Since
+the module should allow browsing of directories, we hyperlink them.
+The files aren't linked, since we are in
+"see but don't
+touch" mode.<a href="#FOOTNOTE-33">[33]</a></p> <blockquote><a name="FOOTNOTE-33" /><p> [33]In your real code you
+should also escape HTML- and URI-unsafe characters in the filenames
+(e.g., &lt;, &gt;, &amp;, ", ',
+etc.) by using the <tt class="literal">Apache::Util::escape_html</tt> and
+<tt class="literal">Apache::Util::escape_uri</tt> functions.</p>
+</blockquote>
+
+<p>Finally, we finish the package with <tt class="literal">1;</tt> to make
+sure that the module will be successfully loaded. The <tt class="literal">_
+_END_ _</tt> token allows us to put various notes and POD
+documentation after the program, where Perl won't
+complain about them.</p>
+
+<blockquote><pre class="code">1;
+_ _END_ _</pre></blockquote>
+
+<p><a href="ch06_12.html#pmodperl-CHP-6-EX-39">Example 6-39</a> shows how the whole package looks.</p>
+
+<a name="pmodperl-CHP-6-EX-39" /><div class="example">
+<h4 class="objtitle">Example 6-39. Apache/BrowseSee.pm</h4>
+<blockquote><pre class="code">package Apache::BrowseSee;
+use strict;
+
+use Apache::Constants qw(:common);
+use File::Spec::Functions qw(catdir canonpath curdir updir);
+use File::Basename 'dirname';
+
+sub new { bless {}, shift;}
+
+sub handler ($$) {
+    my($self, $r) = @_;
+    $self = $self-&gt;new unless ref $self;
+
+    $self-&gt;{r}     = $r;
+    $self-&gt;{dir}   = $r-&gt;path_info || '/';
+    $self-&gt;{dirs}  = {};
+    $self-&gt;{files} = {};
+
+    eval { $self-&gt;fetch( ) };
+    return NOT_FOUND if $@;
+
+    $self-&gt;head;
+    $self-&gt;render;
+    $self-&gt;tail;
+
+    return OK;
+}
+
+sub head {
+    my $self = shift;
+    $self-&gt;{r}-&gt;send_http_header("text/html");
+    print "&lt;html&gt;&lt;head&gt;&lt;title&gt;Dir: $self-&gt;{dir}&lt;/title&gt;&lt;head&gt;&lt;body&gt;";
+}
+
+sub tail {
+    my $self = shift;
+    print "&lt;/body&gt;&lt;/html&gt;";
+}
+
+sub fetch {
+    my $self = shift;
+    my $doc_root = Apache-&gt;document_root;
+    my $base_dir = canonpath( catdir($doc_root, $self-&gt;{dir}));
+
+    my $base_entry = $self-&gt;{dir} eq '/' ? '' : $self-&gt;{dir};
+    my $dh = Apache::gensym( );
+    opendir $dh, $base_dir or die "Cannot open $base_dir: $!";
+    for (readdir $dh) {
+        next if $_ eq curdir( );
+
+        my $full_dir = catdir $base_dir, $_;
+        my $entry = "$base_entry/$_";
+        if (-d $full_dir) {
+            if ($_ eq updir( )) {
+                $entry = dirname $self-&gt;{dir};
+                next if catdir($base_dir, $entry) eq $doc_root;
+            }
+            $self-&gt;{dirs}{$_} = $entry;
+        }
+        else {
+            $self-&gt;{files}{$_} = $entry;
+        }
+    }
+    closedir $dh;
+}
+
+sub render {
+    my $self = shift;
+    print "Current Directory: &lt;i&gt;$self-&gt;{dir}&lt;/i&gt;&lt;br&gt;";
+
+    my $location = $self-&gt;{r}-&gt;location;
+    print qq{&lt;a href="$location$self-&gt;{dirs}{$_}"&gt;$_&lt;/a&gt;&lt;br&gt;}
+        for sort keys %{ $self-&gt;{dirs} || {} };
+    print qq{$_&lt;br&gt;}
+        for sort keys %{ $self-&gt;{files} || {} };
+}
+
+1;
+_  _END_  _</pre></blockquote>
+</div>
+
+<p>This module should be saved as
+<em class="emphasis">Apache/BrowseSee.pm</em> and placed into one of the
+directories in <tt class="literal">@INC</tt>. For example, if
+<em class="emphasis">/home/httpd/perl</em> is in your
+<tt class="literal">@INC</tt>, you can save it in
+<em class="emphasis">/home/httpd/perl/Apache/BrowseSee.pm</em>.</p>
+
+<p>To configure
+<a name="pmodperl-CHP-6-ITERM-4618" /><a name="pmodperl-CHP-6-ITERM-4619" />this module, we just add
+the following snippet to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Apache::BrowseSee
+&lt;Location /browse&gt;
+    SetHandler perl-script
+    PerlHandler Apache::BrowseSee-&gt;handler
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Users accessing the server from <em class="emphasis">/browse</em> can now
+browse the contents of your server from the document root and beneath
+but cannot view the contents of the files (see <a href="ch06_12.html#pmodperl-CHP-6-FIG-2">Figure 6-2</a>).</p>
+
+<a name="pmodperl-CHP-6-FIG-2" /><div class="figure"><img src="figs/pmp_0602.gif" alt="Figure 6-2" width="481" /></div><h4 class="objtitle">Figure 6-2. The files can be browsed but not viewed</h4>
+
+<p>Now let's say that as soon as we get the module up
+and running, the client comes back and tells us he would like us to
+implement a very similar application, except that files should now be
+viewable (clickable). This is because later he wants to allow only
+authorized users to read the files while letting everybody see what
+he has to offer.</p>
+
+<p>We knew that was coming, remember? Since we are lazy and
+it's not exciting to write the same code again and
+again, we will do the minimum amount of work while still keeping the
+client happy. This time we are going to implement the
+<tt class="literal">Apache::BrowseRead</tt> module:</p>
+
+<blockquote><pre class="code">package Apache::BrowseRead;
+use strict;
+use base qw(Apache::BrowseSee);</pre></blockquote>
+
+<p>We place the new module into
+<em class="emphasis">Apache/BrowseRead.pm</em>, declare a new package, and
+tell Perl that this package inherits from
+<tt class="literal">Apache::BrowseSee</tt> using the
+<tt class="literal">base</tt> pragma. The last line is roughly equivalent
+to:</p>
+
+<blockquote><pre class="code">BEGIN {
+    require Apache::BrowseSee;
+    @Apache::BrowseRead::ISA = qw(Apache::BrowseSee);
+}</pre></blockquote>
+
+<p>Since this class is going to do the same job as
+<tt class="literal">Apache::BrowseSee</tt>, apart from rendering the file
+listings differently, all we have to do is override the
+<tt class="literal">render( )</tt> method:</p>
+
+<blockquote><pre class="code">sub render {
+    my $self = shift;
+    print "&lt;p&gt;Current Directory: &lt;i&gt;$self-&gt;{dir}&lt;/i&gt;&lt;br&gt;";
+
+    my $location = $self-&gt;{r}-&gt;location;
+    print qq{&lt;a href="$location$self-&gt;{dirs}{$_}"&gt;$_&lt;/a&gt;&lt;br&gt;}
+        for sort keys %{ $self-&gt;{dirs} || {  } };
+    print  qq{&lt;a href="$self-&gt;{files}{$_}"&gt;$_&lt;/a&gt;&lt;br&gt;}
+        for sort keys %{ $self-&gt;{files} || {  } };
+}</pre></blockquote>
+
+<p>As you can see, the only difference here is that we link to the real
+files now.</p>
+
+<p>We complete the package as usual with <tt class="literal">1;</tt> and
+<tt class="literal">_ _END_ _</tt>:</p>
+
+<blockquote><pre class="code">1;
+_ _END_ _</pre></blockquote>
+
+<p><a href="ch06_12.html#pmodperl-CHP-6-EX-40">Example 6-40</a> shows the whole package.</p>
+
+<a name="pmodperl-CHP-6-EX-40" /><div class="example">
+<h4 class="objtitle">Example 6-40. Apache/BrowseRead.pm</h4>
+<blockquote><pre class="code">package Apache::BrowseRead;
+use strict;
+use base qw(Apache::BrowseSee);
+
+sub render {
+    my $self = shift;
+    print "&lt;p&gt;Current Directory: &lt;i&gt;$self-&gt;{dir}&lt;/i&gt;&lt;br&gt;";
+
+    my $location = $self-&gt;{r}-&gt;location;
+    print qq{&lt;a href="$location$self-&gt;{dirs}{$_}"&gt;$_&lt;/a&gt;&lt;br&gt;}
+        for sort keys %{ $self-&gt;{dirs} || {} };
+    print  qq{&lt;a href="$self-&gt;{files}{$_}"&gt;$_&lt;/a&gt;&lt;br&gt;}
+        for sort keys %{ $self-&gt;{files} || {} };
+}
+1;
+_  _END_  _</pre></blockquote>
+</div>
+
+<p>Finally, we should add a new configuration section in
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Apache::BrowseRead
+&lt;Location /read&gt;
+    SetHandler perl-script
+    PerlHandler Apache::BrowseRead-&gt;handler
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now, when accessing files through <em class="emphasis">/read</em>, we can
+browse and view the contents of the files (see <a href="ch06_12.html#pmodperl-CHP-6-FIG-3">Figure 6-3</a>). Once we add some
+authentication/authorization methods, we will have a server where
+everybody can browse, but only privileged users can read.</p>
+
+<a name="pmodperl-CHP-6-FIG-3" /><div class="figure"><img src="figs/pmp_0603.gif" alt="Figure 6-3" width="481" /></div><h4 class="objtitle">Figure 6-3. The files can be browsed and read</h4>
+
+<p>You might be wondering why you would write a special module to do
+something Apache itself can already do for you. First, this was an
+example on using method handlers, so we tried to keep it simple while
+showing some real code. Second, this example can easily be adapted
+and extended&#8212;for example, it can handle virtual files that
+don't exist on the filesystem but rather are
+generated on the fly and/or fetched from the database, and it can
+easily be changed to do whatever <em class="emphasis">you</em> (or your
+client) want to do, instead of<a name="pmodperl-CHP-6-ITERM-4620" /> what <a name="pmodperl-CHP-6-ITERM-4621" />Apache <a name="pmodperl-CHP-6-ITERM-4622" /><a name="pmodperl-CHP-6-ITERM-4623" /><a name="pmodperl-CHP-6-ITERM-4624" />allows.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_11.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_13.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">6.11. Generating Correct HTTP Headers</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.13. References</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

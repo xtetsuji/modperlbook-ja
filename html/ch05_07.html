@@ -1,0 +1,304 @@
+<html><head><title>Preparing for Machine Reboot (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch05_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">5.7. Preparing for Machine Reboot</h2>
+
+<p>When <a name="pmodperl-CHP-5-ITERM-4081" /><a name="pmodperl-CHP-5-ITERM-4082" /><a name="pmodperl-CHP-5-ITERM-4083" />using a non-production development
+box, it is OK to start and stop the web server by hand when
+necessary. On a production system, however, it is possible that the
+machine on which the server is running will have to be rebooted. When
+the reboot is completed, who is going to remember to start the
+server? It is easy to forget this task, and what happens if no one is
+around when the machine is rebooted? (Some OSs will reboot themselves
+without human intervention in certain situations.)</p>
+
+<p>After the server installation is complete, it is important to
+remember that a script to perform the server startup and shutdown
+should be put in a standard system location&#8212;for example,
+<em class="emphasis">/etc/rc.d</em> under Red Hat Linux, or
+<em class="emphasis">/etc/init.d/apache</em> under Debian GNU/Linux.</p>
+
+<p>This book uses Red Hat-compatible Linux distributions in its
+examples. Let's step aside for a brief introduction
+to the System V (SysV) <em class="emphasis">init</em> system that many
+Linux and other Unix flavors use to manage starting and stopping
+daemons. (A <em class="emphasis">daemon</em> is a process that normally
+starts at system startup and runs in the background until the system
+goes down.)</p>
+
+<p>The <a name="pmodperl-CHP-5-ITERM-4084" /><a name="pmodperl-CHP-5-ITERM-4085" />SysV
+<em class="emphasis">init</em>
+system<a name="pmodperl-CHP-5-ITERM-4086" /> keeps all its files in the
+<em class="emphasis">/etc/rc.d/</em> directory. This directory contains a
+number of subdirectories:</p>
+
+<blockquote><pre class="code">panic% find /etc/rc.d -type d
+/etc/rc.d
+/etc/rc.d/init.d
+/etc/rc.d/rc0.d
+/etc/rc.d/rc1.d
+/etc/rc.d/rc2.d
+/etc/rc.d/rc3.d
+/etc/rc.d/rc4.d
+/etc/rc.d/rc5.d
+/etc/rc.d/rc6.d</pre></blockquote>
+
+<p><em class="emphasis">/etc/rc.d/init.d</em> contains many scripts, one for
+each service that needs to be started at boot time or when entering a
+specific runlevel. Common services include networking, file sharing,
+mail servers, web servers, FTP servers, etc.</p>
+
+<p>When the system boots, the special <em class="emphasis">init</em> script
+runs all scripts for the default runlevel. The default runlevel is
+specified in the <em class="emphasis">/etc/inittab</em> file. This file
+contains a line similar to this one:</p>
+
+<blockquote><pre class="code">id:3:initdefault:</pre></blockquote>
+
+<p>The second column indicates that the default runlevel is 3, which is
+the default for most server systems. (5 is the default for desktop
+machines.)</p>
+
+<p>Let's now see how the scripts are run.
+We'll first look at the contents of the
+<em class="emphasis">/etc/rc.d/rc3.d</em> directory:</p>
+
+<blockquote><pre class="code">panic% ls -l /etc/rc.d/rc3.d
+lrwxrwxrwx 1 root root 13 Jul  1 01:08 K20nfs -&gt; ../init.d/nfs
+lrwxrwxrwx 1 root root 18 Jul  1 00:54 K92ipchains -&gt; ../init.d
+lrwxrwxrwx 1 root root 17 Jul  1 00:51 S10network -&gt; ../init.d/network
+lrwxrwxrwx 1 root root 16 Jul  1 00:51 S30syslog -&gt; ../init.d/syslog
+lrwxrwxrwx 1 root root 13 Jul  1 00:52 S40atd -&gt; ../init.d/atd
+lrwxrwxrwx 1 root root 15 Jul  1 00:51 S40crond -&gt; ../init.d/crond
+lrwxrwxrwx 1 root root 15 Jul  1 01:13 S91httpd_docs -&gt; ../init.d/httpd_docs
+lrwxrwxrwx 1 root root 15 Jul  1 01:13 S91httpd_perl -&gt; ../init.d/httpd_perl
+lrwxrwxrwx 1 root root 17 Jul  1 00:51 S95kheader -&gt; ../init.d/kheader
+lrwxrwxrwx 1 root root 11 Jul  1 00:51 S99local -&gt; ../rc.local</pre></blockquote>
+
+<p>(Only part of the output is shown here, since many services are
+started and stopped at runlevel 3.)</p>
+
+<p>There are no real files in the directory. Instead, each file is a
+symbolic link to one of the scripts in the
+<em class="emphasis">init.d</em> directory. The links'
+names start with a letter (<em class="emphasis">S</em> or
+<em class="emphasis">K</em>) and a two-digit number.
+<em class="emphasis">S</em> specifies that the script should be run when
+the service is started and <em class="emphasis">K</em> specifies that the
+script should be run when the service is stopped. The number
+following <em class="emphasis">S</em> or <em class="emphasis">K</em> is there
+for ordering purposes: <em class="emphasis">init</em> will start services
+in the order in which they appear.</p>
+
+<p><em class="emphasis">init</em> runs each script with an argument that is
+either <em class="emphasis">start</em> or <em class="emphasis">stop</em>,
+depending on whether the link's name starts with
+<em class="emphasis">S</em> or <em class="emphasis">K</em>. Scripts can be
+executed from the command line; the following command line
+<a name="pmodperl-CHP-5-ITERM-4087" />will stop the
+<em class="emphasis">httpd</em> server:</p>
+
+<blockquote><pre class="code">panic# /etc/rc.d/init.d/httpd_perl stop</pre></blockquote>
+
+<p>Unfortunately, different Unix flavors implement different
+<em class="emphasis">init</em> systems. Refer to your
+system's documentation.</p>
+
+<p>Now that we're familiar with how the
+<em class="emphasis">init</em> system works, let's return
+to our discussion of <em class="emphasis">apachectl</em> scripts.</p>
+
+<p>Generally, the simplest solution is to copy the
+<em class="emphasis">apachectl</em><a name="pmodperl-CHP-5-ITERM-4088" />
+script to the startup directory or, better still, create a symbolic
+link from the startup directory to the <em class="emphasis">apachectl</em>
+script. The <em class="emphasis">apachectl</em> utility is in the same
+directory as the Apache executable after Apache installation (e.g.,
+<em class="emphasis">/home/httpd/httpd_perl/bin</em>). If there is more
+than one Apache server, there will need to be a separate script for
+each one, and of course they will have to have different names so
+that they can coexist in the same directory.</p>
+
+<p>On one of our Red Hat Linux machines with two servers, we have the
+following setup:</p>
+
+<blockquote><pre class="code">/etc/rc.d/init.d/httpd_docs
+/etc/rc.d/init.d/httpd_perl
+/etc/rc.d/rc3.d/S91httpd_docs -&gt; ../init.d/httpd_docs
+/etc/rc.d/rc3.d/S91httpd_perl -&gt; ../init.d/httpd_perl
+/etc/rc.d/rc6.d/K16httpd_docs -&gt; ../init.d/httpd_docs
+/etc/rc.d/rc6.d/K16httpd_perl -&gt; ../init.d/httpd_perl</pre></blockquote>
+
+<p>The scripts themselves reside in the
+<em class="emphasis">/etc/rc.d/init.d</em> directory. There are symbolic
+links to these scripts in <em class="emphasis">/etc/rc.d/rc*.d</em>
+directories.</p>
+
+<p>When the system starts (<a name="pmodperl-CHP-5-ITERM-4089" />runlevel 3), we want Apache to be started when
+all the services on which it might depend are already running.
+Therefore, we have used <em class="emphasis">S91</em>. If, for example,
+the mod_perl-enabled Apache issues a <tt class="literal">connect_on_init(
+)</tt>, the SQL server should be started before Apache.</p>
+
+<p>When the system shuts down (<a name="pmodperl-CHP-5-ITERM-4090" />runlevel 6), Apache should be one of the first
+processes to be stopped&#8212;therefore, we have used
+<em class="emphasis">K16</em>. Again, if the server does some cleanup
+processing during the shutdown event and requires third-party
+services (e.g., a MySQL server) to be running at the time, it should
+be stopped before these services.</p>
+
+<p>Notice that it is normal for more than one symbolic link to have the
+same sequence number.</p>
+
+<p>Under Red Hat Linux and similar systems, when a machine is booted and
+its runlevel is set to 3 (multiuser plus network), Linux goes into
+<em class="emphasis">/etc/rc.d/rc3.d/</em> and executes the scripts to
+which the symbolic links point with the <em class="emphasis">start</em>
+argument. When it sees <em class="emphasis">S87httpd_perl</em>, it
+executes:</p>
+
+<blockquote><pre class="code">/etc/rc.d/init.d/httpd_perl start</pre></blockquote>
+
+<p>When the machine is shut down, the scripts are executed through links
+from the <em class="emphasis">/etc/rc.d/rc6.d/</em> directory. This time
+the scripts are called with the <em class="emphasis">stop</em> argument,
+like this:</p>
+
+<blockquote><pre class="code">/etc/rc.d/init.d/httpd_perl stop</pre></blockquote>
+
+<p>Most systems have GUI utilities to automate the creation of
+<a name="pmodperl-CHP-5-ITERM-4091" />symbolic
+links. For example, Red Hat Linux includes the
+<em class="emphasis">ntsysv</em> and <em class="emphasis">tksysv</em>
+utilities. These can be used to create the proper symbolic links.
+Before it is used, the <em class="emphasis">apachectl</em> or similar
+scripts should be put into the <em class="emphasis">init.d</em> directory
+or an equivalent directory. Alternatively, a symbolic link to some
+other location can be created.</p>
+
+<p>However, it's been reported that sometimes these
+tools mess up and break things. Therefore, the robust
+<em class="emphasis">chkconfig</em><a name="pmodperl-CHP-5-ITERM-4092" /><a name="pmodperl-CHP-5-ITERM-4093" />
+utility should be used instead. The following example shows how to
+add an <em class="emphasis">httpd_perl</em> startup script to the system
+using <em class="emphasis">chkconfig</em>.</p>
+
+<p>The <em class="emphasis">apachectl</em> script may be kept in any
+directory, as long as it can be the target of a symbolic link. For
+example, it might be desirable to keep all Apache executables in the
+same directory (e.g.,
+<em class="emphasis">/home/httpd/httpd_perl/bin</em>), in which case all
+that needs to be done is to provide a symbolic link to this file:</p>
+
+<blockquote><pre class="code">panic% ln -s /home/httpd/httpd_perl/bin/apachectl /etc/rc.d/init.d/httpd_perl</pre></blockquote>
+
+<p>Edit the <em class="emphasis">apachectl</em> script to add the following
+lines after the script's main header:</p>
+
+<blockquote><pre class="code"># Comments to support chkconfig on RedHat Linux
+# chkconfig: 2345 91 16
+# description: mod_perl enabled Apache Server</pre></blockquote>
+
+<p>Now the beginning of the script looks like:</p>
+
+<blockquote><pre class="code">#!/bin/sh
+#
+# Apache control script designed to allow an easy command line
+# interface to controlling Apache.  Written by Marc Slemko,
+# 1997/08/23
+
+# Comments to support chkconfig on Red Hat Linux
+# chkconfig: 2345 91 16
+# description: mod_perl-enabled Apache Server
+
+#
+# The exit codes returned are:
+# ...</pre></blockquote>
+
+<p>Adjust the line:</p>
+
+<blockquote><pre class="code"># chkconfig: 2345 91 16</pre></blockquote>
+
+<p>to suit your situation. For example, the setting used above says the
+script should be started in levels 2, 3, 4, and 5, that its start
+priority should be 91, and that its stop priority should be 16.</p>
+
+<p>Now all you need to do is ask <em class="emphasis">chkconfig</em> to
+configure the startup scripts. Before doing so, it is best to check
+what files and links are in place:</p>
+
+<blockquote><pre class="code">panic% find /etc/rc.d | grep httpd_perl
+
+/etc/rc.d/init.d/httpd_perl</pre></blockquote>
+
+<p>This response means that only the startup script itself exists. Now
+execute:</p>
+
+<blockquote><pre class="code">panic% chkconfig --add httpd_perl</pre></blockquote>
+
+<p>and repeat the <em class="emphasis">find</em> command to see what has
+changed:</p>
+
+<blockquote><pre class="code">panic% find /etc/rc.d | grep httpd_perl
+
+/etc/rc.d/init.d/httpd_perl
+/etc/rc.d/rc0.d/K16httpd_perl
+/etc/rc.d/rc1.d/K16httpd_perl
+/etc/rc.d/rc2.d/S91httpd_perl
+/etc/rc.d/rc3.d/S91httpd_perl
+/etc/rc.d/rc4.d/S91httpd_perl
+/etc/rc.d/rc5.d/S91httpd_perl
+/etc/rc.d/rc6.d/K16httpd_perl</pre></blockquote>
+
+<p>The <em class="emphasis">chkconfig</em> program has created all the
+required symbolic links using the startup and shutdown priorities as
+specified in the line:</p>
+
+<blockquote><pre class="code"># chkconfig: 2345 91 16</pre></blockquote>
+
+<p>If for some reason it becomes necessary to remove the service from
+the startup scripts, <em class="emphasis">chkconfig</em> can perform the
+removal of the links automatically:</p>
+
+<blockquote><pre class="code">panic% chkconfig --del httpd_perl</pre></blockquote>
+
+<p>By running the <em class="emphasis">find</em> command once more, you can
+see that the symbolic links have been removed and only the original
+file remains:</p>
+
+<blockquote><pre class="code">panic% find /etc/rc.d | grep httpd_perl
+
+/etc/rc.d/init.d/httpd_perl</pre></blockquote>
+
+<p>Again, execute:</p>
+
+<blockquote><pre class="code">panic% chkconfig --add httpd_perl</pre></blockquote>
+
+<p>Note that when using symbolic links, the link name in
+<em class="emphasis">/etc/rc.d/init.d</em> is what matters, not the name
+of the script to which the link <a name="pmodperl-CHP-5-ITERM-4094" /><a name="pmodperl-CHP-5-ITERM-4095" /><a name="pmodperl-CHP-5-ITERM-4096" />points.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch05_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">5.6. Setuid root Startup Scripts</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">5.8. Upgrading a Live Server</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

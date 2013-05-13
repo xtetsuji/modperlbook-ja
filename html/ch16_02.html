@@ -1,0 +1,228 @@
+<html><head><title>Content Headers (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch16_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch16_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">16.2. Content Headers</h2>
+
+<p>The following sections describe the HTTP headers that specify the
+type and length of the content, and the version of the content being
+sent. Note that in this section we often use the term
+<em class="emphasis">message</em>. This term is used to describe the data
+that comprises the HTTP headers along with their associated content;
+the content is the actual page, image, file, etc.</p>
+
+<a name="pmodperl-CHP-16-SECT-2.1" /><div class="sect2">
+<h3 class="sect2">16.2.1. Content-Type Header</h3>
+
+<p>Most CGI programmers <a name="pmodperl-CHP-16-ITERM-5270" /><a name="pmodperl-CHP-16-ITERM-5271" /><a name="pmodperl-CHP-16-ITERM-5272" />are familiar with
+<tt class="literal">Content-Type</tt>. Sections 3.7, 7.2.1, and 14.17 of
+the HTTP specification cover the details. mod_perl has a
+<tt class="literal">content_type( )</tt> method to
+<a name="pmodperl-CHP-16-ITERM-5273" /><a name="pmodperl-CHP-16-ITERM-5274" />deal with this header:</p>
+
+<blockquote><pre class="code">$r-&gt;content_type("image/png");</pre></blockquote>
+
+<p><tt class="literal">Content-Type</tt> <em class="emphasis">should</em> be
+included in every set of headers, according to the standard, and
+Apache will generate one if your code doesn't. It
+will be whatever is specified in the relevant
+<tt class="literal">DefaultType</tt> configuration directive, or
+<tt class="literal">text/plain</tt> if none is active.</p>
+
+</div>
+<a name="pmodperl-CHP-16-SECT-2.2" /><div class="sect2">
+<h3 class="sect2">16.2.2. Content-Length Header</h3>
+
+<p>According to section 14.13 of <a name="pmodperl-CHP-16-ITERM-5275" /><a name="pmodperl-CHP-16-ITERM-5276" /><a name="pmodperl-CHP-16-ITERM-5277" />the HTTP specification, the
+<tt class="literal">Content-Length</tt> header is the number of octets
+(8-bit bytes) in the body of a message. If the length can be
+determined prior to sending, it can be very useful to include it. The
+most important reason is that <tt class="literal">KeepAlive</tt> requests
+(when the same connection is used to fetch more than one object from
+the web server) work only with responses that contain a
+<tt class="literal">Content-Length</tt> header. In mod_perl we can write:</p>
+
+<blockquote><pre class="code">$r-&gt;header_out('Content-Length', $length);</pre></blockquote>
+
+<p>When using <tt class="literal">Apache::File</tt>, the
+<a name="pmodperl-CHP-16-ITERM-5278" /><a name="pmodperl-CHP-16-ITERM-5279" />additional <tt class="literal">set_content_length(
+)</tt> method, which is slightly more efficient than the above,
+becomes available to the Apache class. In this case we can write:</p>
+
+<blockquote><pre class="code">$r-&gt;set_content_length($length);</pre></blockquote>
+
+<p>The <tt class="literal">Content-Length</tt> header can have a significant
+impact on caches by invalidating cache entries, as the following
+extract from the specification explains:</p>
+
+<blockquote><pre class="code">The response to a HEAD request MAY be cacheable in the sense that the information 
+contained in the response MAY be used to update a previously cached entity from that 
+resource.  If the new field values indicate that the cached entity differs from the 
+current entity (as would be indicated by a change in Content-Length, Content-MD5, 
+ETag or Last-Modified), then the cache MUST treat the cache entry as stale.</pre></blockquote>
+
+<p>It is important not to send an erroneous
+<tt class="literal">Content-Length</tt> header in a response to either a
+<tt class="literal">GET</tt> or a <tt class="literal">HEAD</tt> request.</p>
+
+</div>
+<a name="pmodperl-CHP-16-SECT-2.3" /><div class="sect2">
+<h3 class="sect2">16.2.3. Entity Tags</h3>
+
+<p>An entity tag (<tt class="literal">ETag</tt>) is a validator
+<a name="pmodperl-CHP-16-ITERM-5280" /><a name="pmodperl-CHP-16-ITERM-5281" /><a name="pmodperl-CHP-16-ITERM-5282" />that can be used instead of, or in addition
+to, the <tt class="literal">Last-Modified</tt> header; it is a quoted
+string that can be used to identify different versions of a
+particular resource. An entity tag can be added to the response
+headers like this:</p>
+
+<blockquote><pre class="code">$r-&gt;header_out("ETag","\"$VERSION\"");</pre></blockquote>
+
+<p>mod_perl offers the <tt class="literal">$r-&gt;set_etag( )</tt> method if
+we have <tt class="literal">use( )</tt> ed <tt class="literal">Apache::File</tt>.
+However, we strongly recommend that you don't use
+the <tt class="literal">set_etag( )</tt> method! <tt class="literal">set_etag(
+)</tt> is meant to be used in conjunction with a static request
+for a file on disk that has been <tt class="literal">stat( )</tt> ed in the
+course of the current request. It is inappropriate and dangerous to
+use it for dynamic content.</p>
+
+<p>By sending an entity tag we are promising the recipient that we will
+not send the same <tt class="literal">ETag</tt> for the same resource again
+unless the content is "equal" to
+what we are sending now.</p>
+
+<p>The pros and cons of using entity tags are discussed in section 13.3
+of the HTTP specification. For mod_perl programmers, that discussion
+can be summed up as follows.</p>
+
+<p>There are strong and weak validators. Strong validators change
+whenever a single bit changes in the response; i.e., when anything
+changes, even if the meaning is unchanged. Weak validators change
+only when the meaning of the response changes. Strong validators are
+needed for caches to allow for sub-range requests. Weak validators
+allow more efficient caching of equivalent objects. Algorithms such
+as MD5 or SHA are good strong validators, but what is usually
+required when we want to take advantage of caching is a good weak
+validator.</p>
+
+<a name="pmodperl-CHP-16-SIDEBAR-1" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">HTTP Range Requests</h4>
+
+<p>It is possible in web clients to interrupt the connection before the
+data transfer has finished. As a result, the client may have partial
+documents or images loaded into its memory. If the page is reentered
+later, it is useful to be able to request the server to return just
+the missing portion of the document, instead of retransferring the
+entire file.</p>
+
+<p>There are also a number of web applications that benefit from being
+able to request the server to give a byte range of a document. As an
+example, a PDF viewer would need to be able to access individual
+pages by byte range&#8212;the table that defines those ranges is
+located at the end of the PDF file.</p>
+
+<p>In practice, most of the data on the Web is represented as a byte
+stream and can be addressed with a byte range to retrieve a desired
+portion of it.</p>
+
+<p>For such an exchange to happen, the server needs to let the client
+know that it can support byte ranges, which it does by sending the
+<tt class="literal">Accept-Ranges</tt> header:</p>
+
+<blockquote><pre class="code">Accept-Ranges: bytes</pre></blockquote>
+
+<p>The server will send this header only for documents for which it will
+be able to satisfy the byte-range request&#8212;e.g., for PDF
+documents or images that are only partially cached and can be
+partially reloaded if the user interrupts the page load.</p>
+
+<p>The client requests a byte range using the <tt class="literal">Range</tt>
+header:</p>
+
+<blockquote><pre class="code">Range: bytes=0-500,5000-</pre></blockquote>
+
+<p>Because of the architecture of the byte-range request and response,
+the client is not limited to attempting to use byte ranges only when
+this header is present. If a server does not support the
+<tt class="literal">Range</tt> header, it will simply ignore it and send
+the entire document as a response.</p>
+</td></tr></table><p></blockquote>
+
+<p>A <tt class="literal">Last-Modified</tt> time, when used as a validator in
+a request, can be strong or weak, depending on a couple of rules
+described in section 13.3.3 of the HTTP standard. This is mostly
+relevant for range requests, as this quote from section 14.27
+explains:</p>
+
+<blockquote><pre class="code">If the client has no entity tag for an entity, but does have a Last-Modified date, it 
+MAY use that date in an If-Range header.</pre></blockquote>
+
+<p>But it is not limited to range requests. As section 13.3.1 states,
+the value of the <tt class="literal">Last-Modified</tt> header can also be
+used as a cache validator.</p>
+
+<p>The fact that a <tt class="literal">Last-Modified</tt> date may be used as
+a strong validator can be pretty disturbing if we are in fact
+changing our output slightly without changing its semantics. To
+prevent this kind of misunderstanding between us and the cache
+servers in the response chain, we can send a weak validator in an
+<tt class="literal">ETag</tt> header. This is possible because the
+specification states:</p>
+
+<blockquote><pre class="code">If a client wishes to perform a sub-range retrieval on a value for which it has only 
+a Last-Modified time and no opaque validator, it MAY do this only if the Last-
+Modified time is strong in the sense described here.</pre></blockquote>
+
+<p>In other words, by sending an <tt class="literal">ETag</tt> that is marked
+as weak, we prevent the cache server from using the
+<tt class="literal">Last-Modified</tt> header as a strong validator.</p>
+
+<p>An <tt class="literal">ETag</tt> value is marked as a weak validator by
+prepending the string <tt class="literal">W/</tt> to the quoted string;
+otherwise, it is strong. In Perl this would mean something like this:</p>
+
+<blockquote><pre class="code">$r-&gt;header_out('ETag',"W/\"$VERSION\"");</pre></blockquote>
+
+<p>Consider carefully which string is chosen to act as a validator. We
+are on our own with this decision:</p>
+
+<blockquote><pre class="code">... only the service author knows the semantics of a resource well enough to select 
+an appropriate cache validation mechanism, and the specification of any validator 
+comparison function more complex than byte-equality would open up a can of worms.  
+Thus, comparisons of any other headers (except Last-Modified, for compatibility with 
+HTTP/1.0) are never used for purposes of validating a cache entry.</pre></blockquote>
+
+<p>If we are composing a message from multiple components, it may be
+necessary to combine some kind of version information for all these
+components into a single string.</p>
+
+<p>If we are producing relatively large documents, or content that does
+not change frequently, then a strong entity tag will probably be
+preferred, since this will give caches a chance to transfer the
+document in chunks.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch16_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch16_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">16. HTTP Headers for Optimal Performance</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">16.3. Content Negotiation</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

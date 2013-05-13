@@ -1,0 +1,102 @@
+<html><head><title>Typical Uses (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appd_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appd_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">D.3. Typical Uses</h2>
+
+<p>A typical use of the <a name="pmodperl-APP-D-ITERM-6457" />Template Toolkit is as an offline tool
+for generating static web pages from source templates. This alone can
+be invaluable as a way of consistently adding standard headers,
+footers, menus, or other presentation elements to all of the pages in
+a web site.</p>
+
+<p>The <em class="emphasis">ttree</em> utility, distributed
+<a name="pmodperl-APP-D-ITERM-6458" /><a name="pmodperl-APP-D-ITERM-6459" /><a name="pmodperl-APP-D-ITERM-6460" />as part of the toolkit, can be
+used to automatically process an entire directory tree of files in
+this way. Rather than creating and maintaining web pages directly,
+you write your pages as source templates and use
+<em class="emphasis">ttree</em> to run them through the Template Toolkit
+and publish them to a new location, ready to be viewed or accessed by
+your web server. During this process, any directives embedded within
+the templates are interpreted accordingly to build up the final HTML
+content. This can be then be combined automatically with any other
+standard page elements or layout templates before the output is
+written to the destination file.</p>
+
+<p>You can also use the <a name="pmodperl-APP-D-ITERM-6461" /><a name="pmodperl-APP-D-ITERM-6462" />Template Toolkit in CGI scripts and
+mod_perl handlers for generating dynamic web content. The
+<tt class="literal">Template</tt> module <a name="pmodperl-APP-D-ITERM-6463" /><a name="pmodperl-APP-D-ITERM-6464" /><a name="pmodperl-APP-D-ITERM-6465" />provides a simple programming-level
+interface to the template processing engine and allows you to cleanly
+separate your application code from presentation logic and layout. It
+provides a rich set of bindings between Perl data and code in the
+backend and template variables in the frontend. That means you can
+call into templates from your Perl code and also call into Perl code
+from your templates. You can freely pass all kinds of Perl data
+between the front- and backends, in the form of scalars, hashes,
+lists, subroutines, and object references, allowing you to hide all
+manner of internal complexity behind a simple data interface. This
+makes it easy for you to perform all sorts of technical wizardry in
+your templates, without having to directly expose or embed any of the
+Perl code that makes it happen.</p>
+
+<p>The Template Toolkit includes a number of
+<a name="pmodperl-APP-D-ITERM-6466" /><a name="pmodperl-APP-D-ITERM-6467" />standard plug-in modules that provide
+various useful add-on functionalities. These include modules for
+creating HTML tables; fetching CGI parameters; parsing and processing
+XML, POD, and LaTeX; accessing databases via <tt class="literal">DBI</tt>;
+manipulating dates; processing URLs; and generating graphics, to name
+just a few. It's also trivially easy to load and use
+other existing Perl modules. If CPAN doesn't have
+what you're looking for, you can always implement
+your own custom functionality as a Perl module, which can then be
+loaded into the Template Toolkit for use and reuse as required.</p>
+
+<p>This approach makes your code and your templates much easier to
+develop and maintain. If the people working on Perl application code
+are different from those who develop the HTML pages, it allows them
+to work on their separate areas without getting in each
+other's way. Even if you're the one
+doing all the work, it allows you to better separate the tasks and
+wear just one hat at a time. When you're wearing
+your application developer's hat, you can
+concentrate on the Perl code and making it work right. When
+you're wearing your web page
+designer's hat, you can concentrate on the HTML
+markup and making it look good.</p>
+
+<p>It also makes your backend code and your frontend templates more
+reusable. You can have the same backend code running behind multiple
+sets of frontend templates, ideal for creating different versions of
+the same web site localized to spoken languages or customized to
+different users' requirements. You can also reuse
+the same set of templates in front of different backend applications,
+CGI scripts, and mod_perl handlers. Common elements such as headers,
+footers, and menus can be encoded as templates and then shared
+between your static pages generated via <em class="emphasis">ttree</em>
+and your dynamic pages generated online. The result is that you get a
+consistent user interface and presentation style for all your pages,
+regardless of how they're generated.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appd_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appd_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">D.2. Overview</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">D.4. Template Toolkit Language</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

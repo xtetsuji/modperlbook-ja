@@ -1,0 +1,417 @@
+<html><head><title>Buffered Printing and Better print( ) Techniques (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch13_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">13.3. Buffered Printing and Better print( ) Techniques</h2>
+
+<p>As you <a name="pmodperl-CHP-13-ITERM-5099" /><a name="pmodperl-CHP-13-ITERM-5100" /><a name="pmodperl-CHP-13-ITERM-5101" />probably <a name="pmodperl-CHP-13-ITERM-5102" />know, this statement:</p>
+
+<blockquote><pre class="code">local $|=1;</pre></blockquote>
+
+<p>disables buffering of the currently <tt class="literal">select( )</tt>ed
+file handle (the default is <tt class="literal">STDOUT</tt>). Under
+mod_perl, the <tt class="literal">STDOUT</tt> file handle is automatically
+tied to the output socket. If <tt class="literal">STDOUT</tt> buffering is
+disabled, each <tt class="literal">print( )</tt> call also calls
+<tt class="literal">ap_rflush( )</tt> to flush Apache's
+output buffer.</p>
+
+<p>When multiple <tt class="literal">print( )</tt> calls are used
+(<em class="emphasis">bad</em> style in generating output), or if there
+are just too many of them, you will experience a degradation in
+performance. The severity depends on the number of <tt class="literal">print(
+)</tt> calls that are made.</p>
+
+<p>Many old CGI scripts were written like this:</p>
+
+<blockquote><pre class="code">print "&lt;body bgcolor=\"black\" text=\"white\"&gt;";
+print "&lt;h1&gt;Hello&lt;/h1&gt;";
+print "&lt;a href=\"foo.html\"&gt;foo&lt;/a&gt;";
+print "&lt;/body&gt;";</pre></blockquote>
+
+<p>This example has multiple <tt class="literal">print( )</tt> calls, which
+will cause performance degradation with <tt class="literal">$|=1</tt>. It
+also uses too many backslashes. This makes the code less readable,
+and it is more difficult to format the HTML so that it is easily
+readable as the script's output. The code below
+solves the problems:</p>
+
+<blockquote><pre class="code">print qq{
+  &lt;body bgcolor="black" text="white"&gt;
+    &lt;h1&gt;Hello&lt;/h1&gt;
+    &lt;a href="foo.html"&gt;foo&lt;/a&gt;
+  &lt;/body&gt;
+};</pre></blockquote>
+
+<p>You can easily see the difference. Be careful, though, when printing
+an <a name="pmodperl-CHP-13-ITERM-5103" /><a name="pmodperl-CHP-13-ITERM-5104" /><tt class="literal">&lt;html&gt;</tt> tag.
+The correct way is:</p>
+
+<blockquote><pre class="code">print qq{&lt;html&gt;
+  &lt;head&gt;&lt;/head&gt;
+};</pre></blockquote>
+
+<p>You can also try the following:</p>
+
+<blockquote><pre class="code">print qq{
+  &lt;html&gt;
+  &lt;head&gt;&lt;/head&gt;
+};</pre></blockquote>
+
+<p>but note that some older browsers expect the first characters after
+the headers and empty line to be <tt class="literal">&lt;html&gt;</tt> with
+<em class="emphasis">no</em> spaces before the opening left angle bracket.
+If there are any other characters, they might not accept the output
+as HTML might and print it as plain text. Even if this approach works
+with your browser, it might not work with others.</p>
+
+<p>Another approach is to use the <em class="emphasis">here document</em>
+style:</p>
+
+<blockquote><pre class="code">print &lt;&lt;EOT;
+&lt;html&gt;
+&lt;head&gt;&lt;/head&gt;
+EOT</pre></blockquote>
+
+<p>Performance-wise, the <tt class="literal">qq{ }</tt> and here document
+styles compile down to exactly the same code, so there should not be
+any real difference between them.</p>
+
+<p>Remember that the closing tag of the here document style
+(<tt class="literal">EOT</tt> in our example) <em class="emphasis">must</em> be
+aligned to the left side of the line, with no spaces or other
+characters before it and nothing but a newline after it.</p>
+
+<p>Yet another technique is to pass the arguments to <tt class="literal">print(
+)</tt> as a list:</p>
+
+<blockquote><pre class="code">print "&lt;body bgcolor=\"black\" text=\"white\"&gt;",
+      "&lt;h1&gt;Hello&lt;/h1&gt;",
+      "&lt;a href=\"foo.html\"&gt;foo&lt;/a&gt;",
+      "&lt;/body&gt;";</pre></blockquote>
+
+<p>This technique makes fewer <tt class="literal">print( )</tt> calls but
+still suffers from so-called <em class="emphasis">backslashitis</em>
+(quotation marks used in HTML need to be prefixed with a backslash).
+Single quotes can be used instead:</p>
+
+<blockquote><pre class="code">'&lt;a href="foo.html"&gt;foo&lt;/a&gt;'</pre></blockquote>
+
+<p>but then how do we insert a variable? The string will need to be
+split again:</p>
+
+<blockquote><pre class="code">'&lt;a href="',$foo,'.html"&gt;', $foo, '&lt;/a&gt;'</pre></blockquote>
+
+<p>This is ugly, but it's a matter of taste. We tend to
+use the <tt class="literal">qq</tt><a name="pmodperl-CHP-13-ITERM-5105" /> operator:</p>
+
+<blockquote><pre class="code">print qq{&lt;a href="$foo.html"&gt;$foo&lt;/a&gt;
+         Some text
+         &lt;img src="bar.png" alt="bar" width="1" height="1"&gt;
+        };</pre></blockquote>
+
+<p>What if you want to make fewer <tt class="literal">print( )</tt> calls, but
+you don't have the output ready all at once? One
+approach is to buffer the output in the array and then print it all
+at once:</p>
+
+<blockquote><pre class="code">my @buffer = ( );
+push @buffer, "&lt;body bgcolor=\"black\" text=\"white\"&gt;";
+push @buffer, "&lt;h1&gt;Hello&lt;/h1&gt;";
+push @buffer, "&lt;a href=\"foo.html\"&gt;foo&lt;/a&gt;";
+push @buffer, "&lt;/body&gt;";
+print @buffer;</pre></blockquote>
+
+<p>An even better technique is to pass <tt class="literal">print( )</tt> a
+reference to the string. The <tt class="literal">print( )</tt> used under
+Apache overloads the default <tt class="literal">CORE::print( )</tt> and
+knows that it should automatically dereference any reference passed
+to it. Therefore, it's more efficient to pass
+strings by reference, as it avoids the overhead of copying.</p>
+
+<blockquote><pre class="code">my $buffer = "&lt;body bgcolor=\"black\" text=\"white\"&gt;";
+$buffer .= "&lt;h1&gt;Hello&lt;/h1&gt;";
+$buffer .= "&lt;a href=\"foo.html\"&gt;foo&lt;/a&gt;";
+$buffer .= "&lt;/body&gt;";
+print \$buffer;</pre></blockquote>
+
+<p>If you print references in this way, your code will not be backward
+compatible with mod_cgi, which uses the <tt class="literal">CORE::print(
+)</tt> function.</p>
+
+<p>Now to the <a name="pmodperl-CHP-13-ITERM-5106" />benchmarks. Let's
+compare the printing techniques we have just discussed. The benchmark
+that we are going to use is shown in <a href="ch13_03.html#pmodperl-CHP-13-EX-6">Example 13-6</a>.</p>
+
+<a name="pmodperl-CHP-13-EX-6" /><div class="example">
+<h4 class="objtitle">Example 13-6. benchmarks/print.pl</h4>
+<blockquote><pre class="code">use Benchmark;
+use Symbol;
+
+my $fh = gensym;
+open $fh, "&gt;/dev/null" or die;
+
+my @text = (
+    "&lt;!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML//EN\"&gt;\n",
+    "&lt;HTML&gt;\n",
+    "  &lt;HEAD&gt;\n",
+    "    &lt;TITLE&gt;\n",
+    "      Test page\n",
+    "    &lt;/TITLE&gt;\n",
+    "  &lt;/HEAD&gt;\n",
+    "  &lt;BODY BGCOLOR=\"black\" TEXT=\"white\"&gt;\n",
+    "    &lt;H1&gt;\n",
+    "      Test page \n",
+    "    &lt;/H1&gt;\n",
+    "    &lt;A HREF=\"foo.html\"&gt;foo&lt;/A&gt;\n",
+    "text line that emulates some real output\n" x 100,
+    "    &lt;HR&gt;\n",
+    "  &lt;/BODY&gt;\n",
+    "&lt;/HTML&gt;\n",
+);
+
+my $text = join "", @text;
+
+sub multi {
+    my @copy = @text;
+    my_print($_) for @copy;
+}
+
+sub single {
+    my $copy = $text;
+    my_print($copy);
+}
+
+sub array {
+    my @copy = @text;
+    my_print(@copy);
+}
+
+sub ref_arr {
+    my @refs = \(@text);
+    my_print(@refs);
+}
+
+sub concat {
+    my $buffer;
+    $buffer .= $_ for @text;
+    my_print($buffer);
+}
+
+sub my_join {
+    my $buffer = join '', @text;
+    my_print($buffer);
+}
+
+sub my_print {
+    for (@_) {
+        print $fh ref($_) ? $$_ : $_;
+    }
+}
+
+timethese(100_000, {
+    join    =&gt; \&amp;my_join,
+    array   =&gt; \&amp;array,
+    ref_arr =&gt; \&amp;ref_arr,
+    multi   =&gt; \&amp;multi,
+    single  =&gt; \&amp;single,
+    concat  =&gt; \&amp;concat,
+});
+
+timethese(100_000, {
+    'array  /b' =&gt; sub {my $ofh=select($fh);$|=0;select($ofh); array( )  },
+    'array  /u' =&gt; sub {my $ofh=select($fh);$|=1;select($ofh); array( )  },
+    'ref_arr/b' =&gt; sub {my $ofh=select($fh);$|=0;select($ofh); ref_arr( )},
+    'ref_arr/u' =&gt; sub {my $ofh=select($fh);$|=1;select($ofh); ref_arr( )},
+    'multi  /b' =&gt; sub {my $ofh=select($fh);$|=0;select($ofh); multi( )  },
+    'multi  /u' =&gt; sub {my $ofh=select($fh);$|=1;select($ofh); multi( )  },
+    'single /b' =&gt; sub {my $ofh=select($fh);$|=0;select($ofh); single( ) },
+    'single /u' =&gt; sub {my $ofh=select($fh);$|=1;select($ofh); single( ) },
+    'concat /b' =&gt; sub {my $ofh=select($fh);$|=0;select($ofh); concat( ) },
+    'concat /u' =&gt; sub {my $ofh=select($fh);$|=1;select($ofh); concat( ) },
+    'join   /b' =&gt; sub {my $ofh=select($fh);$|=0;select($ofh); my_join( )},
+    'join   /u' =&gt; sub {my $ofh=select($fh);$|=1;select($ofh); my_join( )},
+});</pre></blockquote>
+</div>
+
+<p>Under Perl 5.6.0 on Linux, the first set of results, sorted by CPU
+clocks, is:</p>
+
+<blockquote><pre class="code">Benchmark: timing 100000 iterations of array, concat, multi, ref_array...
+   single:  6 wallclock secs ( 5.42 usr + 0.16 sys =  5.58 CPU)
+     join:  8 wallclock secs ( 8.63 usr + 0.14 sys =  8.77 CPU)
+   concat: 12 wallclock secs (10.57 usr + 0.31 sys = 10.88 CPU)
+  ref_arr: 14 wallclock secs (11.92 usr + 0.13 sys = 12.05 CPU)
+    array: 15 wallclock secs (12.95 usr + 0.26 sys = 13.21 CPU)
+    multi: 38 wallclock secs (34.94 usr + 0.25 sys = 35.19 CPU)</pre></blockquote>
+
+<p><em class="emphasis">single</em> string print is obviously the fastest;
+<em class="emphasis">join</em>, <em class="emphasis">concatination of
+string</em>, <em class="emphasis">array of references to
+string</em>, and <em class="emphasis">array of strings</em> are very
+close to each other (the results may vary according to the length of
+the strings); and <em class="emphasis">print call per string</em> is the
+slowest.</p>
+
+<p>Now let's look at the same benchmark, where the
+printing was either buffered or not:</p>
+
+<blockquote><pre class="code">Benchmark: timing 100000 iterations of ...
+single /b: 10 wallclock secs ( 8.34 usr + 0.23 sys =  8.57 CPU)
+single /u: 10 wallclock secs ( 8.57 usr + 0.25 sys =  8.82 CPU)
+join   /b: 13 wallclock secs (11.49 usr + 0.27 sys = 11.76 CPU)
+join   /u: 12 wallclock secs (11.80 usr + 0.18 sys = 11.98 CPU)
+concat /b: 14 wallclock secs (13.73 usr + 0.17 sys = 13.90 CPU)
+concat /u: 16 wallclock secs (13.98 usr + 0.15 sys = 14.13 CPU)
+ref_arr/b: 15 wallclock secs (14.95 usr + 0.20 sys = 15.15 CPU)
+array  /b: 16 wallclock secs (16.06 usr + 0.23 sys = 16.29 CPU)
+ref_arr/u: 18 wallclock secs (16.85 usr + 0.98 sys = 17.83 CPU)
+array  /u: 19 wallclock secs (17.65 usr + 1.06 sys = 18.71 CPU)
+multi  /b: 41 wallclock secs (37.89 usr + 0.28 sys = 38.17 CPU)
+multi  /u: 48 wallclock secs (43.24 usr + 1.67 sys = 44.91 CPU)</pre></blockquote>
+
+<p>First, we see the same picture among different printing techniques.
+Second, we can see that the buffered print is always faster, but only
+in the case where <tt class="literal">print( )</tt> is called for each
+short string does it have a significant speed impact.</p>
+
+<p>Now let's go back to the <tt class="literal">$|=1</tt>
+topic. You might still decide to disable <a name="pmodperl-CHP-13-ITERM-5107" />buffering, for two reasons:</p>
+
+<ul><li>
+<p>You use relatively few <tt class="literal">print( )</tt> calls. You achieve
+this by arranging for <tt class="literal">print( )</tt>statements to print
+multiline text, not one line per <tt class="literal">print( )</tt>
+statement.</p>
+</li><li>
+<p>You want your users to see output immediately. If you are about to
+produce the results of a database query that might take some time to
+complete, you might want users to get some feedback while they are
+waiting. Ask yourself whether you prefer getting the output a bit
+slower but steadily from the moment you press the Submit button, or
+having to watch the "falling stars"
+for a while and then getting the whole output at once, even if
+it's a few milliseconds faster&#8212;assuming the
+browser didn't time out during the wait.</p>
+</li></ul>
+<p>An even better solution is to keep buffering enabled and call
+<tt class="literal">$r-&gt;rflush( )</tt><a name="pmodperl-CHP-13-ITERM-5108" /> to flush the buffers when needed.
+This way you can place the first part of the page you are sending in
+the buffer and flush it a moment before you perform a lengthy
+operation such as a database query. This kills two birds with the
+same stone: you show some of the data to the user immediately so she
+will see that something is actually happening, and you
+don't suffer from the performance hit caused by
+disabling buffering. Here is an example of such code:</p>
+
+<blockquote><pre class="code">use CGI ( );
+my $r = shift;
+my $q = new CGI;
+print $q-&gt;header('text/html');
+print $q-&gt;start_html;
+print $q-&gt;p("Searching...Please wait");
+$r-&gt;rflush;
+
+# imitate a lengthy operation
+for (1..5) {
+    sleep 1;
+}
+
+print $q-&gt;p("Done!");</pre></blockquote>
+
+<p>The script prints the beginning of the HTML document along with a
+nice request to wait by flushing the output buffer just before it
+starts the lengthy operation.</p>
+
+<p>Now let's run the web
+<a name="pmodperl-CHP-13-ITERM-5109" />benchmark and compare
+the performance of buffered versus unbuffered printing in the
+multi-printing code used in the last benchmark. We are going to use
+two identical handlers, the first handler having its
+<tt class="literal">STDOUT</tt>stream (tied to socket) unbuffered. The
+code appears in <a href="ch13_03.html#pmodperl-CHP-13-EX-7">Example 13-7</a>.</p>
+
+<a name="pmodperl-CHP-13-EX-7" /><div class="example">
+<h4 class="objtitle">Example 13-7. Book/UnBuffered.pm</h4>
+<blockquote><pre class="code">package Book::UnBuffered;
+use Apache::Constants qw(:common);
+local $|=1; # Switch off buffering.
+sub handler {
+    my $r = shift;
+    $r-&gt;send_http_header('text/html');
+    print "&lt;!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML//EN\"&gt;\n";
+    print "&lt;html&gt;\n";
+    print "  &lt;head&gt;\n";
+    print "    &lt;title&gt;\n";
+    print "      Test page\n";
+    print "    &lt;/title&gt;\n";
+    print "  &lt;/head&gt;\n";
+    print "  &lt;body bgcolor=\"black\" text=\"white\"&gt;\n";
+    print "    &lt;h1&gt; \n";
+    print "      Test page \n";
+    print "    &lt;/h1&gt;\n";
+    print "    &lt;a href=\"foo.html\"&gt;foo&lt;/a&gt;\n" for 1..100;
+    print "    &lt;hr&gt;\n";
+    print "  &lt;/body&gt;\n";
+    print "&lt;/html&gt;\n";
+    return OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>The following <em class="emphasis">httpd.conf</em> configuration is used:</p>
+
+<blockquote><pre class="code">#################################
+### Buffered output 
+#################################
+&lt;Location /buffering&gt;
+    SetHandler perl-script
+    PerlHandler +Book::Buffered
+&lt;/Location&gt;
+
+#################################
+### UnBuffered output 
+#################################
+&lt;Location /unbuffering&gt;
+    SetHandler perl-script
+    PerlHandler +Book::UnBuffered
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now we run the benchmark, using <em class="emphasis">ApacheBench</em>,
+with concurrency set to 50, for a total of 5,000 requests. Here are
+the results:</p>
+
+<blockquote><pre class="code">name        |   avtime completed failed  RPS
+---------------------------------------------
+unbuffering |     56      5000      0    855
+buffering   |     55      5000      0    865</pre></blockquote>
+
+<p>As you can see, there is not much difference when the overhead of
+other processing is added. The difference was more significant when
+we benchmarked only the Perl code. In real web requests, a few
+percent difference will be felt only if you unbuffer the output and
+print thousands of strings one <a name="pmodperl-CHP-13-ITERM-5110" />at a <a name="pmodperl-CHP-13-ITERM-5111" /><a name="pmodperl-CHP-13-ITERM-5112" /><a name="pmodperl-CHP-13-ITERM-5113" />time.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch13_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">13.2. Apache::args Versus Apache::Request::param Versus CGI::param</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">13.4. Interpolation, Concatenation, or List</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

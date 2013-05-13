@@ -1,0 +1,263 @@
+<html><head><title>Non-Volatile Databases (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch17_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch17_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">17.2. Non-Volatile Databases</h2>
+
+<p>Some information is so important that you cannot afford to lose it.
+Consider the name and password for authenticating users. If a person
+registers at a site that charges a subscription fee, it would be
+unfortunate if his subscription details were lost the next time the
+web server was restarted. In this case, the information must be
+stored in a non-volatile way, and that usually means on disk. Several
+options are available, ranging from flat files to DBM files to
+fully-fledged relational databases. Which one you choose will depend
+on a number of factors, including:</p>
+
+<ul><li>
+<p>The size of each record and the volume of the data to be stored</p>
+</li><li>
+<p>The number of concurrent accesses (to the server or even to the same
+data)</p>
+</li><li>
+<p>Data complexity (do all the records fit into one row, or are there
+relations between different kinds of record?)</p>
+</li><li>
+<p>Budget (some database implementations are great but very expensive)</p>
+</li><li>
+<p>Failover and backup strategies (how important it is to avoid
+downtime, how soon the data must be restored in the case of a system
+failure)</p>
+</li></ul>
+<a name="pmodperl-CHP-17-SECT-2.1" /><div class="sect2">
+<h3 class="sect2">17.2.1. Flat-File Databases</h3>
+
+<p>If we have a small amount of data, sometimes the easiest technique is
+to just write this data in a text file. For example, if we have a few
+records with a fixed number of fields we can store them in a file,
+having one record per row and separating the fields with a delimiter.
+For example:</p>
+
+<blockquote><pre class="code">Eric|Cholet|cholet@logilune.com
+Doug|MacEachern|dougm@pobox.com
+Stas|Bekman|stas@stason.org</pre></blockquote>
+
+<p>As long as we have just a few records, we can quickly insert, edit,
+and remove records by reading the flat-file database line by line and
+adjusting things as required. We can retrieve the fields easily by
+using the <tt class="literal">split</tt> function:</p>
+
+<blockquote><pre class="code">@fields = split /\|/, $record;</pre></blockquote>
+
+<p>and we can put them back using <tt class="literal">join</tt>:</p>
+
+<blockquote><pre class="code">$record = join '|', @fields;</pre></blockquote>
+
+<p>However, we must make sure that no field uses the field separator we
+have chosen (<em class="emphasis">|</em> in this case), and we must lock
+the file if it is to be used in a multiprocess environment where many
+processes may try to modify the same file simultaneously. This is the
+case whether we are using mod_perl or not.</p>
+
+<p>If we are using some flavor of Unix, the
+<em class="emphasis">/etc/passwd</em> file is a perfect example of a
+flat-file database, since it has a fixed number of fields and most
+systems have a relatively small number of users.<a href="#FOOTNOTE-46">[46]</a> This is an example of such a file:</p>
+<blockquote><a name="FOOTNOTE-46" /><p> [46]Disregard the fact that the actual password is stored in
+<em class="emphasis">/etc/shadow</em> on modern systems.</p>
+</blockquote>
+
+<blockquote><pre class="code">root:x:0:0:root:/root:/bin/tcsh
+bin:x:1:1:bin:/bin:
+daemon:x:2:2:daemon:/sbin:
+adm:x:3:4:adm:/var/adm:
+lp:x:4:7:lp:/var/spool/lpd:</pre></blockquote>
+
+<p>: is used to separate the various fields.</p>
+
+<p>Working with flat-file databases is easy and straightforward in plain
+Perl. There are no special mod_perl tricks involved.</p>
+
+</div>
+<a name="pmodperl-CHP-17-SECT-2.2" /><div class="sect2">
+<h3 class="sect2">17.2.2. Filesystem Databases</h3>
+
+<p>Many people don't realize that in some cases, the
+filesystem can serve perfectly well as a database. In fact, you are
+probably using this kind of database every day on your PC&#8212;for
+example, if you store your MP3 files categorized by genres, artists,
+and albums. If we run:</p>
+
+<blockquote><pre class="code">panic% cd /data/mp3
+panic% find .</pre></blockquote>
+
+<p>We can see all the MP3 files that we have under
+<em class="emphasis">/data/mp3</em>:</p>
+
+<blockquote><pre class="code">./Rock/Bjork/MTV Unplugged/01 - Human Behaviour.mp3
+./Rock/Bjork/MTV Unplugged/02 - One Day.mp3
+./Rock/Bjork/MTV Unplugged/03 - Come To Me.mp3
+...
+./Rock/Bjork/Europa/01 - Prologue.mp3
+./Rock/Bjork/Europa/02 - Hunter.mp3
+...
+./Rock/Nirvana/MTV Unplugged/01 - About A Girl.mp3
+./Rock/Nirvana/MTV Unplugged/02 - Come As You Are.mp3
+...
+./Jazz/Herbie Hancock/Head Hunters/01 - Chameleon.mp3
+./Jazz/Herbie Hancock/Head Hunters/02 - Watermelon Man.mp3</pre></blockquote>
+
+<p>Now if we want to query what artists we have in the Rock genre, we
+just need to list the files in the <em class="emphasis">Rock/</em>
+directory. Once we find out that Bjork is one of the artists in the
+Rock category, we can do another enquiry to find out what Bjork
+albums we have bought by listing the files under the
+<em class="emphasis">Rock/Bjork/</em> directory. Now if we want to see the
+actual MP3 files from a particular album (e.g., <em class="emphasis">MTV
+Unplugged</em>), we list the files under that directory.</p>
+
+<p>What if we want to find all the albums that have
+<em class="emphasis">MTV</em> in their names? We can use
+<tt class="literal">ls</tt> to give us all the albums and MP3 files:</p>
+
+<blockquote><pre class="code">panic% ls -l ./*/*/*MTV*</pre></blockquote>
+
+<p>Of course, filesystem manipulation can be done from your Perl program.</p>
+
+<p>Let's look at another example. If you run a site
+about rock groups, you might want to store images relating to
+different groups. Using the filesystem as a database is a perfect
+match. Chances are these images will be served to users via
+<tt class="literal">&lt;img&gt;</tt> tags, so it makes perfect sense to use
+the real path (<tt class="literal">DocumentRoot</tt> considerations aside)
+to the image. For example:</p>
+
+<blockquote><pre class="code">&lt;img src="/images/rock/ACDC/cover-front.gif" alt="ACDC" ...&gt;
+&lt;img src="/images/rock/ACDC/cover-back.gif"  alt="ACDC" ...&gt;</pre></blockquote>
+
+<p>In this example we treat <em class="emphasis">ACDC</em> as a record and
+<em class="emphasis">cover-front.gif</em> and
+<em class="emphasis">cover-back.gif</em> as fields. This database
+implementation, just like the flat-file database, has no special
+benefits under mod_perl, so we aren't going to
+expand on the idea, but it's worth keeping in mind.</p>
+
+<a name="pmodperl-CHP-17-SIDEBAR-1" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Too Many Files</h4>
+
+<p>There is one thing to beware of: in some operating systems, when too
+many files (or directories) are stored in a single directory, access
+can be sluggish. It depends on the filesystem you are using. If you
+have a few files, simple linear access will be good enough. Many
+filesystems employ hashing algorithms to store the i-nodes (files or
+directories) of a directory. You should check your filesystem
+documentation to see how it will behave under load.</p>
+
+<p>If you find that you have lots of files to store and the filesystem
+implementation won't work too well for you, you can
+implement your own scheme by spreading the files into an extra layer
+or two of subdirectories. For example, if your filenames are numbers,
+you can use something like the following function:</p>
+
+<blockquote><pre class="code">my $dir = join "/", (split '', sprintf "%02d", $id)[0..1], $id;</pre></blockquote>
+
+<p>So if you want to create a directory <em class="emphasis">12345</em>, it
+will be converted into <em class="emphasis">1/2/12345</em>. The directory
+<em class="emphasis">12</em> could become <em class="emphasis">0/0/12</em>, and
+<em class="emphasis">124</em> could become <em class="emphasis">0/1/124</em>.
+If your files have a reasonable distribution, which is often true
+with numerical data, you might end up with two-llevel hashing. So if
+you have 10,000 directories to create, each end-level directory will
+have at most about 100 subdirectories, which is probably good enough
+for a fast lookup. If you are going to have many more files you may
+need to think about adding more levels.</p>
+
+<p>Also remember that the more levels you add, the more overhead you are
+adding, since the OS has to search through all the intermediate
+directories that you have added. Only do that if you really need to.
+If you aren't sure, and you start with a small
+number of directories, abstract the resolution of the directories so
+that in the future you can switch to a hashed implementation or add
+more levels to the existing one.</p>
+</td></tr></table><p></blockquote>
+
+</div>
+<a name="pmodperl-CHP-17-SECT-2.3" /><div class="sect2">
+<h3 class="sect2">17.2.3. DBM Databases</h3>
+
+<p>DBM databases are very similar to flat-file databases, but if all you
+need is to store the key/value pairs, they will do it much faster.
+Their use is much simpler, too. Perl uses <tt class="literal">tie( )</tt>
+to interact with DBM databases, and you work with these files as with
+normal hash data structures. When you want to store a value, you just
+assign it to a hash tied to the DBM database, and to retrieve some
+data you just read from the hash.</p>
+
+<p>A good example is session tracking: any user can connect to any of
+several mod_perl processes, and each process needs to be able to
+retrieve the session ID from any other process. With DBM this task is
+trivial. Every time a lookup is needed, tie the DBM file, get the
+shared lock, and look up the <em class="emphasis">session_id</em> there.
+Then retrieve the data and untie the database. Each time you want to
+update the session data, you tie the database, acquire an exclusive
+lock, update the data, and untie the database. It's
+probably not the fastest approach, and probably not the best one if
+you need to store more than a single scalar for each record, but it
+works quite well.</p>
+
+<p>In <a href="ch20_01.html">Chapter 20</a> we give some important background
+information about DBM files and provide a few examples of how you can
+benefit from usingDBM files under mod_perl.</p>
+
+</div>
+<a name="pmodperl-CHP-17-SECT-2.4" /><div class="sect2">
+<h3 class="sect2">17.2.4. Relational Databases</h3>
+
+<p>Of course, the most advanced solution is a relational database. But
+even though it provides the best solution in many cases,
+it's not always the one you should pick. You
+don't need a sledgehammer to crack a nut, right?</p>
+
+<p>Relational databases come in different implementations. Some are very
+expensive and provide many tools and extra features that
+aren't available with the cheaper and free
+implementations. What's important to keep in mind is
+that it's not necessarily the most expensive one
+that is the best choice in a given situation. Just as you need to
+choose the right database structure, you need to choose the right
+relational database. For example, ask yourself whether you need
+speed, or support for transactions, or both.</p>
+
+<p>It makes sense to try to write your code in such a way that if later
+in the course of development you discover that your choice of
+relational database wasn't the best, it will be easy
+to switch to a different one.</p>
+
+<p>mod_perl greatly helps work with relational databases, mainly because
+it allows persistent database connections. We'll
+talk extensively about relational databases and mod_perl in <a href="ch20_01.html">Chapter 20</a>.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch17_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch17_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">17. Databases Overview</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">17.3. References</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

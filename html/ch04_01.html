@@ -1,0 +1,658 @@
+<html><head><title>mod_perl Configuration (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_12.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch04_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 4. mod_perl Configuration</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch04_01.html#pmodperl-CHP-4-SECT-1">Apache Configuration</a><br />
+<a href="ch04_02.html">mod_perl Configuration</a><br />
+<a href="ch04_03.html">The Startup File</a><br />
+<a href="ch04_04.html">Apache Configuration in Perl</a><br />
+<a href="ch04_05.html">Validating the Configuration Syntax</a><br />
+<a href="ch04_06.html">The Scope of mod_perl Configuration Directives</a><br />
+<a href="ch04_07.html">Apache Restarts Twice</a><br />
+<a href="ch04_08.html">Enabling Remote Server Configuration Reports</a><br />
+<a href="ch04_09.html">Tips and Tricks</a><br />
+<a href="ch04_10.html">Configuration Security Concerns</a><br />
+<a href="ch04_11.html">General Pitfalls</a><br />
+<a href="ch04_12.html">References</a><br /></p></div><p>The next step after building and installing a mod_perl-enabled Apache
+server is to configure it. This is done in two distinct steps:
+getting the server running with a standard Apache configuration, and
+then applying mod_perl-specific configuration directives to get the
+full benefit out of it.</p><p>For readers who haven't previously been exposed to
+the Apache web server, our discussion begins with standard Apache
+directives and then continues with mod_perl-specific material.</p><p>The <em class="emphasis">startup.pl</em> file can be used in many ways to
+improve performance. We will talk about all these issues later in the
+book. In this chapter, we discuss the configuration possibilities
+that the <em class="emphasis">startup.pl</em> file gives us.</p><p><tt class="literal">&lt;Perl&gt;</tt>sections are a great time saver if
+you have complex configuration files. We'll talk
+about <tt class="literal">&lt;Perl&gt;</tt>sections in this chapter.</p><p>Another important issue we'll cover in this chapter
+is how to validate the configuration file. This is especially
+important on a live production server. If we break something and
+don't validate it, the server won't
+restart. This chapter discusses techniques to prevent validation
+problems.</p><p>At the end of this chapter, we discuss various tips and tricks you
+may find useful for server configuration, talk about a few security
+concerns related to server configuration, and finally look at a few
+common pitfalls people encounter when they misconfigure their
+servers.</p><div class="sect1"><a name="pmodperl-CHP-4-SECT-1" />
+<h2 class="sect1">4.1. Apache Configuration</h2>
+
+<p>Apache configuration can be confusing. To minimize the number of
+things that can go wrong, it's a good idea to first
+configure Apache itself without mod_perl. So before we go into
+mod_perl configuration, let's look at the basics of
+Apache itself.</p>
+
+<a name="pmodperl-CHP-4-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">4.1.1. Configuration Files</h3>
+
+<p>Prior to<a name="pmodperl-CHP-4-ITERM-3804" /><a name="pmodperl-CHP-4-ITERM-3805" /> Version
+1.3.4, the default Apache installation used three configuration
+files: <em class="emphasis">httpd.conf</em>,
+<em class="emphasis">srm.conf</em>, and <em class="emphasis">access.conf</em>.
+Although there were historical reasons for having three separate
+files (dating back to the NCSA server), it stopped mattering which
+file you used for what a long time ago, and the Apache team finally
+decided to combine them. Apache Versions 1.3.4 and later are
+distributed with the configuration directives in a single file,
+<em class="emphasis">httpd.conf</em><a name="pmodperl-CHP-4-ITERM-3806" />.
+Therefore, whenever we mention a configuration file, we are referring
+to <em class="emphasis">httpd.conf</em>.</p>
+
+<p>By default, <em class="emphasis">httpd.conf</em> is
+<a name="pmodperl-CHP-4-ITERM-3807" />installed in the
+<em class="emphasis">conf</em> directory under the server root directory.
+The default server root is <em class="emphasis">/usr/local/apache/</em> on
+many Unix platforms, but it can be any directory of your choice
+(within reason). Users new to Apache and mod_perl will probably find
+it helpful to keep to the directory layouts we use in this book.</p>
+
+<p>There is also a special file called
+<em class="emphasis">.htaccess</em><a name="pmodperl-CHP-4-ITERM-3808" /><a name="pmodperl-CHP-4-ITERM-3809" />, used for per-directory
+configuration. When Apache tries to access a file on the filesystem,
+it will first search for <em class="emphasis">.htaccess</em> files in the
+requested file's parent directories. If found,
+Apache scans <em class="emphasis">.htaccess</em> for further configuration
+directives, which it then applies only to that directory in which the
+file was found and its subdirectories. The name
+<em class="emphasis">.htaccess</em> is confusing, because it can contain
+almost any configuration directives, not just those related to
+resource access control. Note that if the following directive is in
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">&lt;Directory /&gt;
+    AllowOverride None
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>Apache will not look for <em class="emphasis">.htaccess</em> at all unless
+<tt class="literal">AllowOverride</tt><a name="pmodperl-CHP-4-ITERM-3810" /> is set to a value other than
+<tt class="literal">None</tt> in a more specific
+<tt class="literal">&lt;Directory&gt;</tt>section.</p>
+
+<p><em class="emphasis">.htaccess</em> can be renamed by using the
+<tt class="literal">AccessFileName</tt><a name="pmodperl-CHP-4-ITERM-3811" /> directive. The following example
+configures Apache to look in the target directory for a file called
+<em class="emphasis">.acl</em> instead of <em class="emphasis">.htaccess</em>:</p>
+
+<blockquote><pre class="code">AccessFileName .acl</pre></blockquote>
+
+<p>However, you must also make sure that this file
+can't be accessed directly from the Web, or else you
+risk exposing your configuration. This is done automatically for
+<em class="emphasis">.ht*</em> files by Apache, but for other files you
+need to use:</p>
+
+<blockquote><pre class="code">&lt;Files .acl&gt;
+    Order Allow,Deny
+    Deny from all
+&lt;/Files&gt;</pre></blockquote>
+
+<p>Another often-mentioned file is the startup file, usually named
+<em class="emphasis">startup.pl</em><a name="pmodperl-CHP-4-ITERM-3812" />. This file contains Perl code that will be
+executed at server startup. We'll discuss the
+<em class="emphasis">startup.pl</em> file in greater detail later in this
+chapter, in <a href="ch04_03.html#pmodperl-CHP-4-SECT-3">Section 4.3</a>.</p>
+
+<p>Beware of editing <em class="emphasis">httpd.conf</em>
+without<a name="pmodperl-CHP-4-ITERM-3813" /> understanding all the implications.
+Modifying the configuration file and adding new directives can
+introduce security problems and have performance implications. If you
+are going to modify anything, read through the documentation
+beforehand. The Apache distribution comes with an extensive
+configuration manual. In addition, each section of the distributed
+configuration file includes helpful comments explaining how each
+directive should be configured and what the default values are.</p>
+
+<p>If you haven't moved Apache's
+directories around, the installation program will configure
+everything for you. You can just start the server and test it. To
+start the server, use the <em class="emphasis">apachectl</em> utility
+bundled with the Apache distribution. It resides in the same
+directory as <em class="emphasis">httpd</em>, the Apache
+<a name="pmodperl-CHP-4-ITERM-3814" /><a name="pmodperl-CHP-4-ITERM-3815" />server itself. Execute:</p>
+
+<blockquote><pre class="code">panic% /usr/local/apache/bin/apachectl start</pre></blockquote>
+
+<p>Now you can test the server, for example by accessing
+<em class="emphasis">http://localhost/</em> from a browser running on the
+same host.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">4.1.2. Configuration Directives</h3>
+
+<p>A basic setup
+<a name="pmodperl-CHP-4-ITERM-3816" /><a name="pmodperl-CHP-4-ITERM-3817" /><a name="pmodperl-CHP-4-ITERM-3818" />requires little configuration.
+If you moved any directories after Apache was installed, they should
+be updated in <em class="emphasis">httpd.conf</em>. Here are just a couple
+of examples:</p>
+
+<blockquote><pre class="code">ServerRoot   "/usr/local/apache"
+DocumentRoot "/usr/local/apache/docs"</pre></blockquote>
+
+<p>You can change the port to which the server is bound by editing the
+<tt class="literal">Port</tt> directive. This example sets the port to 8080
+(the default for the HTTP protocol is 80):</p>
+
+<blockquote><pre class="code">Port 8080</pre></blockquote>
+
+<p>You might want to change the user and group names under which the
+server will run. If Apache is started by the user
+<em class="emphasis">root</em> (which is generally the case), the parent
+process will continue to run as <em class="emphasis">root</em>, but its
+children will run as the user and group specified in the
+configuration, thereby avoiding many potential security problems.
+This example uses the <em class="emphasis">httpd</em> user and group:</p>
+
+<blockquote><pre class="code">User httpd
+Group httpd</pre></blockquote>
+
+<p>Make sure that the user and group <em class="emphasis">httpd</em> already
+exist. They can be created using <em class="emphasis">useradd(1)</em> and
+<em class="emphasis">groupadd(1)</em> or equivalent utilities.</p>
+
+<p>Many other directives may need to be configured as well. In addition
+to directives that take a single value, there are whole sections of
+the configuration (such as the <tt class="literal">&lt;Directory&gt;</tt>
+and <tt class="literal">&lt;Location&gt;</tt>sections) that apply to only
+certain areas of the web space. The <em class="emphasis">httpd.conf</em>
+file supplies a few examples, and these will be discussed shortly.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">4.1.3. &lt;Directory&gt;, &lt;Location&gt;, and &lt;Files&gt; Sections</h3>
+
+<p>Let's discuss the basics of the
+<tt class="literal">&lt;Directory&gt;</tt>,
+<tt class="literal">&lt;Location&gt;</tt>, and
+<tt class="literal">&lt;Files&gt;</tt>sections. Remember that there is
+more to know about them than what we list here, and the rest of the
+information is available in the Apache documentation. The information
+we'll present here is just what is important for
+understanding mod_perl configuration.</p>
+
+<p>Apache considers directories and files on the machine it runs on as
+<em class="emphasis">resources</em>. A particular behavior can be
+specified for each resource; that behavior will apply to every
+request for information from that particular resource.</p>
+
+<p>Directives in <a name="pmodperl-CHP-4-ITERM-3819" /><a name="pmodperl-CHP-4-ITERM-3820" /><a name="pmodperl-CHP-4-ITERM-3821" /><tt class="literal">&lt;Directory&gt;</tt>
+sections apply to specific directories on the host machine, and those
+in <a name="pmodperl-CHP-4-ITERM-3822" /><a name="pmodperl-CHP-4-ITERM-3823" /><a name="pmodperl-CHP-4-ITERM-3824" /><tt class="literal">&lt;Files&gt;</tt>
+sections apply only to specific files (actually, groups of files with
+names that have something in common).
+<tt class="literal">&lt;Location&gt;</tt><a name="pmodperl-CHP-4-ITERM-3825" /><a name="pmodperl-CHP-4-ITERM-3826" /><a name="pmodperl-CHP-4-ITERM-3827" /> sections
+apply to specific URIs. Locations are given relative to the document
+root, whereas directories are given as absolute paths starting from
+the filesystem root (<em class="emphasis">/</em>). For example, in the
+default server directory layout where the server root is
+<em class="emphasis">/usr/local/apache</em> and the document root is
+<em class="emphasis">/usr/local/apache/htdocs</em>, files under the
+<em class="emphasis">/usr/local/apache/htdocs/pub</em> directory can be
+referred to as:</p>
+
+<blockquote><pre class="code">&lt;Directory /usr/local/apache/htdocs/pub&gt;
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>or alternatively (and preferably) as:</p>
+
+<blockquote><pre class="code">&lt;Location /pub&gt;
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Exercise caution when using <tt class="literal">&lt;Location&gt;</tt> under
+Win32. The Windows family of operating systems are case-insensitive.
+In the above example, configuration directives specified for the
+location <em class="emphasis">/pub</em> on a case-sensitive Unix machine
+will not be applied when the request URI is
+<em class="emphasis">/Pub</em>. When URIs map to existing files, such as
+<tt class="literal">Apache::Registry</tt>scripts, it is safer to use the
+<tt class="literal">&lt;Directory&gt;</tt> or
+<tt class="literal">&lt;Files&gt;</tt> directives, which correctly
+canonicalize filenames according to local filesystem semantics.</p>
+
+<p>It is up to you to decide which directories on your host machine are
+mapped to which locations. This should be done with care, because the
+security of the server may be at stake. In particular, essential
+system directories such as <em class="emphasis">/etc/</em>
+shouldn't be mapped to locations accessible through
+the web server. As a general rule, it might be best to organize
+everything accessed from the Web under your
+<em class="emphasis">ServerRoot</em>, so that it stays organized and you
+can keep track of which directories are actually accessible.</p>
+
+<p>Locations do not necessarily have to refer to existing physical
+directories, but may refer to virtual resources that the server
+creates upon a browser request. As you will see, this is often the
+case for a mod_perl server.</p>
+
+<p>When a client (browser)
+<a name="pmodperl-CHP-4-ITERM-3828" /><a name="pmodperl-CHP-4-ITERM-3829" />requests a resource (URI plus optional
+arguments) from the server, Apache determines from its configuration
+whether or not to serve the request, whether to pass the request on
+to another server, what (if any) authentication and authorization is
+required for access to the resource, and which module(s) should be
+invoked to generate the response.</p>
+
+<p>For any given resource, the various sections in the configuration may
+provide conflicting information. Consider, for example, a
+<tt class="literal">&lt;Directory&gt;</tt>section that specifies that
+authorization is required for access to the resource, and a
+<tt class="literal">&lt;Files&gt;</tt>section that says that it is not. It
+is not always obvious which directive takes precedence in such cases.
+This can be a trap for the unwary.</p>
+
+<a name="pmodperl-CHP-4-SECT-1.3.1" /><div class="sect3">
+<h3 class="sect3">4.1.3.1. &lt;Directory directoryPath&gt; ... &lt;/Directory&gt;</h3>
+
+<p><em class="emphasis">Scope</em>: Can appear in server and virtual host
+configurations.</p>
+
+<p><tt class="literal">&lt;Directory&gt;</tt><a name="pmodperl-CHP-4-ITERM-3830" /><a name="pmodperl-CHP-4-ITERM-3831" /><a name="pmodperl-CHP-4-ITERM-3832" /> and
+<tt class="literal">&lt;/Directory&gt;</tt> are used to enclose a group
+of<a name="pmodperl-CHP-4-ITERM-3833" />
+directives that will apply to only the named directory and its
+contents, including any subdirectories. Any directive that is allowed
+in a directory context (see the Apache documentation) may be used.</p>
+
+<p>The path given in the <tt class="literal">&lt;Directory&gt;</tt> directive
+is either the full path to a directory, or a string containing
+wildcard characters (also called <em class="emphasis">globs</em>). In the
+latter case, <tt class="literal">?</tt> matches any single character,
+<tt class="literal">*</tt> matches any sequence of characters, and
+<tt class="literal">[ ]</tt> matches character ranges. These are similar to
+the wildcards used by <em class="emphasis">sh</em> and similar shells. For
+example:</p>
+
+<blockquote><pre class="code">&lt;Directory /home/httpd/docs/foo[1-2]&gt;
+    Options Indexes
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>will match <em class="emphasis">/home/httpd/docs/foo1</em> and
+<em class="emphasis">/home/httpd/docs/foo2</em>. None of the wildcards
+will match a <tt class="literal">/</tt> character. For example:</p>
+
+<blockquote><pre class="code">&lt;Directory /home/httpd/docs&gt;
+    Options Indexes
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>matches <em class="emphasis">/home/httpd/docs</em> and applies to all its
+subdirectories.</p>
+
+<p>Matching a <a name="pmodperl-CHP-4-ITERM-3834" />regular expression is done by using the
+<tt class="literal">&lt;DirectoryMatch regex&gt; ..</tt>.
+<tt class="literal">&lt;/DirectoryMatch&gt;</tt> or <tt class="literal">&lt;Directory
+~ regex&gt; ... &lt;/Directory&gt;</tt>syntax. For example:</p>
+
+<blockquote><pre class="code">&lt;DirectoryMatch /home/www/.*/public&gt;
+    Options Indexes
+&lt;/DirectoryMatch&gt;</pre></blockquote>
+
+<p>will match <em class="emphasis">/home/www/foo/public</em> but not
+<em class="emphasis">/home/www/foo/private</em>. In a regular expression,
+<tt class="literal">.*</tt> matches any character (represented by
+.) zero or more times (represented by
+<tt class="literal">*</tt>). This is entirely different from the
+shell-style wildcards used by the
+<tt class="literal">&lt;Directory&gt;</tt> directive. They make it easy to
+apply a common configuration to a set of public directories. As
+regular expressions are more flexible than globs, this method
+provides more options to the experienced user.</p>
+
+<p>If multiple (non-regular expression)
+<tt class="literal">&lt;Directory&gt;</tt>sections match the directory (or
+its parents) containing a document, the directives are applied in the
+order of the shortest match first, interspersed with the directives
+from any <em class="emphasis">.htaccess</em> files. Consider the following
+configuration:</p>
+
+<blockquote><pre class="code">&lt;Directory /&gt;
+    AllowOverride None
+&lt;/Directory&gt;
+
+&lt;Directory /home/httpd/docs/&gt;
+    AllowOverride FileInfo
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>Let us detail the steps Apache goes through when it receives a
+request for the file
+<em class="emphasis">/home/httpd/docs/index.html</em>:</p>
+
+<ol><li>
+<p>Apply the directive <tt class="literal">AllowOverride None</tt> (disabling
+<em class="emphasis">.htaccess</em> files).</p>
+</li><li>
+<p>Apply the directive <tt class="literal">AllowOverride FileInfo</tt> for the
+directory <em class="emphasis">/home/httpd/docs/</em> (which now enables
+<em class="emphasis">.htaccess</em> in
+<em class="emphasis">/home/httpd/docs/</em> and its subdirectories).</p>
+</li><li>
+<p>Apply any directives in the group <tt class="literal">FileInfo</tt>, which
+control document types (<tt class="literal">AddEncoding</tt>,
+<tt class="literal">AddLanguage</tt>, <tt class="literal">AddType</tt>,
+etc.&#8212;see the Apache documentation for more information) found
+in <em class="emphasis">/home/httpd/docs/.htaccess</em>.</p>
+</li></ol>
+</div>
+
+<a name="pmodperl-CHP-4-SECT-1.3.2" /><div class="sect3">
+<h3 class="sect3">4.1.3.2. &lt;Files filename &gt; ... &lt;/Files&gt;</h3>
+
+<p><em class="emphasis">Scope</em>: Can appear in server and virtual host
+configurations, as well as in <em class="emphasis">.htaccess</em> files.</p>
+
+<p>The <tt class="literal">&lt;Files&gt;</tt><a name="pmodperl-CHP-4-ITERM-3835" /><a name="pmodperl-CHP-4-ITERM-3836" /><a name="pmodperl-CHP-4-ITERM-3837" /> directive provides access control by
+filename and is comparable to the
+<tt class="literal">&lt;Directory&gt;</tt> and
+<tt class="literal">&lt;Location&gt;</tt> directives.
+<tt class="literal">&lt;Files&gt;</tt>should be closed with the
+corresponding <tt class="literal">&lt;/Files&gt;</tt>. The directives
+<a name="pmodperl-CHP-4-ITERM-3838" />specified
+within this section will be applied to any object with a basename
+matching the specified filename. (A basename is the last component of
+a path, generally the name of the file.)</p>
+
+<p><tt class="literal">&lt;Files&gt;</tt>sections are processed in the order
+in which they appear in the configuration file, after the
+<tt class="literal">&lt;Directory&gt;</tt>sections and
+<em class="emphasis">.htaccess</em> files are read, but before
+<tt class="literal">&lt;Location&gt;</tt>sections. Note that
+<tt class="literal">&lt;Files&gt;</tt> can be nested inside
+<tt class="literal">&lt;Directory&gt;</tt>sections to restrict the portion
+of the filesystem to which they apply. However,
+<tt class="literal">&lt;Files&gt;</tt> cannot be nested inside
+<tt class="literal">&lt;Location&gt;</tt>sections.</p>
+
+<p>The filename argument should include a filename or a wildcard string,
+where <tt class="literal">?</tt> matches any single character and
+<tt class="literal">*</tt> matches any sequence of characters, just as with
+<tt class="literal">&lt;Directory&gt;</tt>sections. Extended regular
+expressions can also be used, placing a tilde character
+(<tt class="literal">~</tt>) between the directive and the regular
+expression. The regular expression should be in quotes. The dollar
+symbol (<tt class="literal">$</tt>) refers to the end of the string. The
+pipe character (<tt class="literal">|</tt>) indicates alternatives, and
+parentheses (<tt class="literal">()</tt>) can be used for grouping. Special
+characters in extended regular expressions must be escaped with
+backslashes (<tt class="literal">\</tt>). For example:</p>
+
+<blockquote><pre class="code">&lt;Files ~ "\.(pl|cgi)$"&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options +ExecCGI
+&lt;/Files&gt;</pre></blockquote>
+
+<p>would match all the files ending with the <em class="emphasis">.pl</em> or
+<em class="emphasis">.cgi</em> extension (most likely Perl scripts).
+Alternatively, the <tt class="literal">&lt;FilesMatch regex&gt;</tt> ...
+<tt class="literal">&lt;/FilesMatch&gt;</tt>syntax can be used.</p>
+
+<a name="pmodperl-CHP-4-SIDEBAR-1" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Regular Expressions</h4>
+
+<p>There is much more to regular expressions than what we have shown you
+here. As a Perl programmer, learning to use regular expressions is
+very important, and what you can learn there will be applicable to
+your Apache configuration too.</p>
+
+<p>See the <em class="emphasis">perlretut</em> manpage and the book
+<em class="emphasis">Mastering Regular Expressions</em> by Jeffrey E. F.
+Friedl (O'Reilly) for more information.</p>
+</td></tr></table><p></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-4-SECT-1.3.3" /><div class="sect3">
+<h3 class="sect3">4.1.3.3. &lt;Location URI&gt; ... &lt;/Location&gt;</h3>
+
+<p><em class="emphasis">Scope</em>: Can appear in server and virtual host
+configurations.</p>
+
+<p>The <tt class="literal">&lt;Location&gt;</tt>
+<a name="pmodperl-CHP-4-ITERM-3839" /><a name="pmodperl-CHP-4-ITERM-3840" /><a name="pmodperl-CHP-4-ITERM-3841" />directive
+provides for directive scope limitation by URI. It is similar to the
+<tt class="literal">&lt;Directory&gt;</tt> directive and starts a section
+that is terminated with the <tt class="literal">&lt;/Location&gt;</tt>
+directive.</p>
+
+<p><tt class="literal">&lt;Location&gt;</tt>sections are processed in the
+order in which they appear in the configuration file, after the
+<tt class="literal">&lt;Directory&gt;</tt>sections,
+<em class="emphasis">.htaccess</em> files, and
+<tt class="literal">&lt;Files&gt;</tt>sections have been interpreted.</p>
+
+<p>The <tt class="literal">&lt;Location&gt;</tt>section is the directive that
+is used most often with mod_perl.</p>
+
+<p>Note that URIs do not have to refer to real directories or files
+within the filesystem at all; <tt class="literal">&lt;Location&gt;</tt>
+operates completely outside the filesystem. Indeed, it may sometimes
+be wise to ensure that <tt class="literal">&lt;Location&gt;</tt>s do not
+match real paths, to avoid confusion.</p>
+
+<p>The URI may use wildcards. In a wildcard string, <tt class="literal">?</tt>
+matches any single character, <tt class="literal">*</tt> matches any
+sequences of characters, and <tt class="literal">[ ]</tt> groups characters
+to match. For regular expression matches, use the
+<tt class="literal">&lt;LocationMatch regex&gt;</tt> ...
+<tt class="literal">&lt;/LocationMatch&gt;</tt>syntax.</p>
+
+<p>The <tt class="literal">&lt;Location&gt;</tt> functionality is especially
+useful when combined with the <tt class="literal">SetHandler</tt>
+directive. For example, to enable server status requests (via
+mod_status) but allow them only from browsers at
+<em class="emphasis">*.example.com</em>, you might use:</p>
+
+<blockquote><pre class="code">&lt;Location /status&gt;
+    SetHandler server-status
+    Order Deny,Allow
+    Deny from all
+    Allow from .example.com
+&lt;/Location&gt;</pre></blockquote>
+
+<p>As you can see, the <em class="emphasis">/status</em> path does not exist
+on the filesystem, but that doesn't matter because
+the filesystem isn't consulted for this
+request&#8212;it's passed on directly to mod_status.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-4-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">4.1.4. Merging &lt;Directory&gt;, &lt;Location&gt;, and &lt;Files&gt; Sections</h3>
+
+<p>When <a name="pmodperl-CHP-4-ITERM-3842" /><a name="pmodperl-CHP-4-ITERM-3843" /><a name="pmodperl-CHP-4-ITERM-3844" />configuring the server,
+it's important to understand the order in which the
+rules of each section are applied to requests. The order of merging
+is:</p>
+
+<ol><li>
+<p><tt class="literal">&lt;Directory&gt;</tt> (except for regular expressions)
+and <em class="emphasis">.htaccess</em> are processed simultaneously, with
+the directives in <em class="emphasis">.htaccess</em> overriding
+<tt class="literal">&lt;Directory&gt;</tt>.</p>
+</li><li>
+<p><tt class="literal">&lt;DirectoryMatch&gt;</tt> and <tt class="literal">&lt;Directory
+~ &gt;</tt> with regular expressions are processed next.</p>
+</li><li>
+<p><tt class="literal">&lt;Files&gt;</tt> and
+<tt class="literal">&lt;FilesMatch&gt;</tt> are processed simultaneously.</p>
+</li><li>
+<p><tt class="literal">&lt;Location&gt;</tt> and
+<tt class="literal">&lt;LocationMatch&gt;</tt> are processed
+simultaneously.</p>
+</li></ol>
+<p>Apart from <tt class="literal">&lt;Directory&gt;</tt>, each group is
+processed in the order in which it appears in the configuration
+files. <tt class="literal">&lt;Directory&gt;</tt>s (group 1 above) are
+processed in order from the shortest directory component to the
+longest (e.g., first <em class="emphasis">/</em> and only then
+<em class="emphasis">/home/www</em>). If multiple
+<tt class="literal">&lt;Directory&gt;</tt>sections apply to the same
+directory, they are processed in the configuration file order.</p>
+
+<p>Sections inside <tt class="literal">&lt;VirtualHost&gt;</tt>sections are
+applied as if you were running several independent servers. The
+directives inside one <tt class="literal">&lt;VirtualHost&gt;</tt>section
+do not interact with directives in other
+<tt class="literal">&lt;VirtualHost&gt;</tt>sections. They are applied
+only after processing any sections outside the virtual host
+definition. This allows virtual host configurations to override the
+main server configuration.</p>
+
+<p>If there is a conflict, sections found later in the configuration
+file override those that come earlier.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-1.5" /><div class="sect2">
+<h3 class="sect2">4.1.5. Subgrouping of &lt;Directory&gt;, &lt;Location&gt;, and &lt;Files&gt; Sections</h3>
+
+<p>Let's <a name="pmodperl-CHP-4-ITERM-3845" /><a name="pmodperl-CHP-4-ITERM-3846" /><a name="pmodperl-CHP-4-ITERM-3847" />say that you want all files to be
+handled the same way, except for a few of the files in a specific
+directory and its subdirectories. For example, say you want all the
+files in <em class="emphasis">/home/httpd/docs</em> to be processed as
+plain files, but any files ending with <em class="emphasis">.html</em> and
+<em class="emphasis">.txt</em> to be processed by the content handler of
+the <tt class="literal">Apache::Compress</tt> module (assuming that you are
+already running a mod_perl server):</p>
+
+<blockquote><pre class="code">&lt;Directory /home/httpd/docs&gt;
+    &lt;FilesMatch "\.(html|txt)$"&gt;
+        PerlHandler +Apache::Compress
+    &lt;/FilesMatch&gt;
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>The <tt class="literal">+</tt> before <tt class="literal">Apache::Compress</tt>
+tells mod_perl to load the <tt class="literal">Apache::Compress</tt> module
+before using it, as we will see later.</p>
+
+<p>Using <a name="pmodperl-CHP-4-ITERM-3848" /><a name="pmodperl-CHP-4-ITERM-3849" /><a name="pmodperl-CHP-4-ITERM-3850" /><tt class="literal">&lt;FilesMatch&gt;</tt>,
+it is possible to embed sections inside other sections to create
+subgroups that have their own distinct behavior. Alternatively, you
+could also use a <tt class="literal">&lt;Files&gt;</tt>section inside an
+<em class="emphasis">.htaccess</em> file.</p>
+
+<p>Note that you can't put
+<tt class="literal">&lt;Files&gt;</tt> or
+<tt class="literal">&lt;FilesMatch&gt;</tt>sections inside a
+<tt class="literal">&lt;Location&gt;</tt>section, but you can put them
+inside a <tt class="literal">&lt;Directory&gt;</tt>section.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-1.6" /><div class="sect2">
+<h3 class="sect2">4.1.6. Options Directive Merging</h3>
+
+<p>Normally, if <a name="pmodperl-CHP-4-ITERM-3851" /><a name="pmodperl-CHP-4-ITERM-3852" /><a name="pmodperl-CHP-4-ITERM-3853" /><a name="pmodperl-CHP-4-ITERM-3854" />multiple <tt class="literal">Options</tt>
+directives apply to a directory, the most specific one is taken
+completely; the options are not merged.</p>
+
+<p>However, if all the options on the <tt class="literal">Options</tt>
+directive are preceded by either a <tt class="literal">+</tt> or
+<tt class="literal">-</tt>symbol, the options are merged. Any options
+preceded by <tt class="literal">+</tt> are added to the options currently
+active, and any options preceded by <tt class="literal">-</tt> are removed.</p>
+
+<p>For example, without any <tt class="literal">+</tt> or <tt class="literal">-</tt>
+symbols:</p>
+
+<blockquote><pre class="code">&lt;Directory /home/httpd/docs&gt;
+    Options Indexes FollowSymLinks
+&lt;/Directory&gt;
+&lt;Directory /home/httpd/docs/shtml&gt;
+    Options Includes
+&lt;/Directory&gt;</pre></blockquote>
+
+<p><tt class="literal">Indexes</tt> and <tt class="literal">FollowSymLinks</tt> will
+be set for <em class="emphasis">/home/httpd/docs/</em>, but only
+<tt class="literal">Includes</tt> will be set for the
+<em class="emphasis">/home/httpd/docs/shtml/</em> directory. However, if
+the second <tt class="literal">Options</tt> directive uses the
+<tt class="literal">+</tt> and <tt class="literal">-</tt>symbols:</p>
+
+<blockquote><pre class="code">&lt;Directory /home/httpd/docs&gt;
+    Options Indexes FollowSymLinks
+&lt;/Directory&gt;
+&lt;Directory /home/httpd/docs/shtml&gt;
+    Options +Includes -Indexes
+&lt;/Directory&gt;</pre></blockquote>
+
+<p>then the options <tt class="literal">FollowSymLinks</tt> and
+<tt class="literal">Includes</tt> will be set for the
+<em class="emphasis">/home/httpd/docs/shtml/</em> directory.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-1.7" /><div class="sect2">
+<h3 class="sect2">4.1.7. MinSpareServers, MaxSpareServers, StartServers, MaxClients, and MaxRequestsPerChild</h3>
+
+<p><tt class="literal">MinSpareServers</tt><a name="pmodperl-CHP-4-ITERM-3855" />,
+<tt class="literal">MaxSpareServers</tt><a name="pmodperl-CHP-4-ITERM-3856" />,
+<tt class="literal">StartServers</tt><a name="pmodperl-CHP-4-ITERM-3857" />, and
+<tt class="literal">MaxClients</tt><a name="pmodperl-CHP-4-ITERM-3858" /> are
+<a name="pmodperl-CHP-4-ITERM-3859" /><a name="pmodperl-CHP-4-ITERM-3860" /><a name="pmodperl-CHP-4-ITERM-3861" />standard Apache configuration
+directives that control the number of servers being launched at
+server startup and kept alive during the server's
+operation. When Apache starts, it spawns
+<tt class="literal">StartServers</tt> child processes. Apache makes sure
+that at any given time there will be at least
+<tt class="literal">MinSpareServers</tt> but no more than
+<tt class="literal">MaxSpareServers</tt> idle servers. However, the
+<tt class="literal">MinSpareServers</tt> rule is completely satisfied only
+if the total number of live servers is no bigger than
+<tt class="literal">MaxClients</tt>.</p>
+
+<p><tt class="literal">MaxRequestsPerChild</tt> lets you specify the maximum
+number of requests to be served by each child. When a process has
+served <tt class="literal">MaxRequestsPerChild</tt> requests, the parent
+kills it and replaces it with a new one. There may also be other
+reasons why a child is killed, so each child will not necessarily
+serve this many requests; however, each child will not be allowed to
+serve more than this number of requests. This feature is handy to
+gain more control of the server, and especially to avoid child
+processes growing too big (RAM-wise) under mod_perl.</p>
+
+<p>These five directives are very important for getting the best
+performance out of your server. The process of tuning these variables
+is described in great detail in <a href="ch11_01.html">Chapter 11</a>.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_12.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch04_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">3.12. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">4.2. mod_perl Configuration</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

@@ -1,0 +1,783 @@
+<html><head><title>Comparing Runtime Performance of Perl and C (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_11.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch13_13.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">13.12. Comparing Runtime Performance of Perl and C</h2>
+
+<p>Perl is <a name="pmodperl-CHP-13-ITERM-5160" /><a name="pmodperl-CHP-13-ITERM-5161" /><a name="pmodperl-CHP-13-ITERM-5162" />commonly used for
+web scripting because it is quick and easy to write, and very easy to
+change. Compiled languages usually take a lot more time and effort to
+write and debug and can be time-consuming to change. But compiled
+code often runs faster (sometimes a <em class="emphasis">lot</em> faster)
+than bytecode-interpreted languages such as Perl or Java. In most
+projects it is programmer time that is paramount, because programmers
+are expensive, but some projects demand performance above all other
+considerations. How do we compare the performance of a Perl script to
+that of a C program?</p>
+
+<p>We know we can use the <tt class="literal">Benchmark</tt> module to compare
+Perl code. There are equivalent tools for C also, but how are we
+going to use two different tools and keep the comparison fair? Since
+Perl is a glue language in addition to its own merits, we can glue
+the C code into Perl and then use the <tt class="literal">Benchmark</tt>
+module to run the benchmark.</p>
+
+<p>To simplify the task, we are going to demonstrate only the fact that
+C is more suitable than Perl for mathematical and memory-manipulation
+tasks. The purpose is to show how to use the best of both worlds.</p>
+
+<p>We will use a very simple task that we will implement in Perl and C:
+the factorial function written both recursivly and iteratively. If
+you have ever taken a basic programming course you will be familiar
+with this example.</p>
+
+<p>In mathematical language, we define the factorial function as follows:</p>
+
+<blockquote><pre class="code">1! = 1
+N! = N * (N-1)!</pre></blockquote>
+
+<p>So if we start from 1 and go up, we get these numbers:</p>
+
+<blockquote><pre class="code">1! =                1
+2! = (2)(1)       = 2
+3! = (3)(2)(1)    = 6
+4! = (4)(3)(2)(1) = 24
+... and so on.</pre></blockquote>
+
+<p>The factorial grows very fast&#8212;e.g., 10! = 3,628,800 and 12! =
+4.790016e+08 (479 million)&#8212;so you can imagine that the
+calculation of the factorial of large numbers is a memory-intensive
+operation.</p>
+
+<p>Now since we have a recursive definition of the solution:</p>
+
+<blockquote><pre class="code">fact(1) = 1;
+fact(N) = N * fact(N-1)</pre></blockquote>
+
+<p>the easiest way to implement it is to write a recursive function. In
+Perl we just reproduce the definition:</p>
+
+<blockquote><pre class="code">sub factorial_recursive_perl {
+    return 1 if $_[0] &lt; 2;
+    return $_[0] * factorial_recursive_perl($_[0] - 1);
+}</pre></blockquote>
+
+<p>Computer science teaches us that while recursive functions are often
+easy to write they are usually slower to run than their iterative
+equivalents. The iterative implementation is as easy as the recursive
+one in our example, and it should run much faster, since there is no
+function-call overhead. This is the iterative algorithm to calculate
+<tt class="literal">fact(N)</tt>:</p>
+
+<blockquote><pre class="code">result = 1
+for (i = 2; i &lt;= N; i++) {
+    result *= i;
+}</pre></blockquote>
+
+<p>By adjusting it to use idiomatic Perl, we get the following function:</p>
+
+<blockquote><pre class="code">sub factorial_iterative_perl {
+    my $return = 1;
+    $return *= $_ for 2..$_[0];
+    return $return;
+}</pre></blockquote>
+
+<p>The implementations in C are again similar to the algorithm itself:</p>
+
+<blockquote><pre class="code">double factorial_recursive_c(int x) {
+    if (x &lt; 2)  return 1;
+    return x * factorial_recursive_c(x - 1);
+}
+
+double factorial_iterative_c(int x) {
+    int i;
+    double result = 1;
+    for (i = 2; i &lt;= x; i++)
+        result *= i;
+    return result;
+}</pre></blockquote>
+
+<p>To jump ahead, when we run the final benchmark we get the following
+results:</p>
+
+<blockquote><pre class="code">Benchmark: timing 300000 iterations of iterative_c, iterative_perl,
+           recursive_c, recursive_perl...
+   iterative_c:  0 wallclock secs ( 0.47 usr +  0.00 sys =  0.47 CPU)
+   recursive_c:  2 wallclock secs ( 1.15 usr +  0.00 sys =  1.15 CPU)
+iterative_perl: 28 wallclock secs (26.34 usr +  0.00 sys = 26.34 CPU)
+recursive_perl: 75 wallclock secs (74.64 usr +  0.11 sys = 74.75 CPU)</pre></blockquote>
+
+<p>All functions under test were executing 100!, which is
+9.33262154439441e+157 using scientific notation.</p>
+
+<p>The iterative implementation is about two and a half times as fast in
+C and three times as fast in Perl, where function calls are more
+expensive. Comparing C to Perl, the iterative implementation in C is
+about 56 times faster than the same algorithm implemented in Perl,
+and in the case of the recursive algorithm, C is 65 times faster.</p>
+
+<p>There are at least three approaches to embedding other languages into
+Perl: XS, SWIG, and <tt class="literal">Inline.pm</tt>. We will implement
+the C functions we've written using the XS and
+<tt class="literal">Inline.pm</tt> techniques in the following sections.
+While SWIG is easier to use than XS for simple tasks,
+it's not as powerful as XS and it's
+not bundled with Perl. If you work on code that may later be
+distributed on CPAN, you'd better use XS
+or<a name="pmodperl-CHP-13-ITERM-5163" /><a name="pmodperl-CHP-13-ITERM-5164" /><a name="pmodperl-CHP-13-ITERM-5165" /> <tt class="literal">Inline.pm</tt>.</p>
+
+<a name="pmodperl-CHP-13-SECT-12.1" /><div class="sect2">
+<h3 class="sect2">13.12.1. Building Perl Extensions with XS and h2xs</h3>
+
+<p>Perl comes <a name="pmodperl-CHP-13-ITERM-5166" /><a name="pmodperl-CHP-13-ITERM-5167" /><a name="pmodperl-CHP-13-ITERM-5168" /><a name="pmodperl-CHP-13-ITERM-5169" /><a name="pmodperl-CHP-13-ITERM-5170" />with a nifty utility
+called <em class="emphasis">h2xs</em> that builds a skeleton for a new
+module. It's useful whether you are going to write a
+module with extensions in C/C++ or just in plain Perl.</p>
+
+<p>When you run this utility it creates a new directory named after the
+module, and a skeleton of the <em class="emphasis">Makefile.PL</em>,
+<em class="emphasis">test.pl</em>, <em class="emphasis">Module.xs</em>,
+<em class="emphasis">Module.pm</em>, <em class="emphasis">Changes</em>, and
+<em class="emphasis">MANIFEST</em> files. If you have a C header file, it
+tries to guess the XS code based on it and write the correct XS file.
+Depending on how complicated your interface is, it may or may not do
+the right thing, but it helps anyway since it creates a boilerplate
+(which saves quite a lot of work).</p>
+
+<p>First we prepare a C source file
+<a name="pmodperl-CHP-13-ITERM-5171" />and its header file (see Examples
+13-21 and 13-22).</p>
+
+<a name="pmodperl-CHP-13-EX-21" /><div class="example">
+<h4 class="objtitle">Example 13-21. factorial.h</h4>
+<blockquote><pre class="code">double factorial_recursive_c(int x);
+double factorial_iterative_c(int x);</pre></blockquote>
+</div>
+
+<a name="pmodperl-CHP-13-EX-22" /><div class="example">
+<h4 class="objtitle">Example 13-22. factorial.c</h4>
+<blockquote><pre class="code">double factorial_recursive_c(int x) {
+    if (x &lt; 2)  return 1;
+    return x * factorial_recursive_c(x - 1);
+}
+
+double factorial_iterative_c(int x) {
+    int i;
+    double result = 1;
+    for (i = 2; i &lt;= x; i++)
+        result *= i;
+    return result;
+}</pre></blockquote>
+</div>
+
+<p>It's easy to get lost in directories when creating a
+new module; therefore, we will show the exact directory we are in,
+using the prompt:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact&gt;</pre></blockquote>
+
+<p>Assuming that we work in this directory, we will save both files in
+this working directory. Let's check:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact&gt; find /home/stas/dev/fact -type f
+/home/stas/dev/fact/factorial.c
+/home/stas/dev/fact/factorial.h</pre></blockquote>
+
+<p>Now we are ready to create the skeleton of the new module:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact&gt; h2xs -n Book::Factorial -A -O -x \
+  -F '-I ../..' factorial.h
+Scanning typemaps...
+Scanning /usr/lib/perl5/5.6.1/ExtUtils/typemap
+Scanning factorial.h for functions...
+Scanning factorial.h for typedefs...
+Writing Book/Factorial/Factorial.pm
+Writing Book/Factorial/Factorial.xs
+Writing Book/Factorial/Makefile.PL
+Writing Book/Factorial/README
+Writing Book/Factorial/test.pl
+Writing Book/Factorial/Changes
+Writing Book/Factorial/MANIFEST</pre></blockquote>
+
+<p>We'll explain the <em class="emphasis">h2xs</em>
+<a name="pmodperl-CHP-13-ITERM-5172" />arguments
+we used:</p>
+
+<ul><li>
+<p><em class="emphasis">-n Book::Factorial</em> specifies the name of the new
+module. It is also used to create the base directory (in our case,
+<em class="emphasis">Book/Factorial/</em>).</p>
+</li><li>
+<p><em class="emphasis">-A</em> omits all autoload facilities.</p>
+</li><li>
+<p><em class="emphasis">-O</em> allows us to overwrite a directory with the
+new module if one already exists.</p>
+</li><li>
+<p><em class="emphasis">-x</em> automatically generates XSUBs based on
+function declarations in the header file
+(<em class="emphasis">factorial.h</em> in our case).</p>
+</li><li>
+<p><em class="emphasis">-F `-I../..</em>'
+specifies where the header file is to be found. When
+<em class="emphasis">h2xs</em> runs, it changes into the newly created
+directory (<em class="emphasis">Book/Factorial/</em> in our example), so
+in order to see the header file, we have to tell
+<em class="emphasis">h2xs</em> to look two directories back. (You may also
+need to add <em class="emphasis">-F '-I.</em>' during the
+<em class="emphasis">make</em> stage.)</p>
+</li><li>
+<p>The header file (<em class="emphasis">factorial.h</em> in our case) comes
+last.</p>
+</li></ul>
+<p>Our next step is to copy the C file and header into the newly created
+directory and <em class="emphasis">cd</em> into it:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact&gt; cp factorial.c factorial.h Book/Factorial/
+/home/stas/dev/fact&gt; cd Book/Factorial/</pre></blockquote>
+
+<p>Since we have a really simple header file with only two function
+declarations, we just need to adjust <em class="emphasis">Makefile.PL</em>
+to build the <em class="emphasis">factorial.o</em> object file and
+<em class="emphasis">Factorial.o</em>, the actual extension library. We
+adjust <em class="emphasis">Makefile.PL</em> by adding the following line:</p>
+
+<blockquote><pre class="code">'OBJECT'            =&gt; 'Factorial.o factorial.o',</pre></blockquote>
+
+<p>We fix the <tt class="literal">INC</tt> attribute to point to the current
+directory so the copied <em class="emphasis">include</em> file will be
+found.</p>
+
+<p>Now <em class="emphasis">Makefile.PL</em> looks like <a href="ch13_12.html#pmodperl-CHP-13-EX-23">Example 13-23</a> (remember that <em class="emphasis">h2xs</em> does
+most of the work for us).</p>
+
+<a name="pmodperl-CHP-13-EX-23" /><div class="example">
+<h4 class="objtitle">Example 13-23. Makefile.PL</h4>
+<blockquote><pre class="code">use ExtUtils::MakeMaker;
+# See lib/ExtUtils/MakeMaker.pm for details of how to influence
+# the contents of the Makefile that is written.
+WriteMakefile(
+    'NAME'              =&gt; 'Book::Factorial',
+    'VERSION_FROM'      =&gt; 'Factorial.pm', # finds $VERSION
+    'PREREQ_PM'         =&gt; {  }, # e.g., Module::Name =&gt; 1.1
+    'LIBS'              =&gt; [''], # e.g., '-lm'
+    'DEFINE'            =&gt; '', # e.g., '-DHAVE_SOMETHING'
+    'INC'               =&gt; '-I .', # e.g., '-I/usr/include/other'
+    'OBJECT'            =&gt; 'Factorial.o factorial.o',
+);</pre></blockquote>
+</div>
+
+<p>Now we remove parts of the default module created by
+<em class="emphasis">h2xs</em> and add the Perl functions to
+<em class="emphasis">Factorial.pm</em>, since our module mixes pure Perl
+and C functions. We also write some simple documentation in POD
+format. After we add the Perl code and documentation and do some
+patching, <em class="emphasis">Factorial.pm</em> looks like <a href="ch13_12.html#pmodperl-CHP-13-EX-24">Example 13-24</a>.</p>
+
+<a name="pmodperl-CHP-13-EX-24" /><div class="example">
+<h4 class="objtitle">Example 13-24. Book/Factorial.pm</h4>
+<blockquote><pre class="code">package Book::Factorial;
+
+require 5.006;
+use strict;
+
+use vars  qw($VERSION);
+$VERSION = '0.01';
+
+use base qw(DynaLoader);
+
+bootstrap Book::Factorial $VERSION;
+
+sub factorial_recursive_perl {
+    return 1 if $_[0] &lt; 2;
+    return $_[0] * factorial_recursive_perl($_[0] - 1);
+}
+
+sub factorial_iterative_perl {
+    my $return = 1;
+    $return *= $_ for 2..$_[0];
+    return $return;
+}
+
+1;
+_ _END_ _
+
+=head1 NAME
+
+Book::Factorial - Perl and C, Recursive and Iterative Factorial
+Calculation Functions
+
+=head1 SYNOPSIS
+
+  use Book::Factorial;
+  $input = 5;
+  $result = Book::Factorial::factorial_iterative_c(   $input);
+  $result = Book::Factorial::factorial_recursive_c(   $input);
+  $result = Book::Factorial::factorial_iterative_perl($input);
+  $result = Book::Factorial::factorial_recursive_perl($input);
+
+=head1 DESCRIPTION
+
+This module provides functions to calculate a factorial using
+recursive and iterative algorithms, whose internal implementation are
+coded in Perl and C.
+
+=head2 EXPORTS
+
+None.
+
+=head1 AUTHORS
+
+Eric Cholet &lt;email address&gt; and Stas Bekman &lt;email address&gt;
+
+=head1 SEE ALSO
+
+perl(1).
+
+=cut</pre></blockquote>
+</div>
+
+<p>If you've written pure Perl modules before,
+you'll see that the only unusual part is the code:</p>
+
+<blockquote><pre class="code">use base qw(DynaLoader);
+
+bootstrap Book::Factorial $VERSION;</pre></blockquote>
+
+<p>The <tt class="literal">base</tt> pragma specifies that the package
+<tt class="literal">Book::Factorial</tt> inherits from
+<tt class="literal">DynaLoader</tt>. Alternatively, you can write this as:</p>
+
+<blockquote><pre class="code">require DynaLoader;
+@Book::Factorial::ISA = qw(DynaLoader);</pre></blockquote>
+
+<p>where <tt class="literal">@ISA</tt> is the array that's
+used when inheritance relations are specified.</p>
+
+<p><tt class="literal">bootstrap</tt> is the place where the C extension
+<tt class="literal">Factorial.o</tt> is loaded, making the C functions
+available as Perl subroutines.</p>
+
+<p>It's very important to document the module,
+especially when the package's functions
+don't reside within the module itself. Doing so will
+let you and your users know what functions are available, how they
+should be called, and what they return.</p>
+
+<p>We have written very basic documentation. Usually
+it's a good idea to document each method.</p>
+
+<p>In our example we decided not to export any functions to the callers;
+therefore, you always need to prefix the functions with the package
+name if used outside of this module:</p>
+
+<blockquote><pre class="code">use Book::Factorial;
+$result = Book::Factorial::factorial_iterative_c(5);</pre></blockquote>
+
+<p>We are almost done. Let's build the
+<em class="emphasis">Makefile</em>:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact/Book/Factorial&gt; perl Makefile.PL
+Checking if your kit is complete...
+Looks good
+Writing Makefile for Book::Factorial</pre></blockquote>
+
+<p>Next we run <em class="emphasis">make</em> to compile the extension and
+get the module ready for testing:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact/Factorial&gt; make</pre></blockquote>
+
+<p>In addition to building the extension, <em class="emphasis">make</em> also
+renders the POD documentation in <em class="emphasis">nroff</em> format,
+which will be installed as a manpage when <em class="emphasis">make
+install</em> is run.</p>
+
+<p>It's now time to test that the C extension was
+successfully linked and can be bootstrapped.
+<em class="emphasis">h2xs</em> has already created
+<em class="emphasis">test.pl</em>, which does this basic testing:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact/Book/Factorial&gt; make test
+PERL_DL_NONLAZY=1 /usr/bin/perl -Iblib/arch -Iblib/lib 
+-I/usr/lib/perl5/5.6.1/i386-linux -I/usr/lib/perl5/5.6.1 test.pl
+1..1
+ok 1</pre></blockquote>
+
+<p>As we can see, the testing phase has passed without any problems. Is
+that all? Not really. We actually have to test that the functions are
+working as well, so we extend the test suite with an exhaustive set
+of tests.</p>
+
+<p>In product-validation terminology this is sometimes known as
+comparing the results from the good and the bad machine, where the
+good machine is known to produce a correct result. In our case the
+good machine is either our head or a simple calculator. We know that:</p>
+
+<blockquote><pre class="code">4! =  = 24</pre></blockquote>
+
+<p>So we know that if the function works correctly, for a given input of
+4, the output should be 24. Of course, in some cases this test is not
+enough to tell a good function from a broken one. The function might
+work correctly for some inputs but misbehave for others. You may need
+to come up with more elaborate tests.</p>
+
+<p>The testing procedure is based on printing the number of tests to be
+run in the <tt class="literal">BEGIN</tt> block and, for each test,
+printing either <em class="emphasis">ok</em> or <em class="emphasis">not
+ok</em>, followed by the number of the current test. <a href="ch13_12.html#pmodperl-CHP-13-EX-25">Example 13-25</a> is a modified <em class="emphasis">test.pl</em>
+that exercises the bootstrapping (as provided by
+<em class="emphasis">h2xs</em>), plus two C functions and two Perl
+functions.</p>
+
+<a name="pmodperl-CHP-13-EX-25" /><div class="example">
+<h4 class="objtitle">Example 13-25. test.pl</h4>
+<blockquote><pre class="code">use Test;
+
+BEGIN { plan tests =&gt; 5; }
+use Book::Factorial;
+ok 1; # module loaded OK
+
+my $input = 4;
+my $correct_result = 24; # the good machine: 4! = 24
+my $result = 0;
+my $s = 1;
+
+# testing iterative C version
+$result = Book::Factorial::factorial_iterative_c($input);
+ok $result =  = $correct_result;
+
+# testing recursive C version
+$result = Book::Factorial::factorial_recursive_c($input);
+ok $result =  = $correct_result;
+
+# testing iterative Perl version
+$result = Book::Factorial::factorial_iterative_perl($input);
+ok $result =  = $correct_result;
+
+# testing recursive Perl version
+$result = Book::Factorial::factorial_recursive_perl($input);
+ok $result =  = $correct_result;</pre></blockquote>
+</div>
+
+<p>Note the magic <tt class="literal">BEGIN</tt> block, which ensures that the
+test reports failure if it failed to load the module.</p>
+
+<p>Now we run the test again using our new <em class="emphasis">test.pl</em>:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact/Book/Factorial&gt; make test
+PERL_DL_NONLAZY=1 /usr/bin/perl -Iblib/arch -Iblib/lib 
+-I/usr/lib/perl5/5.6.1/i386-linux -I/usr/lib/perl5/5.6.1 test.pl
+1..5
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5</pre></blockquote>
+
+<p>Fortunately all the tests have passed correctly. Now all we have to
+do is to install the module in our filesystem and start using it. You
+have to be <em class="emphasis">root</em> to install the module into the
+system-wide area:</p>
+
+<blockquote><pre class="code">/home/stas/dev/fact/Book/Factorial# su
+/home/stas/dev/fact/Book/Factorial# make install
+Installing /usr/lib/perl5/site_perl/5.6.1/i386-linux/auto/Book/Factorial/Factorial.so
+Installing /usr/lib/perl5/site_perl/5.6.1/i386-linux/auto/Book/Factorial/Factorial.bs
+Installing /usr/lib/perl5/site_perl/5.6.1/i386-linux/Book/Factorial.pm
+Installing /usr/lib/perl5/man/man3/Book::Factorial.3</pre></blockquote>
+
+<p>That's it. Neither very complicated nor very simple.
+We mentioned the XS macro language earlier but
+didn't actually use it&#8212;this is because the
+code was simple, and <em class="emphasis">h2xs</em> wrote the
+<em class="emphasis">Factorial.xs</em> file (shown in <a href="ch13_12.html#pmodperl-CHP-13-EX-26">Example 13-26</a>) for us based on the header file we provided
+(<em class="emphasis">factorial.h</em>).</p>
+
+<a name="pmodperl-CHP-13-EX-26" /><div class="example">
+<h4 class="objtitle">Example 13-26. Factorial.xs</h4>
+<blockquote><pre class="code">#include "EXTERN.h"
+#include "perl.h"
+#include "XSUB.h"
+
+#include &lt;factorial.h&gt;
+
+MODULE = Book::Factorial        PACKAGE = Book::Factorial
+
+double
+factorial_iterative_c(x)
+  int x
+
+double
+factorial_recursive_c(x)
+  int x</pre></blockquote>
+</div>
+
+<p>This file actually implements the real gluing specification. During
+the <em class="emphasis">make</em> phase it was macro-processed by the
+<tt class="literal">xsubpp</tt>subroutine into the C code version
+<em class="emphasis">Factorial.c</em>, which was then compiled into the
+<em class="emphasis">Factorial.o</em> object file and finally converted
+into the <em class="emphasis">Factorial.so</em> loadable object and
+installed in the architecture-dependent module library tree
+(<em class="emphasis">/usr/lib/perl5/site_perl/5.6.1/i386-linux/auto/Book/Factorial</em>
+on our machine).</p>
+
+<p>When a more complicated C interface is used, the glue code might be
+much more involved and require knowledge of the XS language. XS is
+explained in the <em class="emphasis">perlxs</em> manpage. The following
+manpages might be useful too:</p>
+
+<blockquote><pre class="code">perlembed   Perl ways to embed Perl in your C or C++ application
+perlapio    Perl internal I/O abstraction interface
+perldebguts Perl debugging guts and tips
+perlxs      Perl XS application programming interface
+perlxstut   Perl XS tutorial
+perlguts    Perl internal functions for those doing extensions
+perlcall    Perl calling conventions from C
+perlapi     Perl API listing (autogenerated)
+perlintern  Perl internal functions (autogenerated)</pre></blockquote>
+
+<p>The POD documentation format is explained in the
+<em class="emphasis">perlpod</em> manpage.</p>
+
+<p>You may also want to read <em class="emphasis">Advanced Perl
+Programming</em>, by Sriram Srinivasan
+(O'Reilly), which covers XS and SWIG, and
+<em class="emphasis">Extending and Embedding Perl</em>, by Tim Jenness and
+Simon Cozens (Manning <a name="pmodperl-CHP-13-ITERM-5173" /><a name="pmodperl-CHP-13-ITERM-5174" /><a name="pmodperl-CHP-13-ITERM-5175" /><a name="pmodperl-CHP-13-ITERM-5176" /><a name="pmodperl-CHP-13-ITERM-5177" />Publications).</p>
+
+</div>
+<a name="pmodperl-CHP-13-SECT-12.2" /><div class="sect2">
+<h3 class="sect2">13.12.2. The Benchmark</h3>
+
+<p>We are now ready to write the
+<a name="pmodperl-CHP-13-ITERM-5178" />benchmark code. Take a look at <a href="ch13_12.html#pmodperl-CHP-13-EX-27">Example 13-27</a>.</p>
+
+<a name="pmodperl-CHP-13-EX-27" /><div class="example">
+<h4 class="objtitle">Example 13-27. factorial_benchmark.pl</h4>
+<blockquote><pre class="code">use strict;
+use Benchmark;
+use Book::Factorial ( );
+
+my $top = 100;
+
+timethese(300_000, {
+  recursive_perl =&gt; sub {Book::Factorial::factorial_recursive_perl($top)},
+  iterative_perl =&gt; sub {Book::Factorial::factorial_iterative_perl($top)},
+  recursive_c    =&gt; sub {Book::Factorial::factorial_recursive_c($top)   },
+  iterative_c    =&gt; sub {Book::Factorial::factorial_iterative_c($top)   },
+});</pre></blockquote>
+</div>
+
+<p>As you can see, this looks just like normal Perl code. The
+<tt class="literal">Book::Factorial</tt> module is loaded (assuming that
+you have installed it system-wide) and its functions are used in the
+test.</p>
+
+<p>We showed and analyzed the results at the beginning of our
+discussion, but we will repeat the results here for the sake of
+completeness:</p>
+
+<blockquote><pre class="code">panic% ./factorial_benchmark.pl
+Benchmark: timing 300000 iterations of iterative_c, iterative_perl,
+           recursive_c, recursive_perl...
+   iterative_c:  0 wallclock secs ( 0.47 usr +  0.00 sys =  0.47 CPU)
+   recursive_c:  2 wallclock secs ( 1.15 usr +  0.00 sys =  1.15 CPU)
+iterative_perl: 28 wallclock secs (26.34 usr +  0.00 sys = 26.34 CPU)
+recursive_perl: 75 wallclock secs (74.64 usr +  0.11 sys = 74.75 CPU)</pre></blockquote>
+
+<p>If you want to do the benchmarking after the module has been tested
+but before it's installed, you can use the
+<tt class="literal">blib</tt> pragma in the build directory:</p>
+
+<blockquote><pre class="code">panic% perl -Mblib factorial_benchmark.pl</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-13-SECT-12.3" /><div class="sect2">
+<h3 class="sect2">13.12.3. Inline.pm</h3>
+
+<p>Using XS <a name="pmodperl-CHP-13-ITERM-5179" /><a name="pmodperl-CHP-13-ITERM-5180" /><a name="pmodperl-CHP-13-ITERM-5181" />and
+SWIG may seem like a lot of time and work, especially for something
+as simple as our factorial benchmark. Fortunately, there is a new
+module called <tt class="literal">Inline.pm</tt> that makes using Perl with
+C almost as easy as writing Perl by itself.</p>
+
+<p><tt class="literal">Inline.pm</tt> allows you to put the source code of
+other programming languages directly inside your Perl script or
+module. It currently supports C, C++, Python, Tcl, and Java. The idea
+is that you can write functions, subroutines, or methods in these
+languages, and <tt class="literal">Inline.pm</tt> will automatically do
+whatever it takes to make them callable by Perl. It will analyze your
+code, compile it if necessary, bind the appropriate routines, and
+load all the required components. This means that you can simply run
+your code as if it were any other Perl program.</p>
+
+<p>For example, the entire factorial benchmark program can be written as
+shown in <a href="ch13_12.html#pmodperl-CHP-13-EX-28">Example 13-28</a>.</p>
+
+<a name="pmodperl-CHP-13-EX-28" /><div class="example">
+<h4 class="objtitle">Example 13-28. factorial_benchmark_inline.pl</h4>
+<blockquote><pre class="code">use strict;
+use Benchmark;
+use Inline 'C';
+
+my $top = 150;
+
+timethese(500000,
+      {
+       recursive_perl =&gt; sub {factorial_recursive_perl($top)},
+       iterative_perl =&gt; sub {factorial_iterative_perl($top)},
+       recursive_c    =&gt; sub {factorial_recursive_c(   $top)},
+       iterative_c    =&gt; sub {factorial_iterative_c(   $top)},
+      });
+
+sub factorial_recursive_perl {
+    return 1 if $_[0] &lt; 2;
+    return $_[0] * factorial_recursive_perl($_[0] - 1);
+}
+
+sub factorial_iterative_perl {
+    my $return = 1;
+    $return *= $_ for 2..$_[0];
+    return $return;
+}
+
+_ _END_ _
+
+_ _C_ _
+
+double factorial_recursive_c(int x) {
+    if (x &lt; 2)  return 1;
+    return x * factorial_recursive_c(x - 1);
+}
+
+double factorial_iterative_c(int x) {
+    int i;
+    double result = 1;
+    for (i = 2; i &lt;= x; i++) result *= i;
+    return result;
+}</pre></blockquote>
+</div>
+
+<p>That's all there is to it. Just run this Perl
+program like any other, and it will work exactly as you expect. The
+first time you run it, <tt class="literal">Inline.pm</tt> takes time to
+compile the C code and build an executable object. On subsequent
+runs, <tt class="literal">Inline.pm</tt> will simply load the precompiled
+version. If you ever modify the C code, <tt class="literal">Inline.pm</tt>
+will detect that and recompile automatically for you.</p>
+
+<p>The results of this benchmark should be similar to the benchmark of
+the XS version of <tt class="literal">Book::Factorial</tt>, developed in
+the previous section.</p>
+
+<p><a href="ch13_12.html#pmodperl-CHP-13-EX-29">Example 13-29</a> is an example of a simple mod_perl
+handler using <tt class="literal">Inline.pm</tt> with C.</p>
+
+<a name="pmodperl-CHP-13-EX-29" /><div class="example">
+<h4 class="objtitle">Example 13-29. Apache/Factorial.pm</h4>
+<blockquote><pre class="code">package Apache::Factorial;
+use strict;
+
+use Apache::Constants qw(:common);
+
+use Inline 'Untaint';
+use Inline Config =&gt; DIRECTORY =&gt; '/tmp/Inline';
+use Inline 'C';
+Inline-&gt;init;
+
+sub handler {
+    my $r = shift;
+    $r-&gt;send_http_header('text/plain');
+    printf "%3d! = %10d\n", $_, factorial($_) for 1..10;
+    return OK;
+}
+1;
+
+_ _DATA_ _
+
+_ _C_ _
+
+double factorial(int x) {
+    int i;
+    double result = 1;
+    for (i = 2; i &lt;= x; i++) result *= i;
+    return result;
+}</pre></blockquote>
+</div>
+
+<p>This handler will list out all of the factorial numbers between 1 and
+10. The extra <tt class="literal">Inline.pm</tt> commands are needed
+because of mod_perl's unique environment
+requirements. It's somewhat tricky to make
+<tt class="literal">Inline.pm</tt> work with mod_perl because of the file
+permissions. The best approach is to force
+<tt class="literal">Inline.pm</tt> to compile the module before starting
+the server. In our case, we can do:</p>
+
+<blockquote><pre class="code">panic% mkdir /tmp/Inline
+panic% perl -I/home/httpd/perl -MApache::Factorial \
+-e 'Apache::Factorial::handler'</pre></blockquote>
+
+<p>Now all we need is for the <em class="emphasis">/tmp/Inline</em> directory
+to be readable by the server. That's where
+<tt class="literal">Inline.pm</tt> has built the loadable object and where
+it's going to read from.</p>
+
+<p><tt class="literal">Inline.pm</tt> is an extremely versatile tool and can
+be used instead of XS in almost any application. It also has features
+that go well beyond the capabilities of XS. Best of all, you can get
+an <tt class="literal">Inline.pm</tt> program up and running in minutes.</p>
+
+<p>The <tt class="literal">Inline.pm</tt> distribution comes with copious
+documentation, including a cookbook of common C-based recipes that
+you can adapt to your taste. It is also actively supported by the
+<em class="email">inline@perl.org</em> mailing list.</p>
+
+<p>Just like with XS, you can prepare a package with
+<em class="emphasis">Makefile.PL</em> and a test suite for a distribution
+on CPAN. See the <tt class="literal">Inline.pm</tt> manpage for
+more<a name="pmodperl-CHP-13-ITERM-5182" /><a name="pmodperl-CHP-13-ITERM-5183" /><a name="pmodperl-CHP-13-ITERM-5184" /> details.</p>
+
+</div>
+<a name="pmodperl-CHP-13-SECT-12.4" /><div class="sect2">
+<h3 class="sect2">13.12.4. Perl Extensions Conclusion</h3>
+
+<p>We have presented two techniques to extend your Perl code with the
+power of other languages (the C language in particular, but
+<tt class="literal">Inline.pm</tt> lets you embed other languages as well).</p>
+
+<p>If you find that some sections of your code are better written in
+other languages that may make them more efficient, it may be worth
+experimenting. Don't blindly use Perl to solve all
+your problems&#8212;some problems are better solved in other
+languages. The more languages you know, the better.</p>
+
+<p>Because Perl is so good at gluing other languages into itself, you
+don't necessarily have to choose between Perl and
+other languages to solve a problem. You can use Perl and other
+languages together to get the best out of them all.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_11.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch13_13.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">13.11. Caching with Memoize</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">13.13. References</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

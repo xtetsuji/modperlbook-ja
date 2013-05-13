@@ -1,0 +1,360 @@
+<html><head><title>Apache Perl Modules (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appa_14.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appb_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Appendix B. Apache Perl Modules</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="appb_01.html#pmodperl-APP-B-SECT-1">Development-Stage Modules</a><br />
+<a href="appb_02.html">Modules to Aid Debugging</a><br />
+<a href="appb_03.html">Control and Monitoring Modules</a><br />
+<a href="appb_04.html">Server Configuration Modules</a><br />
+<a href="appb_05.html">Authentication-Phase Modules</a><br />
+<a href="appb_06.html">Authorization-Phase Modules</a><br />
+<a href="appb_07.html">Access-Phase Modules</a><br />
+<a href="appb_08.html">Type Handlers</a><br />
+<a href="appb_09.html">Trans Handlers</a><br />
+<a href="appb_10.html">Fixup Handlers</a><br />
+<a href="appb_11.html">Generic Content-Generation Modules</a><br />
+<a href="appb_12.html">Application-Specific Content-Generation Modules</a><br />
+<a href="appb_13.html">Database Modules</a><br />
+<a href="appb_14.html">Toolkits and Frameworks for Content-Generation and Other Phases</a><br />
+<a href="appb_15.html">Output Filters and Layering Modules</a><br />
+<a href="appb_16.html">Logging-Phase Handlers</a><br />
+<a href="appb_17.html">Core Apache Modules</a><br />
+<a href="appb_18.html">Other Miscellaneous Modules</a><br /></p></div><p>Many third-party modules have been written to extend
+mod_perl's core functionality. They may be
+distributed with the mod_perl source code, or they may be available
+from CPAN. In this chapter we will attempt to group these modules
+based on their functionality. Some modules will be discussed in
+depth, but others will be touched on only briefly.</p><p>Since most of these modules are continually evolving, the moment this
+book is published much of the information in it will be out of date.
+For this reason, you should refer to the modules'
+manpages when you start using them; that's where you
+will find the most up-to-date documentation.</p><p>We will consider modules in the following groups:</p><dl>
+<dt><i>Development</i></dt>
+<dd>
+Modules used mainly during the
+<a name="pmodperl-APP-B-ITERM-6107" /><a name="pmodperl-APP-B-ITERM-6108" />development process</p>
+</dd>
+
+
+
+<dt><i>Debugging</i></dt>
+<dd>
+Modules that assist in code
+<a name="pmodperl-APP-B-ITERM-6109" /><a name="pmodperl-APP-B-ITERM-6110" />debugging</p>
+</dd>
+
+
+
+<dt><i>Control and monitoring</i></dt>
+<dd>
+Modules to help you monitor
+<a name="pmodperl-APP-B-ITERM-6111" /><a name="pmodperl-APP-B-ITERM-6112" />the production server and
+take care of any problems as soon as they appear</p>
+</dd>
+
+
+
+<dt><i>Server configuration</i></dt>
+<dd>
+Modules used in server
+<a name="pmodperl-APP-B-ITERM-6113" /><a name="pmodperl-APP-B-ITERM-6114" />configuration</p>
+</dd>
+
+
+
+<dt><i>Authentication</i></dt>
+<dd>
+Modules used to facilitate
+<a name="pmodperl-APP-B-ITERM-6115" /><a name="pmodperl-APP-B-ITERM-6116" />authentication</p>
+</dd>
+
+
+
+<dt><i>Authorization</i></dt>
+<dd>
+Modules used to facilitate
+<a name="pmodperl-APP-B-ITERM-6117" /><a name="pmodperl-APP-B-ITERM-6118" />authorization</p>
+</dd>
+
+
+
+<dt><i>Access</i></dt>
+<dd>
+Modules used during the
+<a name="pmodperl-APP-B-ITERM-6119" /><a name="pmodperl-APP-B-ITERM-6120" />access-verification phase</p>
+</dd>
+
+
+
+<dt><i>Type handlers</i></dt>
+<dd>
+Modules used as
+<tt class="literal">PerlTypeHandler</tt><a name="pmodperl-APP-B-ITERM-6121" /><a name="pmodperl-APP-B-ITERM-6122" /><a name="pmodperl-APP-B-ITERM-6123" />s</p>
+</dd>
+
+
+
+<dt><i>Trans handlers</i></dt>
+<dd>
+Modules used as
+<a name="pmodperl-APP-B-ITERM-6124" /><a name="pmodperl-APP-B-ITERM-6125" /><a name="pmodperl-APP-B-ITERM-6126" /><tt class="literal">PerlTransHandler</tt>s</p>
+</dd>
+
+
+
+<dt><i>Fixup Handlers</i></dt>
+<dd>
+Modules used as <a name="pmodperl-APP-B-ITERM-6127" /><a name="pmodperl-APP-B-ITERM-6128" /><a name="pmodperl-APP-B-ITERM-6129" /><tt class="literal">PerlFixupHandler</tt>s</p>
+</dd>
+
+
+
+<dt><i>Generic content-generation phase</i></dt>
+<dd>
+Generic modules that
+<a name="pmodperl-APP-B-ITERM-6130" /><a name="pmodperl-APP-B-ITERM-6131" />assist during
+the content-generation phase</p>
+</dd>
+
+
+
+<dt><i>Application-specific content generation phase</i></dt>
+<dd>
+Non-general-purpose
+<a name="pmodperl-APP-B-ITERM-6132" /><a name="pmodperl-APP-B-ITERM-6133" />content
+generators</p>
+</dd>
+
+
+
+<dt><i>Database </i></dt>
+<dd>
+Database-specific
+<a name="pmodperl-APP-B-ITERM-6134" /><a name="pmodperl-APP-B-ITERM-6135" />modules</p>
+</dd>
+
+
+
+<dt><i>Toolkits and framework for content generation and other phases</i></dt>
+<dd>
+Mostly large toolkits
+<a name="pmodperl-APP-B-ITERM-6136" /><a name="pmodperl-APP-B-ITERM-6137" /><a name="pmodperl-APP-B-ITERM-6138" /><a name="pmodperl-APP-B-ITERM-6139" /><a name="pmodperl-APP-B-ITERM-6140" />and frameworks built on top of mod_perl</p>
+</dd>
+
+
+
+<dt><i>Output filters and layering</i></dt>
+<dd>
+Modules that filter output
+<a name="pmodperl-APP-B-ITERM-6141" /><a name="pmodperl-APP-B-ITERM-6142" /><a name="pmodperl-APP-B-ITERM-6143" /><a name="pmodperl-APP-B-ITERM-6144" /><a name="pmodperl-APP-B-ITERM-6145" /><a name="pmodperl-APP-B-ITERM-6146" />from the content generation stage</p>
+</dd>
+
+
+
+<dt><i>Logging-phase handlers</i></dt>
+<dd>
+Modules that assist during
+<a name="pmodperl-APP-B-ITERM-6147" /><a name="pmodperl-APP-B-ITERM-6148" />the logging stage</p>
+</dd>
+
+
+
+<dt><i>Core Apache</i></dt>
+<dd>
+Modules that interface with
+<a name="pmodperl-APP-B-ITERM-6149" /><a name="pmodperl-APP-B-ITERM-6150" />core mod_perl</p>
+</dd>
+
+
+
+<dt><i>Miscellaneous</i></dt>
+<dd>
+Modules that don't fit into
+<a name="pmodperl-APP-B-ITERM-6151" /><a name="pmodperl-APP-B-ITERM-6152" />any of the above categories</p>
+</dd>
+
+</dl><div class="sect1"><a name="pmodperl-APP-B-SECT-1" />
+<h2 class="sect1">B.1. Development-Stage Modules</h2>
+
+<p>The following modules are mainly <a name="pmodperl-APP-B-ITERM-6153" /><a name="pmodperl-APP-B-ITERM-6154" />useful during the code-development
+cycle. Some of them can also be useful in the production environment.</p>
+
+<a name="pmodperl-APP-B-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">B.1.1. Apache::Reload&#8212;Automatically Reload Changed Modules</h3>
+
+<p><tt class="literal">Apache::Reload</tt> is used to make specific
+<a name="pmodperl-APP-B-ITERM-6155" /><a name="pmodperl-APP-B-ITERM-6156" />modules <a name="pmodperl-APP-B-ITERM-6157" /><a name="pmodperl-APP-B-ITERM-6158" />reload
+themselves when they have changed. It's also very
+useful for mod_perl module development.</p>
+
+<p>Covered in <a href="ch06_01.html">Chapter 6</a>.</p>
+
+<p>Available from CPAN. See the module manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">B.1.2. Apache::PerlVINC&#8212;Allow Module Versioning in &lt;Location&gt; and &lt;VirtualHost&gt; blocks</h3>
+
+<p>This module makes it possible to
+<a name="pmodperl-APP-B-ITERM-6159" /><a name="pmodperl-APP-B-ITERM-6160" /><a name="pmodperl-APP-B-ITERM-6161" /><a name="pmodperl-APP-B-ITERM-6162" />have
+different <tt class="literal">@INC</tt> values for different
+<tt class="literal">&lt;VirtualHost&gt;</tt>s,
+<tt class="literal">&lt;Location&gt;</tt>s, and equivalent configuration
+blocks.</p>
+
+<p>Suppose two versions of <tt class="literal">Apache::Status</tt> are being
+hacked on the same server. In this configuration:</p>
+
+<blockquote><pre class="code">PerlModule Apache::PerlVINC
+
+&lt;Location /status-dev/perl&gt;
+    SetHandler       perl-script
+    PerlHandler      Apache::Status
+
+    PerlINC          /home/httpd/dev/lib
+    PerlFixupHandler Apache::PerlVINC
+    PerlVersion      Apache/Status.pm
+&lt;/Location&gt;
+
+&lt;Location /status/perl&gt;
+    SetHandler       perl-script
+    PerlHandler      Apache::Status
+
+    PerlINC          /home/httpd/prod/lib
+    PerlFixupHandler Apache::PerlVINC
+    PerlVersion      Apache/Status.pm
+&lt;/Location&gt;</pre></blockquote>
+
+<p><tt class="literal">Apache::PerlVINC</tt> is loaded and then two different
+locations are specified for the same handler
+<tt class="literal">Apache::Status</tt>, whose development version resides
+in <em class="emphasis">/home/httpd/dev/lib</em> and production version in
+<em class="emphasis">/home/httpd/prod/lib</em>.</p>
+
+<p>If a request for <em class="emphasis">/status/perl</em> is issued (the
+latter configuration section), the fixup handler will internally do:</p>
+
+<blockquote><pre class="code">delete $INC{"Apache/Status.pm"};
+unshift @INC, "/home/httpd/prod/lib";
+require Apache::Status;</pre></blockquote>
+
+<p>which will load the production version of the module, which will in
+turn be used to process the request.</p>
+
+<p>If on the other hand the request is for
+<em class="emphasis">/status-dev/perl</em> (the former configuration
+section), a different path (<em class="emphasis">/home/httpd/dev/lib</em>)
+will be prepended to <tt class="literal">@INC</tt>:</p>
+
+<blockquote><pre class="code">delete $INC{"Apache/Status.pm"};
+unshift @INC, "/home/httpd/dev/lib";
+require Apache::Status;</pre></blockquote>
+
+<p>It's important to be aware that a changed
+<tt class="literal">@INC</tt> is effective only inside the
+<tt class="literal">&lt;Location&gt;</tt> block or a similar configuration
+directive. <tt class="literal">Apache::PerlVINC</tt>subclasses the
+<tt class="literal">PerlRequire</tt> directive, marking the file to be
+reloaded by the fixup handler, using the value of
+<tt class="literal">PerlINC</tt> for <tt class="literal">@INC</tt>.
+That's local to the fixup handler, so you
+won't actually see <tt class="literal">@INC</tt> changed
+in your script.</p>
+
+<p>Additionally, modules with different versions can be unloaded at the
+end of the request, using the <tt class="literal">PerlCleanupHandler</tt>:</p>
+
+<blockquote><pre class="code">&lt;Location /status/perl&gt;
+    SetHandler         perl-script
+    PerlHandler        Apache::Status
+
+    PerlINC            /home/httpd/prod/lib
+    PerlFixupHandler   Apache::PerlVINC
+    PerlCleanupHandler Apache::PerlVINC
+    PerlVersion        Apache/Status.pm
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Also note that <tt class="literal">PerlVersion</tt> affects things
+differently depending on where it is placed. If it is placed inside a
+<tt class="literal">&lt;Location&gt;</tt> or a similar block section, the
+files will be reloaded only on requests to that location. If it is
+placed in a server section, all requests to the server or virtual
+hosts will have these files reloaded.</p>
+
+<p>As you can guess, this module slows down the response time because it
+reloads some modules on a per-request basis. Hence, this module
+should be used only in a development environment, not in production.</p>
+
+<p>If you need to do the same in production, a few techniques are
+suggested in <a href="ch04_01.html">Chapter 4</a>.</p>
+
+<p>Available from CPAN. See the module manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">B.1.3. Apache::DProf&#8212;Hook Devel::DProf into mod_perl</h3>
+
+<p>Covered in <a href="ch09_01.html">Chapter 9</a>.</p>
+
+<p>Available from CPAN. See the module
+<a name="pmodperl-APP-B-ITERM-6163" /><a name="pmodperl-APP-B-ITERM-6164" />manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">B.1.4. Apache::SmallProf&#8212;Hook Devel::SmallProf into mod_perl</h3>
+
+<p>Covered in <a href="ch09_01.html">Chapter 9</a>.</p>
+
+<p>Available from CPAN. See the module
+<a name="pmodperl-APP-B-ITERM-6165" /><a name="pmodperl-APP-B-ITERM-6166" />manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-1.5" /><div class="sect2">
+<h3 class="sect2">B.1.5. Apache::FakeRequest&#8212;Fake Request Object for Debugging</h3>
+
+<p>Covered in <a href="ch21_01.html">Chapter 21</a>.</p>
+
+<p>Available from CPAN. See the module
+<a name="pmodperl-APP-B-ITERM-6167" /><a name="pmodperl-APP-B-ITERM-6168" />manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-1.6" /><div class="sect2">
+<h3 class="sect2">B.1.6. Apache::test&#8212;Facilitate Testing of Apache::* Modules</h3>
+
+<p>This module helps authors
+<a name="pmodperl-APP-B-ITERM-6169" /><a name="pmodperl-APP-B-ITERM-6170" />of <tt class="literal">Apache::*</tt> modules
+write test suites that can query a running Apache server with
+mod_perl and their modules loaded into it. Its functionality is
+generally separated into: (a) methods that go in a
+<em class="emphasis">Makefile.PL</em> file to configure, start, and stop
+the server; and (b) methods that go into one of the test scripts to
+make HTTP queries and manage the results.</p>
+
+<p>Supplied with the mod_perl distribution. See <a name="pmodperl-APP-B-ITERM-6171" /><a name="pmodperl-APP-B-ITERM-6172" />the module manpage
+for more information.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appa_14.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appb_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">A.14. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">B.2. Modules to Aid Debugging</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

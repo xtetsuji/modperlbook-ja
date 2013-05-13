@@ -1,0 +1,244 @@
+<html><head><title>Choosing a Platform for the Best Performance (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch07_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch08_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 8. Choosing a Platform for the Best Performance</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch08_01.html#pmodperl-CHP-8-SECT-1">Choosing the Right Operating System</a><br />
+<a href="ch08_02.html">Choosing the Right Hardware</a><br />
+<a href="ch08_03.html">References</a><br /></p></div><p>Before you start to optimize your code and server configuration, you
+need to consider the demands that will be placed on the hardware and
+the operating system. There is no point in investing a lot of time
+and money in configuration tuning and code optimizing only to find
+that your server's performance is poor because you
+did not choose a suitable platform in the first place.</p><p>Because hardware platforms and operating systems are developing
+rapidly, the following advisory discussion must be in general terms,
+without mentioning specific vendors' names.</p><div class="sect1"><a name="pmodperl-CHP-8-SECT-1" />
+<h2 class="sect1">8.1. Choosing the Right Operating System</h2>
+
+<p>This section discusses the <a name="pmodperl-CHP-8-ITERM-4639" /><a name="pmodperl-CHP-8-ITERM-4640" />characteristics
+and features you should be looking for to support a mod_perl-enabled
+Apache server. When you know what you want from your OS, you can go
+out and find it. Visit the web sites of the operating systems that
+interest you. You can gauge users' opinions by
+searching the relevant discussions in newsgroup and mailing-list
+archives. Deja (<a href="http://deja.com/">http://deja.com/</a>)
+and eGroups (<a href="http://egroups.com/">http://egroups.com/</a>)
+are good examples. However, your best shot is probably to ask other
+mod_perl users.</p>
+
+<a name="pmodperl-CHP-8-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">8.1.1. mod_perl Support for the Operating System</h3>
+
+<p>Clearly, before choosing an OS, you will
+<a name="pmodperl-CHP-8-ITERM-4641" />want to make sure that mod_perl even
+<em class="emphasis">runs</em> on it! As you will have noticed throughout
+this book, mod_perl 1.x is traditionally a Unix-centric solution.
+Although it also runs on Windows, there are several limitations
+related to its implementation.</p>
+
+<p>The problem is that Apache on Windows uses a multithreaded
+implementation, due to the fact that Windows can't
+use the multi-process scheme deployed on Unix platforms. However,
+when mod_perl (and thereby the Perl runtime) is built into the Apache
+process, it <em class="emphasis">cannot</em> run multithreaded, because
+before Version 5.8.0 the Perl runtime wasn't
+thread-safe.</p>
+
+<p>What does this mean for you? Well, essentially it means that your
+Apache process will be able to serve only <em class="emphasis">one request at a
+time</em>, just like when using <em class="emphasis">httpd -X</em>.
+Of course, this becomes a severe performance hit, making you unable
+to have more than one user receiving a page at a time. The situation
+is resolved in mod_perl 2.0, however, thanks to advances in both
+Apache and Perl, as described in <a href="ch24_01.html">Chapter 24</a>.
+Furthermore, you can still use mod_perl on Windows for development,
+although you should follow the considerations below when choosing the
+production OS.</p>
+
+</div>
+<a name="pmodperl-CHP-8-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">8.1.2. Stability and Robustness</h3>
+
+<p>Probably the most important <a name="pmodperl-CHP-8-ITERM-4642" /><a name="pmodperl-CHP-8-ITERM-4643" />features in an OS are
+stability and robustness. You are in an Internet business. You do not
+keep normal 9 A.M. to 5 P.M. working hours like many conventional
+businesses you know. You are open 24 hours a day. You cannot afford
+to be offline, because your customers will go shop at another service
+like yours (unless you have a monopoly). If the OS of your choice
+crashes every day, first do a little investigation. There might be a
+simple reason that you can find and fix. However, there are OSes that
+won't work unless you reboot them twice a day. You
+don't want to use an OS of this kind, no matter how
+good the OS's vendor sales department is. Do not
+follow flush advertisements&#8212;follow developers'
+advice instead.</p>
+
+<p>Generally, people who have used an OS for some time can tell you a
+lot about its stability. Ask them. Try to find people who are doing
+similar things to what you are planning to do; they may even be using
+the same software. There are often compatibility issues to resolve,
+and you may need to become familiar with patching and compiling your
+OS.</p>
+
+</div>
+<a name="pmodperl-CHP-8-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">8.1.3. Good Memory Management</h3>
+
+<p>You want an OS with <a name="pmodperl-CHP-8-ITERM-4644" /><a name="pmodperl-CHP-8-ITERM-4645" />a good memory-management
+implementation. Some OSes are well known as memory hogs. The same
+code can use twice as much memory on one OS compared to another. If
+the size of the mod_perl process is 10 MB and you have tens of these
+processes running, it definitely adds up!</p>
+
+</div>
+<a name="pmodperl-CHP-8-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">8.1.4. Avoiding Memory Leaks</h3>
+
+<p>Some OSes and/or their <a name="pmodperl-CHP-8-ITERM-4646" /><a name="pmodperl-CHP-8-ITERM-4647" />libraries (e.g., C runtime libraries)
+suffer from memory leaks. A <em class="emphasis">leak</em> is when some
+process requests a chunk of memory for temporary storage but then
+does not subsequently release it. The chunk of memory then
+won't be available for any purpose until the process
+that requested it dies. You cannot afford such leaks. A single
+mod_perl process sometimes serves thousands of requests before it
+terminates; if a leak occurs on every request, the memory demands
+could become huge. Of course, your code can be the cause of the
+memory leaks as well, but that's easy to detect and
+solve. Certainly, you can reduce the number of requests to be served
+over the process's life, but that can degrade
+performance. When you have so many performance concerns to think
+about, do you <em class="emphasis">really</em> want to be using faulty
+code that's not under your control?</p>
+
+</div>
+<a name="pmodperl-CHP-8-SECT-1.5" /><div class="sect2">
+<h3 class="sect2">8.1.5. Memory-Sharing Capabilities</h3>
+
+<p>You want an OS with <a name="pmodperl-CHP-8-ITERM-4648" /><a name="pmodperl-CHP-8-ITERM-4649" />good memory-sharing
+capabilities. If you preload the Perl modules and scripts at server
+startup, they are shared between the spawned children (at least for
+part of a process's life&#8212;memory pages can
+become "dirty" and cease to be
+shared). This feature can vastly reduce memory consumption.
+Therefore, you don't want an OS that
+doesn't have memory-sharing capabilities.</p>
+
+</div>
+<a name="pmodperl-CHP-8-SECT-1.6" /><div class="sect2">
+<h3 class="sect2">8.1.6. The Real Cost of Support</h3>
+
+<p>If you are in a big <a name="pmodperl-CHP-8-ITERM-4650" />business, you probably do not mind
+paying another $1,000 for some fancy OS with bundled support. But if
+your resources are low, you will look for cheaper or free OSes. Free
+does not mean bad. In fact, it can be quite the opposite&#8212;some
+of the free OSes have the best support available.</p>
+
+<p>This is easy to understand&#8212;most people are not rich and will
+try to use a cheaper or free OS first if it does the work for them.
+If it fits their needs, they will keep using it and eventually come
+to know it well enough to be able to provide support for others in
+trouble. Why would they do this for free? One reason is the spirit of
+the first days of the Internet, when there was no commercial Internet
+and people helped each other because someone else had helped them
+first. We were there, we were touched by that spirit, and we are keen
+to keep that spirit alive.</p>
+
+<p>Nevertheless, we are living in a material world, and our bosses pay
+us to keep the systems running. So if you feel that you cannot
+provide the support yourself and you do not trust the available free
+resources, you must pay for an OS backed by a company to which you
+can turn in case of problems. Insufficient support has often been
+characterized as an important drawback of open source products, and
+in the past it may have been the main reason for many companies to
+choose a commercial product.</p>
+
+<p>Luckily, in recent years many companies have realized how good the
+open source products are and started to provide official support for
+these products. So your suggestion of using an open source operating
+system cannot be dismissed solely on the basis of lacking vendor
+support; most likely you will be able to find commercial support just
+like with any other commercial OS vendor!</p>
+
+<p>Also remember that the less money you spend on an OS and software,
+the more you will be able to spend on faster and stronger hardware.
+Of course, for some companies money is a non-issue, but there are
+many companies for which it is a major concern.</p>
+
+</div>
+<a name="pmodperl-CHP-8-SECT-1.7" /><div class="sect2">
+<h3 class="sect2">8.1.7. Discontinued Products</h3>
+
+<p>You might find yourself <a name="pmodperl-CHP-8-ITERM-4651" /><a name="pmodperl-CHP-8-ITERM-4652" />in a position
+where you have invested a lot of time and money into developing some
+proprietary software that is bundled with the OS you chose (say,
+writing a mod_perl handler that takes advantage of some proprietary
+features of the OS and that will not run on any other OS). Things are
+under control, the performance is great, and you sing with happiness
+on your way to work. Then, one day, the company that supplies your
+beloved OS goes bankrupt (not unlikely nowadays), or they produce a
+newer, incompatible version and decide not to support the old one (it
+happens all the time). You are stuck with their early masterpiece, no
+support, and no source code! What are you going to do? Invest more
+money into porting the software to another OS?</p>
+
+<p>The OSes in this hazard group tend to be developed by a single
+company or organization, so free and open source OSes are probably
+less susceptible to this kind of problem. Their development is
+usually distributed between many companies and developers, so if a
+person who developed a really important part of the kernel loses
+interest in continuing, someone else usually will pick up the work
+and carry on. Of course, if some better project shows up tomorrow,
+developers might migrate there and finally drop the development, but
+in practice people are often given support on older versions and
+helped to migrate to current versions. Development tends to be more
+incremental than revolutionary, so upgrades are less traumatic, and
+there is usually plenty of notice of the forthcoming changes so that
+you have time to plan for them.</p>
+
+<p>Of course, with the open source OSes you have the source code, too.
+You can always have a go at maintaining it yourself, but do not
+underestimate the amount of work involved.</p>
+
+</div>
+<a name="pmodperl-CHP-8-SECT-1.8" /><div class="sect2">
+<h3 class="sect2">8.1.8. Keeping Up with OS Releases</h3>
+
+<p>Actively developed OSes <a name="pmodperl-CHP-8-ITERM-4653" />generally
+try to keep pace with the latest technology developments and
+continually optimize the kernel and other parts of the OS to become
+better and faster. Nowadays, the Internet and networking in general
+are the hottest topics for system developers. Sometimes a simple OS
+upgrade to the latest stable version can save you an expensive
+hardware upgrade. Also, remember that when you buy new hardware,
+chances are that the latest software will make the most of it.</p>
+
+<p>If a new product supports an old one by virtue of backward
+compatibility with previous products of the same family, you might
+not reap all the benefits of the new product's
+features. You might get almost the same functionality for much less
+money if you were to buy an older model of the same <a name="pmodperl-CHP-8-ITERM-4654" /><a name="pmodperl-CHP-8-ITERM-4655" />product.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch07_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch08_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">7.3. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">8.2. Choosing the Right Hardware</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

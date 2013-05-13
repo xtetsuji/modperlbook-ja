@@ -1,0 +1,215 @@
+<html><head><title>Object Methods Calls Versus Function Calls (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch13_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">13.6. Object Methods Calls Versus Function Calls</h2>
+
+<p>Which form of <a name="pmodperl-CHP-13-ITERM-5133" /><a name="pmodperl-CHP-13-ITERM-5134" />subroutine call is more
+efficient: object methods or function calls? Let's
+look at the overhead.</p>
+
+<a name="pmodperl-CHP-13-SECT-6.1" /><div class="sect2">
+<h3 class="sect2">13.6.1. The Overhead with Light Subroutines</h3>
+
+<p>Let's do some <a name="pmodperl-CHP-13-ITERM-5135" /><a name="pmodperl-CHP-13-ITERM-5136" /><a name="pmodperl-CHP-13-ITERM-5137" />benchmarking.
+We will start by using empty methods, which will allow us to measure
+the real difference in the overhead each kind of call introduces. We
+will use the code in <a href="ch13_06.html#pmodperl-CHP-13-EX-15">Example 13-15</a>.</p>
+
+<a name="pmodperl-CHP-13-EX-15" /><div class="example">
+<h4 class="objtitle">Example 13-15. bench_call1.pl</h4>
+<blockquote><pre class="code">package Book::LightSub;
+
+use strict;
+use Benchmark;
+
+sub bar { };
+
+timethese(1_000_000, {
+    method   =&gt; sub { Book::LightSub-&gt;bar( )                 },
+    function =&gt; sub { Book::LightSub::bar('Book::LightSub');},
+});</pre></blockquote>
+</div>
+
+<p>The two calls are equivalent, since both pass the class name as their
+first parameter; <tt class="literal">function</tt> does this explicitly,
+while <tt class="literal">method</tt> does this transparently.</p>
+
+<p>Here's the benchmarking result:</p>
+
+<blockquote><pre class="code">Benchmark: timing 1000000 iterations of function, method...
+function:  2 wallclock secs ( 1.36 usr +  0.05 sys =  1.41 CPU)
+  method:  3 wallclock secs ( 2.57 usr + -0.03 sys =  2.54 CPU)</pre></blockquote>
+
+<p>We see that the function call is almost twice as fast as the method
+call: 1.41 CPU clocks compared to 2.54. Why is this? With a function
+call we give Perl the fully qualified function name and set up its
+call stack ourselves by passing in the package (class) name. With a
+method call Perl must work out the package (class) name for itself,
+then search the inheritance tree to find the required method, then
+set up the call stack. So in the case of a method call Perl must do a
+lot more work and is therefore slower.</p>
+
+<p>Perl 5.6.0 and higher do better method caching than older Perl
+versions. <tt class="literal">Book::LightSub-&gt;method( )</tt> is a little
+bit faster (as it does better constant-folding magic), but not
+<tt class="literal">Book::LightSub-&gt;$method( )</tt>. The improvement
+does not address the <tt class="literal">@ISA</tt> lookup that still
+happens in either case.</p>
+
+</div>
+<a name="pmodperl-CHP-13-SECT-6.2" /><div class="sect2">
+<h3 class="sect2">13.6.2. The Overhead with Heavy Subroutines</h3>
+
+<p>The above results don't mean that you
+shouldn't use methods. Generally your functions do
+something, and the more they do the less significant the overhead of
+the call itself becomes. This is because the calling time is
+effectively fixed and usually creates a very small overhead in
+comparison to the execution time of the method or function itself.
+This is demonstrated by the next benchmark (see <a href="ch13_06.html#pmodperl-CHP-13-EX-16">Example 13-16</a>).</p>
+
+<a name="pmodperl-CHP-13-EX-16" /><div class="example">
+<h4 class="objtitle">Example 13-16. bench_call2.pl</h4>
+<blockquote><pre class="code">package Book::HeavySub;
+
+use strict;
+use Benchmark;
+
+sub bar { 
+    my $class = shift;
+
+    my ($x, $y) = (100, 100);
+    $y = log ($x ** 10)  for (0..20);
+};
+
+timethese(100_000, {
+    method   =&gt; sub { Book::HeavySub-&gt;bar( )                 },
+    function =&gt; sub { Book::HeavySub::bar('Book::HeavySub');},
+});</pre></blockquote>
+</div>
+
+<p>We get a very close benchmark!</p>
+
+<blockquote><pre class="code">panic% ./bench_call2.pl
+function:  5 wallclock secs ( 4.42 usr +  0.02 sys =  4.44 CPU)
+  method:  5 wallclock secs ( 4.66 usr +  0.00 sys =  4.66 CPU)</pre></blockquote>
+
+<p>Let's make the subroutine <tt class="literal">bar</tt>
+even heavier, by making the <tt class="literal">for( )</tt> loop five times
+longer:</p>
+
+<blockquote><pre class="code">sub bar { 
+    my $class = shift;
+
+    my ($x, $y) = (100, 100);
+    $y = log ($x ** 10) for (0..100);
+};</pre></blockquote>
+
+<p>The result is:</p>
+
+<blockquote><pre class="code">function: 18 wallclock secs (17.87 usr +  0.10 sys = 17.97 CPU)
+  method: 19 wallclock secs (18.22 usr +  0.01 sys = 18.23 CPU)</pre></blockquote>
+
+<p>You can see that in the first and second benchmarks the difference
+between the function and method calls is almost the same: 0.22 and
+0.26 CPU clocks, respectively.</p>
+
+<p>In cases where functions do very little work, the overhead might
+become significant. If your goal is speed you might consider using
+the <tt class="literal">function</tt> form, but if you write a large and
+complicated application, it's much better to use the
+<tt class="literal">method</tt> form, as it will make your code easier to
+develop, maintain, and debug. Saving programmer time over the life of
+a project may turn out to be the most significant<a name="pmodperl-CHP-13-ITERM-5138" /><a name="pmodperl-CHP-13-ITERM-5139" /><a name="pmodperl-CHP-13-ITERM-5140" /> cost factor.</p>
+
+</div>
+<a name="pmodperl-CHP-13-SECT-6.3" /><div class="sect2">
+<h3 class="sect2">13.6.3. Are All Methods Slower Than Functions?</h3>
+
+<p>Some modules'
+<a name="pmodperl-CHP-13-ITERM-5141" /><a name="pmodperl-CHP-13-ITERM-5142" /><a name="pmodperl-CHP-13-ITERM-5143" />APIs are
+misleading&#8212;for example, <tt class="literal">CGI.pm</tt> allows you to
+execute its subroutines as functions or as methods. As you will see
+in a moment, its function form of the calls is slower than the method
+form because it does some voodoo behind the scenes when the function
+form call is used:</p>
+
+<blockquote><pre class="code">use CGI;
+my $q = new CGI;
+$q-&gt;param('x', 5);
+my $x = $q-&gt;param('x');</pre></blockquote>
+
+<p>versus:</p>
+
+<blockquote><pre class="code">use CGI qw(:standard);
+param('x', 5);
+my $x = param('x');</pre></blockquote>
+
+<p>Let's benchmark some very light calls (see <a href="ch13_06.html#pmodperl-CHP-13-EX-17">Example 13-17</a>) and compare. We would expect the methods to
+be slower than functions, based on the previous benchmarks.</p>
+
+<a name="pmodperl-CHP-13-EX-17" /><div class="example">
+<h4 class="objtitle">Example 13-17. bench_call3.pl</h4>
+<blockquote><pre class="code">use Benchmark;
+
+use CGI qw(:standard);
+$CGI::NO_DEBUG = 1;
+my $q = new CGI;
+my $x;
+timethese(2_000_000, {
+    method   =&gt; sub {$q-&gt;param('x',5); $x = $q-&gt;param('x'); },
+    function =&gt; sub {    param('x',5); $x =     param('x'); },
+});</pre></blockquote>
+</div>
+
+<p>The benchmark is written in such a way that all initializations are
+done at the beginning, so that we get as accurate performance figures
+as possible:</p>
+
+<blockquote><pre class="code">panic% ./bench_call3.pl
+function: 21 wallclock secs (19.88 usr +  0.30 sys = 20.18 CPU)
+  method: 18 wallclock secs (16.72 usr +  0.24 sys = 16.96 CPU)</pre></blockquote>
+
+<p>As you can see, methods are faster than functions, which seems to be
+wrong. The explanation lies in the way <tt class="literal">CGI.pm</tt> is
+implemented. <tt class="literal">CGI.pm</tt> uses some fancy tricks to make
+the same routine act both as a method and as a plain function. The
+overhead of checking whether the arguments list looks like a method
+invocation or not will mask the slight difference in time for the way
+the function was called.</p>
+
+<p>If you are intrigued and want to investigate further by yourself, the
+subroutine you should explore is called
+<tt class="literal">self_or_default</tt>. The first line of this function
+short-circuits if you are using object methods, but the whole
+function is called if you are using the function-call forms.
+Therefore, the function-call form should be slightly slower than the
+object form for the <tt class="literal">CGI.pm</tt> module, which you
+shouldn't be using anyway if you have
+<tt class="literal">Apache::Request</tt> and a real templating system.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch13_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">13.5. Keeping a Small Memory Footprint</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">13.7. Using the Perl stat( ) Call's Cached Results</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

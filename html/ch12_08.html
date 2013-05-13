@@ -1,0 +1,155 @@
+<html><head><title>mod_rewrite Examples (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch12_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">12.8. mod_rewrite Examples</h2>
+
+<p>In the mod_proxy <a name="pmodperl-CHP-12-ITERM-5025" />and
+mod_perl servers scenario, <tt class="literal">ProxyPass</tt> was used to
+redirect all requests to the mod_perl server by matching the
+beginning of the relative URI (e.g., <em class="emphasis">/perl</em>).
+What should you do if you want everything, except files with
+<em class="emphasis">.gif</em>, <em class="emphasis">.cgi</em>, and similar
+extensions, to be proxypassed to the mod_perl server? (These other
+files are to be served by the light Apache server, which carries the
+mod_proxy module.)</p>
+
+<p>The following example locally handles all requests for files with
+extensions <em class="emphasis">.gif</em>, <em class="emphasis">.jpg</em>,
+<em class="emphasis">.png</em>, <em class="emphasis">.css</em>,
+<em class="emphasis">.txt</em>, and <em class="emphasis">.cgi</em> and relative
+URIs starting with <em class="emphasis">/cgi-bin</em> (e.g., if you want
+some scripts to be executed under mod_cgi), and rewrites everything
+else to the mod_perl server. That is, first handle locally what you
+want to handle locally, then hand off everything else to the backend
+guy. Notice that we assume that there are no static HTML files. If
+you have any of those, adjust the rules to handle HTML files as well.</p>
+
+<blockquote><pre class="code">RewriteEngine On
+# handle static files and traditional CGIs directly
+RewriteRule \.(gif|jpg|png|css|txt|cgi)$ - [last]
+RewriteRule ^/cgi-bin - [last]
+# pass off everything but images to the heavy-weight server via proxy
+RewriteRule ^/(.*)$ http://localhost:4077/$1 [proxy]</pre></blockquote>
+
+<p>This is the configuration of the logging facilities:</p>
+
+<blockquote><pre class="code">RewriteLogLevel 1
+RewriteLog "| /home/httpd/httpd_docs/bin/rotatelogs \
+/home/httpd/httpd_docs/logs/r_log 86400"</pre></blockquote>
+
+<p>It says to log all the rewrites through the Unix process pipe to the
+<em class="emphasis">rotatelogs</em> utility, which will rotate the logs
+every 24 hours (86,400 seconds).</p>
+
+<p>As another example, here's how to redirect all those
+Internet Explorer 5 (IE5) requests for
+<em class="emphasis">favicon.ico</em> to a central image:</p>
+
+<blockquote><pre class="code">RewriteRule .*favicon.ico /wherever/favicon.ico [passthrough]</pre></blockquote>
+
+<p>The <tt class="literal">passthrough</tt> flag tells mod_rewrite to set the
+URI of the request to the value of the rewritten filename
+<em class="filename">/whatever/favicon.ico</em>, so that any other
+rewriting directives, such as <tt class="literal">Alias</tt>, still apply.</p>
+
+<p>Here's a quick way to make dynamic pages look static:</p>
+
+<blockquote><pre class="code">RewriteRule ^/wherever/([a-zA-Z]+).html /perl/$1.pl [passthrough]</pre></blockquote>
+
+<p><tt class="literal">passthrough</tt> is used again so that the URI is
+properly rewritten and any <tt class="literal">ScriptAlias</tt> or other
+directives applying to <em class="emphasis">/perl</em> will be carried
+out.</p>
+
+<p>Instead of keeping all your Perl scripts in
+<em class="emphasis">/perl</em> and your static content everywhere else,
+you could keep your static content in special directories and keep
+your Perl scripts everywhere else. You can still use the light/heavy
+Apache separation approach described earlier, with a few minor
+modifications.</p>
+
+<p>In the light Apache's
+<em class="emphasis">httpd.conf</em> file, turn rewriting on:</p>
+
+<blockquote><pre class="code">RewriteEngine On</pre></blockquote>
+
+<p>Now list all directories that contain only static objects. For
+example, if the only directories relative to
+<tt class="literal">DocumentRoot</tt> are <em class="emphasis">/images</em> and
+<em class="emphasis">/style</em>, you can set the following rule:</p>
+
+<blockquote><pre class="code">RewriteRule ^/(images|style) - [last]</pre></blockquote>
+
+<p>The <tt class="literal">[last]</tt> flag means that the rewrite engine
+should stop if it has a match. This is necessary because the very
+last rewrite rule proxies everything to the heavy server:</p>
+
+<blockquote><pre class="code">RewriteRule ^/(.*) http://www.example.com:8080/$1 [proxy]</pre></blockquote>
+
+<p>This line is the difference between a server for which static content
+is the default and one for which dynamic (Perlish) content is the
+default.</p>
+
+<p>You should also add the reverse rewrite rule, as before:</p>
+
+<blockquote><pre class="code">ProxyPassReverse / http://www.example.com/</pre></blockquote>
+
+<p>so that the user doesn't see the port number :8000
+in the browser's location window in cases where the
+heavy server issues a redirect.</p>
+
+<p>It is possible to use <em class="emphasis">localhost</em> in the
+<tt class="literal">RewriteRule</tt> above if the heavy and light servers
+are on the same machine. So if we sum up the above setup, we get:</p>
+
+<blockquote><pre class="code">RewriteEngine On
+RewriteRule ^/(images|style) - [last]
+RewriteRule ^/(.*) http://www.example.com:8000/$1 [proxy]
+ProxyPassReverse / http://www.example.com/</pre></blockquote>
+
+<p>In the next example, we use mod_rewrite's
+<tt class="literal">env</tt> flag to set an environment variable only for
+proxied requests. This variable can later be used by other
+directives.</p>
+
+<blockquote><pre class="code">RewriteRule ^/(images|style) - [last]
+RewriteRule ^/(.*) http://www.example.com:8000/$1 [env=dyn:1,proxy]
+ProxyPassReverse / http://www.example.com/</pre></blockquote>
+
+<p>We could use this environment variable to turn off logging for
+dynamic requests:</p>
+
+<blockquote><pre class="code">LogFormat "%h %l %u %t \"%r\" %&gt;s %b" common
+CustomLog logs/access_log common env=!dyn</pre></blockquote>
+
+<p>This comes in handy when using an authentication module on the
+mod_perl server, such as <tt class="literal">Apache::AuthenDBI</tt>.
+Authenticated user credentials we're interested in
+logging are available only in the backend server. This technique is
+most useful when virtual hosts are used: logging can be turned on in
+the mod_perl server for this specific virtual host<a name="pmodperl-CHP-12-ITERM-5026" /> only.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch12_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">12.7. Apache's mod_proxy Module</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">12.9. Getting the Remote Server IP in the Backend Server in the Proxy Setup</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

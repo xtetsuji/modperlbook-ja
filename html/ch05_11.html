@@ -1,0 +1,1022 @@
+<html><head><title>Server Maintenance Chores (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_10.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch05_12.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">5.11. Server Maintenance Chores</h2>
+
+<p>It is not enough to have your server and service up and running. The
+server must be maintained and monitored even when everything seems to
+be fine. This includes security auditing as well as keeping an eye on
+the amount of remaining unused disk space, available RAM, the
+system's load, etc.</p>
+
+<p>If these chores are forgotten, sooner or later the system will crash,
+either because it has run out of free disk space, all available RAM
+has been used and the system has started to swap heavily, or it has
+been broken into. The last issue is much too broad for this
+book's scope, but the others are quite easily
+addressed if you follow our advice.</p>
+
+<p>Particular systems might require maintenance chores that are not
+covered here, but this section highlights some of the most important
+general tasks.</p>
+
+<a name="pmodperl-CHP-5-SECT-11.1" /><div class="sect2">
+<h3 class="sect2">5.11.1. Handling Log Files</h3>
+
+<p>Apache <a name="pmodperl-CHP-5-ITERM-4214" /><a name="pmodperl-CHP-5-ITERM-4215" /><a name="pmodperl-CHP-5-ITERM-4216" /><a name="pmodperl-CHP-5-ITERM-4217" />generally logs all the web server
+access events in the <em class="emphasis">access_log</em> file, whereas
+errors and warnings go into the <em class="emphasis">error_log</em> file.
+The <em class="emphasis">access_log</em> file can later be analyzed to
+report server usage statistics, such as the number of requests made
+in different time spans, who issued these requests, and much more.
+The <em class="emphasis">error_log</em> file is used to monitor the server
+for errors and warnings and to prompt actions based on those reports.
+Some systems do additional logging, such as storing the referrers of
+incoming requests to find out how users have learned about the site.</p>
+
+<p>The simplest logging technique is to dump the logs into a file opened
+for appending. With Apache, this is as simple as specifying the
+logging format and the file to which to log. For example, to log all
+accesses, use the default directive supplied in
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">LogFormat "%h %l %u %t \"%r\" %&gt;s %b" common
+CustomLog /home/httpd/httpd_perl/logs/access_log common</pre></blockquote>
+
+<p>This setting will log all server accesses to a file named
+<em class="emphasis">/home/httpd/httpd_perl/logs/access_log</em> using the
+format specified by the <tt class="literal">LogFormat</tt>
+directive&#8212;in this case, <tt class="literal">common</tt>. Please refer
+to the Apache documentation for a complete explanation of the various
+tokens that you can use when specifying log formats. If
+you're tempted to change the format of the log file,
+bear in mind that some log analysis tools may expect that only the
+default or one of a small subset of logging formats is used.</p>
+
+<p>The only risk with log files is their size. It is important to keep
+log files trimmed. If they are needed for later analysis, they should
+be rotated and the rotation files should be moved somewhere else so
+they do not consume disk space. You can usually compress them for
+storage offline.</p>
+
+<p>The most important thing is to monitor log files for possible sudden
+explosive growth rates. For example, if a developer makes a mistake
+in his code running on the mod_perl server and the child processes
+executing the code start to log thousands of error messages a second,
+all disk space can quickly be consumed, and the server will cease to
+function.</p>
+
+<a name="pmodperl-CHP-5-SECT-11.1.1" /><div class="sect3">
+<h3 class="sect3">5.11.1.1. Scheduled log file rotation</h3>
+
+<p>The first issue<a name="pmodperl-CHP-5-ITERM-4218" />
+is solved by having a process that rotates the logs run by
+<em class="emphasis">cron</em> at certain times (usually off-peak hours,
+if this term is still valid in the 24-hour global Internet era).
+Usually, log rotation includes renaming the current log file,
+restarting the server (which creates a fresh new log file), and
+compressing and/or moving the rotated log file to a different disk.</p>
+
+<p>For example, if we want to rotate the <em class="emphasis">access_log</em>
+file, we could do:</p>
+
+<blockquote><pre class="code">panic% mv access_log access_log.renamed
+panic% apachectl graceful
+panic% sleep 5
+panic% mv access_log.renamed /some/directory/on/another/disk</pre></blockquote>
+
+<p>The <em class="emphasis">sleep</em> delay is added to make sure that all
+children complete requests and logging. It's
+possible that a longer delay is needed. Once the restart is
+completed, it is safe to use <em class="emphasis">access_log.renamed</em>.</p>
+
+<p>There are several popular utilities, such as
+<em class="emphasis">rotatelogs</em> and <em class="emphasis">cronolog</em>,
+that can perform the rotation, although it is also easy to create a
+basic rotation script. <a href="ch05_11.html#pmodperl-CHP-5-EX-10">Example 5-10</a> shows a script
+that we run from <em class="emphasis">cron</em> to rotate our log files.</p>
+
+<a name="pmodperl-CHP-5-EX-10" /><div class="example">
+<h4 class="objtitle">Example 5-10. logrotate</h4>
+<blockquote><pre class="code">#!/usr/local/bin/perl -Tw
+
+# This script does log rotation. Called from crontab.
+
+use strict;
+$ENV{PATH}='/bin:/usr/bin';
+delete @ENV{qw(IFS CDPATH ENV BASH_ENV)};
+
+### configuration
+my @logfiles = qw(access_log error_log);
+umask 0;
+my $server = "httpd_perl";
+my $logs_dir = "/home/httpd/$server/logs";
+my $restart_command = "/home/httpd/$server/bin/apachectl restart";
+my $gzip_exec = "/usr/bin/gzip -9"; # -9 is maximum compression
+
+my ($sec, $min, $hour, $mday, $mon, $year) = localtime(time);
+my $time = sprintf "%0.4d.%0.2d.%0.2d-%0.2d.%0.2d.%0.2d",
+                   $year+1900, ++$mon, $mday, $hour, $min, $sec;
+
+chdir $logs_dir;
+
+# rename log files
+foreach my $file (@logfiles) { 
+    rename $file, "$file.$time";
+}
+
+# now restart the server so the logs will be restarted
+system $restart_command;
+
+# allow all children to complete requests and logging
+sleep 5;
+
+# compress log files
+foreach my $file (@logfiles) {
+    system "$gzip_exec $file.$time";
+}</pre></blockquote>
+</div>
+
+<p>As can be seen from the code, the rotated files will include the date
+and time in their filenames.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-11.1.2" /><div class="sect3">
+<h3 class="sect3">5.11.1.2. Non-scheduled emergency log rotation</h3>
+
+<p>As we mentioned<a name="pmodperl-CHP-5-ITERM-4219" />
+earlier, there are times when the web server goes wild and starts to
+rapidly log lots of messages to the <em class="emphasis">error_log</em>
+file. If no one monitors this, it is possible that in a few minutes
+all free disk space will be consumed and no process will be able to
+work normally. When this happens, the faulty server process may cause
+so much I/O that its sibling processes cannot serve requests.</p>
+
+<p>Although this rarely happens, you should try to reduce the risk of it
+occurring on your server. Run a monitoring program that checks the
+log file size and, if it detects that the file has grown too large,
+attempts to restart the server and trim the log file.</p>
+
+<p>Back when we were using quite an old version of mod_perl, we
+sometimes had bursts of "Callback called
+exit" errors showing up in our
+<em class="emphasis">error_log</em>. The file could grow to 300 MB in a
+few minutes.</p>
+
+<p><a href="ch05_11.html#pmodperl-CHP-5-EX-11">Example 5-11</a> shows a script that should be executed
+from <em class="emphasis">crontab</em> to handle situations like this.
+This is an emergency solution, not to be used for routine log
+rotation. The <em class="emphasis">cron</em> job should run every few
+minutes or even every minute, because if the site experiences this
+problem, the log files will grow very rapidly. The example script
+will rotate when <em class="emphasis">error_log</em> grows over 100K. Note
+that this script is still useful when the normal scheduled
+log-rotation facility is working.</p>
+
+<a name="pmodperl-CHP-5-EX-11" /><div class="example">
+<h4 class="objtitle">Example 5-11. emergency_rotate.sh</h4>
+<blockquote><pre class="code">#!/bin/sh
+S=`perl -e 'print -s "/home/httpd/httpd_perl/logs/error_log"'`;
+if [ "$S" -gt 100000 ] ; then
+    mv /home/httpd/httpd_perl/logs/error_log \
+       /home/httpd/httpd_perl/logs/error_log.old
+    /etc/rc.d/init.d/httpd restart
+    date | /bin/mail -s "error_log $S kB" admin@example.com
+fi</pre></blockquote>
+</div>
+
+<p>Of course, a more advanced script could be written using timestamps
+and other bells and whistles. This example is just a start, to
+illustrate a basic solution to the problem in question.</p>
+
+<p>Another solution is to use ready-made tools that are written for this
+purpose. The <em class="emphasis">daemontools</em> package includes a
+utility called <em class="emphasis">multilog</em> that saves the
+<tt class="literal">STDIN</tt>stream to one or more log files. It
+optionally timestamps each line and, for each log, includes or
+excludes lines matching specified patterns. It automatically rotates
+logs to limit the amount of disk space used. If the disk fills up, it
+pauses and tries again, without losing any data.</p>
+
+<p>The obvious caveat is that it does not restart the server, so while
+it tries to solve the log file-handling issue, it does not deal with
+the problem's real cause. However, because of the
+heavy I/O induced by the log writing, other server processes will
+work very slowly if at all. A normal watchdog is still needed to
+detect this situation and restart the Apache server.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-11.1.3" /><div class="sect3">
+<h3 class="sect3">5.11.1.3. Centralized logging</h3>
+
+<p>If you are running<a name="pmodperl-CHP-5-ITERM-4220" /> more
+than one server on the same machine, Apache offers the choice of
+either having a separate set of log files for each server, or using a
+central set of log files for all servers. If you are running servers
+on more than one machine, having them share a single log file is
+harder to achieve, but it is possible, provided that a filesharing
+system is used (logging into a database, or a special purpose
+application like <em class="emphasis">syslog</em>).</p>
+
+<p>There are a few file-sharing systems that are widely used:</p>
+
+<dl>
+<dt><i>Network File System (NFS)</i></dt>
+<dd>
+NFS is a<a name="pmodperl-CHP-5-ITERM-4221" /> network file-sharing system.
+It's a very useful system, when it works.
+Unfortunately, it breaks too often, which makes it unreliable to use
+on production systems. NFS is available on most Unix flavors.</p>
+</dd>
+
+
+
+<dt><i>Andrew File System (AFS)</i></dt>
+<dd>
+AFS is a <a name="pmodperl-CHP-5-ITERM-4222" />distributed filesystem that
+enables cooperating hosts (clients and servers) to efficiently share
+filesystem resources across both local area and wide area networks.
+This filesystem is reliable, but it costs money and is available only
+on the HP, Next, DEC, IBM, SUN, and SGI operating systems. For more
+information, see <a href="http://www.transarc.com/">http://www.transarc.com/</a> and <a href="http://www.angelfire.com/hi/plutonic/afs-faq.html">http://www.angelfire.com/hi/plutonic/afs-faq.html</a>.</p>
+</dd>
+
+
+
+<dt><i>Coda</i></dt>
+<dd>
+Coda <a name="pmodperl-CHP-5-ITERM-4223" />is a distributed filesystem with its
+origin in AFS2. It has many features that are very desirable for
+network filesystems. Coda is platform-independent: you can mix and
+match servers and clients on any supported platform. As of this
+writing, it's not clear how stable the system is;
+some people have reported success using it, but others have had some
+problems with it. For more information, see <a href="http://www.coda.cs.cmu.edu/">http://www.coda.cs.cmu.edu/</a>.</p>
+</dd>
+
+</dl>
+
+<p>Apache permits the location of the file used for logging purposes to
+be specified, but it also allows you to specify a program to which
+all logs should be piped. To log to a program, modify the log handler
+directive (for example, <tt class="literal">CustomLog</tt>) to use the
+logging program instead of specifying an explicit filename:</p>
+
+<blockquote><pre class="code">LogFormat "%h %l %u %t \"%r\" %&gt;s %b" common
+CustomLog "| /home/httpd/httpd_perl/bin/sqllogger.pl" common</pre></blockquote>
+
+<p>Logging into a database is a common solution, because you can do
+insertions from different machines into a single database. Unless the
+logger is programmed to send logs to a few databases at once, this
+solution is not reliable, since a single database constitutes a
+single failure point. If the database goes down, the logs will be
+lost. Sending information to one target is called
+<em class="emphasis">unicast</em></tt> (see <a href="ch05_11.html#pmodperl-CHP-5-FIG-6">Figure 5-6</a>), and
+sending to more than one target is called
+<em class="emphasis">multicast</em></tt> (see <a href="ch05_11.html#pmodperl-CHP-5-FIG-7">Figure 5-7</a>). In
+the latter case, if one database goes down, the others will still
+collect the data.</p>
+
+<a name="pmodperl-CHP-5-FIG-6" /><div class="figure"><img src="figs/pmp_0506.gif" alt="Figure 5-6" width="311" /></div><h4 class="objtitle">Figure 5-6. Unicast solution</h4>
+
+<a name="pmodperl-CHP-5-FIG-7" /><div class="figure"><img src="figs/pmp_0507.gif" alt="Figure 5-7" width="339" /></div><h4 class="objtitle">Figure 5-7. Multicast solution</h4>
+
+<p>Another solution is to use a centralized logger program based on
+<em class="emphasis">syslog(3)</em></tt> to send all logs to a central location
+on a master host. <em class="emphasis">syslog(3)</em></tt> is not a very
+scalable solution, because it's slow.
+It's also unreliable&#8212;it uses UDP to send the
+data, which doesn't ensure that the data will reach
+its destination. This solution is also unicast: if the master host
+goes down, the logs will be lost.</p>
+
+<a name="pmodperl-CHP-5-SIDEBAR-2" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Using syslog</h4>
+
+<p>The
+<em class="emphasis">syslog</em></tt><a name="pmodperl-CHP-5-ITERM-4224" />
+solution can be implemented using the following configuration:</p>
+
+<blockquote><pre class="code">LogFormat "%h %l %u %t \"%r\" %&gt;s %b" common
+CustomLog "| /home/httpd/httpd_perl/bin/syslogger.pl hostnameX" common</pre></blockquote>
+
+<p>where a simple <em class="emphasis">syslogger.pl</em></tt> can look like this:</p>
+
+<blockquote><pre class="code">#!/usr/bin/perl
+use Sys::Syslog qw(:DEFAULT setlogsock);
+
+my $hostname = shift || 'localhost';
+my $options  = 'ndelay'; # open the connection immediately
+my $facility = 'local0'; # one of local0..local7
+my $priority = 'info';   # debug|info|notice|warning|err...
+
+setlogsock 'unix';
+openlog $hostname, $options, $facility;
+while (&lt;&gt;) {
+    chomp;
+    syslog $priority, $_;
+}
+closelog;</pre></blockquote>
+
+<p>The <em class="emphasis">syslog</em></tt> utility needs to know the facility to
+work with and the logging level. We will use
+<em class="emphasis">local0</em></tt>, one of the special logging facilities
+reserved for local usage (eight local facilities are available:
+<em class="emphasis">local0</em></tt> through <em class="emphasis">local7</em></tt>). We
+will use the <em class="emphasis">info</em></tt> priority level (again, one of
+eight possible levels: <em class="emphasis">debug</em></tt>,
+<em class="emphasis">info</em></tt>, <em class="emphasis">notice</em></tt>,
+<em class="emphasis">warning</em></tt>, <em class="emphasis">err</em></tt>,
+<em class="emphasis">crit</em></tt>, <em class="emphasis">alert</em></tt>, and
+<em class="emphasis">emerg</em></tt>).</p>
+
+<p>Now make the <em class="emphasis">syslog</em></tt> utility on the master
+machine (where all logs are to be stored) log all messages coming
+from facility <em class="emphasis">local0</em></tt> with logging level
+<tt class="literal">info</tt> to a file of your choice. This is achieved by
+editing the <em class="emphasis">/etc/syslog.conf</em></tt> file. For example:</p>
+
+<blockquote><pre class="code">local0.info /var/log/web/access_log</pre></blockquote>
+
+<p>All other machines forward their logs from facility
+<em class="emphasis">local0</em></tt> to the central machine. Therefore, on all
+but the master machine, we add the forwarding directive to the
+<em class="emphasis">/etc/syslog.conf</em></tt> file (assuming that the master
+machine's hostname is
+<em class="emphasis">masterhost</em></tt>):</p>
+
+<blockquote><pre class="code">local0.info @masterhost</pre></blockquote>
+
+<p>We must restart the <em class="emphasis">syslogd</em></tt> daemon or send it
+the HUP kill signal for the changes to take effect before the logger
+can be used.</p>
+</td></tr></table><p></blockquote>
+
+<p>One advanced system that provides consolidated logging is
+<tt class="literal">mod_log_spread</tt>. Based on the group communications
+toolkit Spread, using IP multicast, <tt class="literal">mod_log_spread</tt>
+provides reliable, scalable centralized logging whith minimal
+performance impact on the web servers. For more<a name="pmodperl-CHP-5-ITERM-4225" /><a name="pmodperl-CHP-5-ITERM-4226" /><a name="pmodperl-CHP-5-ITERM-4227" /><a name="pmodperl-CHP-5-ITERM-4228" /> information,
+<a name="pmodperl-CHP-5-ITERM-4229" />see
+<a href="http://www.backhand.org/mod_log_spread/">http://www.backhand.org/mod_log_spread/</a>.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-5-SECT-11.2" /><div class="sect2">
+<h3 class="sect2">5.11.2. Swapping Prevention</h3>
+
+<p>Before we delve into swapping process details, let's
+look briefly at memory components and memory management.</p>
+
+<p>Computer
+<a name="pmodperl-CHP-5-ITERM-4230" />memory
+is called <a name="pmodperl-CHP-5-ITERM-4231" />RAM (Random Access Memory). Reading and
+writing to RAM is faster than doing the same operations on a hard
+disk, by around five orders of magnitude (and growing). RAM uses
+electronic memory cells (transistors) with no moving parts, while
+hard disks use a rotating magnetic medium. It takes about one tenth
+of a microsecond to write to RAM but something like ten thousand
+microseconds to write to hard disk. It is possible to write just one
+byte (well, maybe one word) to RAM, whereas the minimum that can be
+written to a disk is often four thousand or eight thousand bytes (a
+single block). We often refer to RAM as <em class="emphasis">physical
+memory</em></tt>.</p>
+
+<p>A program may take up many thousands of bytes on disk. However, when
+it is executed normally, only the parts of the code actually needed
+at the time are loaded into memory. We call these parts
+<em class="emphasis">segments</em></tt>.</p>
+
+<p>On most operating systems, <a name="pmodperl-CHP-5-ITERM-4232" />swap memory is used as an extension for
+RAM and not as a duplication of it. Assuming the operating system you
+use is one of those, if there is 128 MB of RAM and a 256 MB swap
+partition, there is a total of 384 MB of memory available. However,
+the extra (swap) memory should never be taken into consideration when
+deciding on the maximum number of processes to be run (we will show
+you why in a moment). The <a name="pmodperl-CHP-5-ITERM-4233" />swap partition is also known as
+<em class="emphasis">swap space</em></tt> or <em class="emphasis">virtual
+memory</em></tt><a name="pmodperl-CHP-5-ITERM-4234" />.</p>
+
+<p>The swapping memory can be built from a number of hard disk
+partitions and swap files formatted to be used as swap memory. When
+more swap memory is required, as long as there is some free disk
+space, it can always be extended on demand. (For more information,
+see the <em class="emphasis">mkswap</em></tt> and <em class="emphasis">swapon</em></tt>
+manpages.)</p>
+
+<p>System memory is quantified in units called
+<a name="pmodperl-CHP-5-ITERM-4235" /><a name="pmodperl-CHP-5-ITERM-4236" /><em class="emphasis">memory
+pages</em></tt><a name="pmodperl-CHP-5-ITERM-4237" />. Usually the size of a memory page is
+between 1 KB and 8 KB. So if there is 256 MB of RAM installed on the
+machine, and the page size is 4 KB, the system has 64,000 main memory
+pages to work with, and these pages are fast. If there is a 256-MB
+swap partition, the system can use yet another 64,000 memory pages,
+but they will be much slower.</p>
+
+<p>When the system is started, all memory pages are available for use by
+the programs (processes). Unless a program is really small (in which
+case at any one time the entire program will be in memory), the
+process running this program uses only a few segments of the program,
+each segment mapped onto its own memory page. Therefore, only a few
+memory pages are needed&#8212;generally fewer than the
+program's size might imply.</p>
+
+<p>When a process needs an additional program segment to be loaded into
+memory, it asks the system whether the page containing this segment
+is already loaded. If the page is not found, an event known as a
+"page fault" occurs. This requires
+the system to allocate a free memory page, go to the disk, and
+finally read and load the requested segment into the allocated memory
+page.</p>
+
+<p>If a process needs to bring a new page into physical memory and there
+are no free physical pages available, the operating system must make
+room for this page by discarding another page from physical memory.</p>
+
+<p>If the page to be discarded from physical memory came from a binary
+image or data file and has not been modified, the page does not need
+to be saved. Instead, it can be discarded, and if the process needs
+that page again it can be brought back into memory from the image or
+data file.</p>
+
+<p>However, if the page has been modified, the operating system must
+preserve the contents of that page so that it can be accessed at a
+later time. This type of page is known as a <em class="emphasis">dirty
+page</em></tt>, and when it is removed from memory it is saved in a
+special sort of file called the <em class="emphasis">swap file</em></tt>. This
+process is referred to as <em class="emphasis">swapping out</em></tt>.</p>
+
+<p>Accesses to the swap file are very slow compared with the speed of
+the processor and physical memory, and the operating system must
+juggle the need to write pages to disk with the need to retain them
+in memory to be used again.</p>
+
+<p>To try to reduce the probability that a page will be needed just
+after it has been swapped out, the system may use the LRU (least
+recently used) algorithm or some similar algorithm.</p>
+
+<p>To summarize the two swapping scenarios, discarding read-only pages
+incurs little overhead compared with discarding data pages that have
+been modified, since in the latter case the pages have to be written
+to a swap partition located on the (very slow) disk. Thus, the fewer
+memory pages there are that can become dirty, the better will be the
+machine's overall performance.</p>
+
+<p>But in Perl, both the program code and the program data are seen as
+data pages by the OS. Both are mapped to the same memory pages.
+Therefore, a big chunk of Perl code can become dirty when its
+variables are modified, and when those pages need to be discarded
+they have to be written to the swap partition.</p>
+
+<p>This leads us to two important conclusions about swapping and Perl:</p>
+
+<ol><li>
+<p>Running the system when there is no free physical memory available
+hinders performance, because processes' memory pages
+will be discarded and then reread from disk again and again.</p>
+</li><li>
+<p>Since the majority of the running code is Perl code, in addition to
+the overhead of reading in the previously discarded pages, there is
+the additional overhead of saving the dirty pages to the swap
+partition.</p>
+</li></ol>
+<p>When the system has to <a name="pmodperl-CHP-5-ITERM-4238" /><a name="pmodperl-CHP-5-ITERM-4239" /><a name="pmodperl-CHP-5-ITERM-4240" /><a name="pmodperl-CHP-5-ITERM-4241" /><a name="pmodperl-CHP-5-ITERM-4242" />swap memory pages in and
+out, it slows down. This can lead to an accumulation of processes
+waiting for their turn to run, which further increases processing
+demands, which in turn slows down the system even more as more memory
+is required. Unless the resource demand drops and allows the
+processes to catch up with their tasks and go back to normal memory
+usage, this ever-worsening spiral can cause the machine to thrash the
+disk and ultimately to halt.</p>
+
+<p>In addition, it is important to be aware that for better performance,
+many programs (particularly programs written in Perl) do not return
+memory pages to the operating system even when they are no longer
+needed. If some of the memory is freed, it is reused when needed by
+the process itself, without creating the additional overhead of
+asking the system to allocate new memory pages. That is why Perl
+programs tend to grow in size as they run and almost never shrink.</p>
+
+<p>When the process quits, it returns all the memory pages it used to
+the pool of available pages for other processes to use.</p>
+
+<p>It should now be obvious that a system that runs a web server should
+never swap. Of course, it is quite normal for a desktop machine to
+swap, and this is often apparent because everything slows down and
+sometimes the system starts freezing for short periods. On a personal
+machine, the solution to swapping is simple: do not start up any new
+programs for a minute, and try to close down any that are running
+unnecessarily. This will allow the system to catch up with the load
+and go back to using just RAM. Unfortunately, this solution cannot be
+applied to a web server.</p>
+
+<p>In the case of a web server, we have much less control, since it is
+the remote users who load the machine by issuing requests to the
+server. Therefore, the server should be configured such that the
+maximum number of possible processes will be small enough for the
+system to handle. This is achieved with the
+<tt class="literal">MaxClients</tt> directive, discussed in <a href="ch11_01.html">Chapter 11</a>. This will ensure that at peak times, the
+system will not swap. Remember that for a web server, swap space is
+an emergency pool, not a resource to be used routinely. If the system
+is low on memory, either buy more memory or reduce the number of
+processes to prevent swapping, as discussed in <a href="ch14_01.html">Chapter 14</a>.</p>
+
+<p>However, due to faulty code, sometimes a process might start running
+in an infinite loop, consuming all the available RAM and using lots
+of swap memory. In such a situation, it helps if there is a big
+emergency pool (i.e., lots of swap memory). But the problem must
+still be resolved as soon as possible, since the pool will not last
+for long. One solution is to use the
+<tt class="literal">Apache::Resource</tt> module, described in the next
+section.</p>
+
+</div>
+<a name="pmodperl-CHP-5-SECT-11.3" /><div class="sect2">
+<h3 class="sect2">5.11.3. Limiting Resources Used by Apache Child Processes</h3>
+
+<p>There are times <a name="pmodperl-CHP-5-ITERM-4243" /><a name="pmodperl-CHP-5-ITERM-4244" /><a name="pmodperl-CHP-5-ITERM-4245" />when we
+need to prevent processes from excessive consumption of system
+resources. This includes limiting CPU or memory usage, the number of
+files that can be opened, and more.</p>
+
+<p>The
+<tt class="literal">Apache::Resource</tt><a name="pmodperl-CHP-5-ITERM-4246" /> module uses the
+<tt class="literal">BSD::Resource</tt> module, which in turn uses the C
+function <tt class="literal">setrlimit(
+)</tt><a name="pmodperl-CHP-5-ITERM-4247" /> to set limits on system resources.</p>
+
+<p>A resource limit is specified in terms of a soft limit and a hard
+limit. When a soft limit (for example, CPU time or file size) is
+exceeded, the process may receive a signal, but it will be allowed to
+continue execution until it reaches the hard limit (or modifies its
+resource limit). The <tt class="literal">rlimit</tt>structure is used to
+specify the hard and soft limits on a resource. (See the
+<em class="emphasis">setrlimit</em></tt> manpage for OS-specific information.)</p>
+
+<p>If the value of variable in <tt class="literal">rlimit</tt> is of the form
+<tt class="literal">S:H</tt>, <tt class="literal">S</tt> is treated as the soft
+limit, and <tt class="literal">H</tt> is the hard limit. If the value is a
+single number, it is used for both soft and hard limits. So if the
+value is <tt class="literal">10:20</tt>, the soft limit is 10 and the hard
+limit is 20, whereas if the value is just <tt class="literal">20</tt>, both
+the soft and the hard limits are set to 20.</p>
+
+<p>The most common use of this module is to limit
+<a name="pmodperl-CHP-5-ITERM-4248" />CPU usage. The environment variable
+<tt class="literal">PERL_RLIMIT_CPU</tt> defines the maximum amount of CPU
+time the process can use. If it attempts to run longer than this
+amount, it is killed, no matter what it is doing at the time, be it
+processing a request or just waiting. This is very useful when there
+is a bug in the code and a process starts to spin in an infinite
+loop, using a lot of CPU resources and never completing the request.</p>
+
+<p>The value is measured in seconds. The following example sets the soft
+limit for CPU usage to 120 seconds (the default is 360):</p>
+
+<blockquote><pre class="code">PerlModule Apache::Resource
+PerlSetEnv PERL_RLIMIT_CPU 120</pre></blockquote>
+
+<p>Although 120 seconds does not sound like a long time, it represents a
+great deal of work for a modern processor capable of millions of
+instructions per second. Furthermore, because the child process
+shares the CPU with other processes, it may be quite some time before
+it uses all its allotted CPU time, and in all probability it will die
+from other causes (for example, it may have served all the requests
+it is permitted to serve before this hard limit is reached).</p>
+
+<p>Of course, we should tell mod_perl to use this module, which is done
+by adding the following directive to <em class="emphasis">httpd.conf</em></tt>:</p>
+
+<blockquote><pre class="code">PerlChildInitHandler Apache::Resource</pre></blockquote>
+
+<p>There are other resources that we might want to limit. For example,
+we can limit the data and bstack <a name="pmodperl-CHP-5-ITERM-4249" />memory segment sizes
+(<tt class="literal">PERL_RLIMIT_DATA</tt> and
+<tt class="literal">PERL_RLIMIT_STACK</tt>), the maximum process file size
+(<tt class="literal">PERL_RLIMIT_FSIZE</tt>), the core file size
+(<tt class="literal">PERL_RLIMIT_CORE</tt>), the address space (virtual
+memory) limit (<tt class="literal">PERL_RLIMIT_AS</tt>), etc. Refer to the
+<em class="emphasis">setrlimit</em></tt> manpage for other possible resources.
+Remember to prepend <tt class="literal">PERL_</tt> to the resource types
+that are listed in the manpage.</p>
+
+<p>If <tt class="literal">Apache::Status</tt> is configured, it can display
+the resources set in this way. Remember that
+<tt class="literal">Apache::Status</tt> must be loaded before
+<tt class="literal">Apache::Resource</tt>, in order to enable the resources
+display menu.</p>
+
+<p>To turn on debug mode, set the
+<tt class="literal">$Apache::Resource::Debug</tt> variable before loading
+the module. This can be done using a Perl section in
+<em class="emphasis">httpd.conf</em></tt>.</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    $Apache::Resource::Debug = 1;
+    require Apache::Resource;
+&lt;/Perl&gt;
+PerlChildInitHandler Apache::Resource</pre></blockquote>
+
+<p>Now view the <em class="emphasis">error_log</em></tt> file using <em class="emphasis">tail
+-f</em></tt> and watch the debug messages show up when requests are
+served.</p>
+
+<a name="pmodperl-CHP-5-SECT-11.3.1" /><div class="sect3">
+<h3 class="sect3">5.11.3.1. OS-specific notes</h3>
+
+<p>Under certain Linux setups, <tt class="literal">malloc( )</tt> uses
+<tt class="literal">mmap( )</tt> instead of <tt class="literal">brk( )</tt>. This
+is done to conserve virtual memory&#8212;that is, when a program
+<tt class="literal">malloc( )</tt>s a large block of memory, the block is
+not actually returned to the program until it is initialized. The
+old-style <tt class="literal">brk( )</tt>system call obeyed resource
+limits on data segment sizes as set in <tt class="literal">setrlimit(
+)</tt>. <tt class="literal">mmap( )</tt> does not.</p>
+
+<p><tt class="literal">Apache::Resource</tt>'s defaults put
+limits on data size and stack size. Linux's current
+memory-allocation scheme does not honor these limits, so if we just
+do:</p>
+
+<blockquote><pre class="code">PerlSetEnv PERL_RLIMIT_DEFAULTS On
+PerlModule Apache::Resource
+PerlChildInitHandler Apache::Resource</pre></blockquote>
+
+<p>our Apache processes are still free to use as much memory as they
+like.</p>
+
+<p>However, <tt class="literal">BSD::Resource</tt> also has a limit called
+<tt class="literal">RLIMIT_AS</tt> (Address Space), which limits the total
+number of bytes of virtual memory assigned to a process. Fortunately,
+Linux's memory manager <em class="emphasis">does</em></tt>
+honor this limit.</p>
+
+<p>Therefore, we <em class="emphasis">can</em></tt> limit memory usage under Linux
+with <tt class="literal">Apache::Resource</tt>. Simply add a line to
+<em class="emphasis">httpd.conf</em></tt>:</p>
+
+<blockquote><pre class="code">PerlSetEnv PERL_RLIMIT_AS  67108864</pre></blockquote>
+
+<p>This example sets hard and soft limits of 64 MB of total address
+space.</p>
+
+<p>Refer to the <tt class="literal">Apache::Resource</tt> and
+<em class="emphasis">setrlimit(2)</em></tt> manpages for more <a name="pmodperl-CHP-5-ITERM-4250" /><a name="pmodperl-CHP-5-ITERM-4251" /><a name="pmodperl-CHP-5-ITERM-4252" />information.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-5-SECT-11.4" /><div class="sect2">
+<h3 class="sect2">5.11.4. Tracking and Terminating Hanging Processes</h3>
+
+<p>Generally, limits <a name="pmodperl-CHP-5-ITERM-4253" /><a name="pmodperl-CHP-5-ITERM-4254" /><a name="pmodperl-CHP-5-ITERM-4255" /><a name="pmodperl-CHP-5-ITERM-4256" />should be
+imposed on mod_perl processes to prevent mayhem if something goes
+wrong. There is no need to limit processes if the code does not have
+any bugs, or at least if there is sufficient confidence that the
+program will never overconsume resources. When there is a risk that a
+process might hang or start consuming a lot of memory, CPU, or other
+resources, it is wise to use the <tt class="literal">Apache::Resource</tt>
+module.</p>
+
+<p>But what happens if a process is stuck waiting for some event to
+occur? Consider a process trying to acquire a lock on a file that can
+never be satisfied because there is a deadlock. The process just
+hangs waiting, which means that neither extra CPU nor extra memory is
+used. We cannot detect and terminate this process using the
+resource-limiting techniques we just discussed. If there is such a
+process, it is likely that very soon there will be many more
+processes stuck waiting for the same or a different event to occur.
+Within a short time, all processes will be stuck and no new processes
+will be spawned because the maximum number, as specified by the
+<tt class="literal">MaxClients</tt> directive, has been reached. The
+service enters a state where it is up but not serving clients.</p>
+
+<p>If a <a name="pmodperl-CHP-5-ITERM-4257" />watchdog is run that does
+not just check that the process is up, but actually issues requests
+to make sure that the service responds, then there is some protection
+against a complete service outage. This is because the watchdog will
+restart the server if the testing request it issues times out. This
+is a last-resort solution; the ideal is to be able to detect and
+terminate hanging processes that do not consume many resources (and
+therefore cannot be detected by the
+<tt class="literal">Apache::Resource</tt> module) as soon as possible, not
+when the service stops responding to requests, since by that point
+the quality of service to the users will have been severely degraded.</p>
+
+<p>This is where the
+<tt class="literal">Apache::Watchdog::RunAway</tt><a name="pmodperl-CHP-5-ITERM-4258" /> module comes in handy. This module
+samples all live child processes every
+<tt class="literal">$Apache::Watchdog::RunAway::POLLTIME</tt>seconds. If a
+process has been serving the same request for more than
+<tt class="literal">$Apache::Watchdog::RunAway::TIMEOUT</tt>seconds, it is
+killed.</p>
+
+<p>To perform accounting, the
+<tt class="literal">Apache::Watchdog::RunAway</tt> module uses the
+<tt class="literal">Apache::Scoreboard</tt> module, which in turn delivers
+various items of information about live child processes. Therefore,
+the following
+<a name="pmodperl-CHP-5-ITERM-4259" />configuration must be added to
+<em class="emphasis">httpd.conf</em></tt>:</p>
+
+<blockquote><pre class="code">&lt;Location /scoreboard&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Scoreboard::send
+    order deny,allow
+    deny from all
+    allow from localhost
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Make sure to adapt the access permission to the local environment.
+The above configuration allows access to this handler only from the
+<em class="emphasis">localhost</em></tt>server. This setting can be tested by
+issuing a request for
+<em class="emphasis">http://localhost/scoreboard</em></tt>. However, the
+returned data cannot be read directly, since it uses a binary format.</p>
+
+<p>We are now ready to configure
+<tt class="literal">Apache::Watchdog::RunAway</tt>. The module should be
+able to retrieve the information provided by
+<tt class="literal">Apache::Scoreboard</tt>, so we will tell it the URL to
+use:</p>
+
+<blockquote><pre class="code">$Apache::Watchdog::RunAway::SCOREBOARD_URL = "http://localhost/scoreboard";</pre></blockquote>
+
+<p>We must decide how many seconds the process is allowed to be busy
+serving the same request before it is considered a runaway. Consider
+the slowest clients. Scripts that do file uploading and downloading
+might take a significantly longer time than normal mod_perl code.</p>
+
+<blockquote><pre class="code">$Apache::Watchdog::RunAway::TIMEOUT = 180; # 3 minutes</pre></blockquote>
+
+<p>Setting the timeout to <tt class="literal">0</tt> will disable the
+<tt class="literal">Apache::Watchdog::RunAway</tt> module entirely.</p>
+
+<p>The rate at which the module polls the server should be chosen
+carefully. Because of the overhead of fetching the scoreboard data,
+this is not a module that should be executed too frequently. If the
+timeout is set to a few minutes, sampling every one or two minutes is
+a good choice. The following directive specifies the polling
+interval:</p>
+
+<blockquote><pre class="code">$Apache::Watchdog::RunAway::POLLTIME = 60; # 1 minute</pre></blockquote>
+
+<p>Just like the timeout value, polling time is measured in seconds.</p>
+
+<p>To see what the module does, enable debug mode:</p>
+
+<blockquote><pre class="code">$Apache::Watchdog::RunAway::DEBUG = 1;</pre></blockquote>
+
+<p>and watch its log file using the <em class="emphasis">tail</em></tt> command.</p>
+
+<p>The following statement allows us to specify the log
+file's location:</p>
+
+<blockquote><pre class="code">$Apache::Watchdog::RunAway::LOG_FILE = "/tmp/safehang.log";</pre></blockquote>
+
+<p>This log file is also used for logging information about killed
+processes, regardless of the value of the <tt class="literal">$DEBUG</tt>
+variable.</p>
+
+<p>The module uses a lock file in order to prevent starting more than
+one instance of itself. The default location of this file may be
+changed using the <tt class="literal">$LOCK_FILE</tt> variable.</p>
+
+<blockquote><pre class="code">$Apache::Watchdog::RunAway::LOCK_FILE = "/tmp/safehang.lock";</pre></blockquote>
+
+<p>There are two ways to invoke this process: using the Perl functions,
+or using the bundled utility called <em class="emphasis">amprapmon</em></tt>
+(mnemonic: <em class="emphasis">ApacheModPerlRunAwayProcessMonitor</em></tt>).</p>
+
+<p>The following functions are available:</p>
+
+<dl>
+<a name="pmodperl-CHP-5-ITERM-4260" /><dt><b><tt class="literal">stop_monitor( )</tt></b></dt>
+<dd>
+Stops the monitor based on the PID contained in the lock file.
+Removes the lock file.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-5-ITERM-4261" /><dt><b><tt class="literal">start_monitor( )</tt></b></dt>
+<dd>
+Starts the monitor in the current process. Creates the lock file.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-5-ITERM-4262" /><dt><b><tt class="literal">start_detached_monitor( )</tt></b></dt>
+<dd>
+Starts the monitor as a forked process (used by
+<em class="emphasis">amprapmon</em></tt>). Creates the lock file.</p>
+</dd>
+
+</dl>
+
+<p>In order for mod_perl to invoke this process, all that is needed is
+the <tt class="literal">start_detached_monitor( )</tt> function. Add the
+following code to <em class="emphasis">startup.pl</em></tt>:</p>
+
+<blockquote><pre class="code">use Apache::Watchdog::RunAway( );
+Apache::Watchdog::RunAway::start_detached_monitor( );</pre></blockquote>
+
+<p>Another approach is to use the <em class="emphasis">amprapmon</em></tt>
+utility. This can be started from the <em class="emphasis">startup.pl</em></tt>
+file:</p>
+
+<blockquote><pre class="code">system "amprapmon start";</pre></blockquote>
+
+<p>This will fork a new process. If the process is already running, it
+will just continue to run.</p>
+
+<p>The <em class="emphasis">amprapmon</em></tt><a name="pmodperl-CHP-5-ITERM-4263" /><a name="pmodperl-CHP-5-ITERM-4264" />
+utility could instead be started from <em class="emphasis">cron</em></tt> or
+from the command line.</p>
+
+<p>No matter which approach is used, the process will fork itself and
+run as a daemon process. To stop the daemon, use the following
+command:</p>
+
+<blockquote><pre class="code">panic% amprapmon stop</pre></blockquote>
+
+<p>If we want to test this module but have no code that makes processes
+hang (or we do, but the behavior is not reproducible on demand), the
+following code can be used to make the process hang in an infinite
+loop when executed as a script or handler. The code writes
+"<tt class="literal">\0</tt>" characters to the browser every second, so
+the request will never time out. The code is shown in <a href="ch05_11.html#pmodperl-CHP-5-EX-12">Example 5-12</a>.</p>
+
+<a name="pmodperl-CHP-5-EX-12" /><div class="example">
+<h4 class="objtitle">Example 5-12. hangnow.pl</h4>
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;send_http_header('text/plain');
+print "PID = $$\n";
+$r-&gt;rflush;
+while(1) {
+    $r-&gt;print("\0");
+    $r-&gt;rflush;
+    sleep 1;
+}</pre></blockquote>
+</div>
+
+<p>The code prints the PID of the process running it before it goes into
+an infinite loop, so that we know which process hangs and whether it
+gets killed by the <tt class="literal">Apache::Watchdog::RunAway</tt>
+daemon as it should.</p>
+
+<p>Of course, the watchdog is used only for prevention. If you have a
+serious problem with hanging processes, you have to debug your code,
+find the reason for the problem, and resolve it, as
+discussed<a name="pmodperl-CHP-5-ITERM-4265" /><a name="pmodperl-CHP-5-ITERM-4266" /><a name="pmodperl-CHP-5-ITERM-4267" /><a name="pmodperl-CHP-5-ITERM-4268" /> in <a href="ch21_01.html">Chapter 21</a>.</p>
+
+</div>
+<a name="pmodperl-CHP-5-SECT-11.5" /><div class="sect2">
+<h3 class="sect2">5.11.5. Limiting the Number of Processes Serving the Same Resource</h3>
+
+<p>To limit the
+<a name="pmodperl-CHP-5-ITERM-4269" /><a name="pmodperl-CHP-5-ITERM-4270" />number of Apache
+children that can simultaneously serve a specific resource, take a
+look at the Apache <tt class="literal">mod_throttle_access</tt> module.</p>
+
+<p>Throttling access is useful, for example, when a handler uses a
+resource that places a limitation on concurrent access or that is
+very CPU-intensive. <tt class="literal">mod_throttle_access</tt> limits the
+number of concurrent requests to a given URI.</p>
+
+<p>Consider a service providing the following three URIs:</p>
+
+<blockquote><pre class="code">/perl/news/
+/perl/webmail/
+/perl/morphing/</pre></blockquote>
+
+<p>The response times of the first two URIs are critical, since people
+want to read the news and their email interactively. The third URI is
+a very CPU- and RAM-intensive image-morphing service, provided as a
+bonus to the users. Since we do not want users to abuse this service,
+we have to set some limit on the number of concurrent requests for
+this resource. If we do not, the other two critical resources may
+have their performance degraded.</p>
+
+<p>When compiled or loaded into Apache and enabled,
+<tt class="literal">mod_throttle_access</tt> makes the
+<tt class="literal">MaxConcurrentReqs</tt> directive available. For
+example, the following setting:</p>
+
+<blockquote><pre class="code">&lt;Location "/perl/morphing"&gt;
+    &lt;Limit PUT GET POST&gt;
+        MaxConcurrentReqs 10
+    &lt;/Limit&gt;
+&lt;/Location&gt;</pre></blockquote>
+
+<p>will allow only 10 concurrent <tt class="literal">PUT</tt>,
+<tt class="literal">GET</tt>, <tt class="literal">HEAD</tt> (as implied by
+<tt class="literal">GET</tt>), or <tt class="literal">POST</tt> requests for the
+URI <em class="emphasis">/perl/morphing</em></tt> to be processed at any given
+time. The other two URIs in our example remain unlimited.</p>
+
+</div>
+<a name="pmodperl-CHP-5-SECT-11.6" /><div class="sect2">
+<h3 class="sect2">5.11.6. Limiting the Request-Rate Speed (Robot Blocking)</h3>
+
+<p>Web services
+<a name="pmodperl-CHP-5-ITERM-4271" /><a name="pmodperl-CHP-5-ITERM-4272" /><a name="pmodperl-CHP-5-ITERM-4273" /><a name="pmodperl-CHP-5-ITERM-4274" /><a name="pmodperl-CHP-5-ITERM-4275" />generally welcome search engine
+robots, also called <em class="emphasis">spiders</em></tt>. Search engine
+robots are programs that query the site and index its documents for a
+search engine.</p>
+
+<p>Most indexing robots are polite and pause between requests. However,
+some search engine robots behave very badly, issuing too many
+requests too often, thus slowing down the service for human users.
+While everybody wants their sites to be indexed by search engines, it
+is really annoying when an initially welcomed spider gives the server
+a hard time, eventually becoming an unwanted spider.</p>
+
+<p>A common remedy for keeping impolite robots off a site is based on an
+<tt class="literal">AccessHandler</tt> that checks the name of the robot
+and disallows access to the server if it is listed in the robot
+blacklist. For an example of such an
+<tt class="literal">AccessHandler</tt>, see the
+<tt class="literal">Apache::BlockAgent</tt> module, available from
+<a href="http://www.modperl.com/">http://www.modperl.com/</a>.</p>
+
+<p>Unfortunately, some robots have learned to work around this blocking
+technique, masquerading as human users by using user agent strings
+identifying them as conventional browsers. This prevents us from
+blocking just by looking at the robot's
+name&#8212;we have to be more sophisticated and beat the robots by
+turning their own behavior against them. Robots work much faster than
+humans, so we can gather statistics over a period of time, and when
+we detect too many requests issued too fast from a specific IP, this
+IP can be blocked.</p>
+
+<p>The <tt class="literal">Apache::SpeedLimit</tt> module, also available from
+<a href="http://www.modperl.com/">http://www.modperl.com/</a>, provides
+this advanced filtering technique.</p>
+
+<p>There might be a problem with proxy servers, however, where many
+users browse the Web via a single proxy. These users are seen from
+the outside world (and from our sites) as coming from the
+proxy's single IP address or from one of a small set
+of IP addresses. In this case, <tt class="literal">Apache::SpeedLimit</tt>
+cannot be used, since it might block legitimate users and not just
+robots. However, we could modify the module to ignore specific IP
+addresses that we designate as acceptable.</p>
+
+<a name="pmodperl-CHP-5-SIDEBAR-3" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Stonehenge::Throttle</h4>
+
+<p>Randal Schwartz wrote <tt class="literal">Stonehenge::Throttle</tt> for one
+of his <em class="emphasis">Linux Magazine</em></tt> columns. This module does
+CPU percentage-based throttling. The module looks at the recent CPU
+usage over a given window for a given IP. If the percentage exceeds a
+threshold, a 503 error and a correct <tt class="literal">Retry-After</tt>:
+header are sent, telling for how long access from this IP is banned.
+The documentation can be found at
+<a href="http://www.stonehenge.com/merlyn/LinuxMag/col17.html">http://www.stonehenge.com/merlyn/LinuxMag/col17.html</a>,
+and the source code is available at
+<a href="http://www.stonehenge.com/merlyn/LinuxMag/col17.listing.txt">http://www.stonehenge.com/merlyn/LinuxMag/col17.listing.txt</a>.</p>
+</td></tr></table><p></blockquote>
+
+<a name="pmodperl-CHP-5-SIDEBAR-4" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Spambot Trap</h4>
+
+<p>Neil Gunton has developed a <a name="pmodperl-CHP-5-ITERM-4276" />Spambot Trap
+(<a href="http://www.neilgunton.com/spambot_trap/">http://www.neilgunton.com/spambot_trap/</a>) that
+keeps robots harvesting email addresses away from your web content.
+One of the important components of the trap is the
+<em class="emphasis">robots.txt</em></tt> file, which is a standard mechanism
+for controlling which agents can reach your site and which areas can
+be browsed. This is an advisory mechanism, so if the agent
+doesn't follow the standard it will simply ignore
+the rules of the house listed in this file. For more information,
+refer to the W3C specification at
+<a href="http://www.w3.org/TR/html401/appendix/notes.html#h-B.4.1.1">http://www.w3.org/TR/html401/appendix/notes.html#h-B.4.1.1</a>.</p>
+</td></tr></table><p></blockquote>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_10.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch05_12.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">5.10. Web Server Monitoring</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">5.12. References</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

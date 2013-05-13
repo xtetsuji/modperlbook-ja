@@ -1,0 +1,208 @@
+<html><head><title>Troubleshooting mod_perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_10.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch22_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 22. Troubleshooting mod_perl</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch22_01.html#pmodperl-CHP-22-SECT-1">Configuration and Startup</a><br />
+<a href="ch22_02.html">Code Parsing and Compilation</a><br />
+<a href="ch22_03.html">Runtime</a><br />
+<a href="ch22_04.html">Shutdown and Restart</a><br /></p></div><p>When something goes wrong, we expect the software to report the
+problem. But if we don't understand the meaning of
+the error message, we won't be able to resolve it.
+Therefore in this chapter we will talk about errors specific to
+mod_perl, as reported by a mod_perl-enabled Apache server.</p><p>Many reports are produced by Perl itself. If you find them unclear,
+you may want to use the <tt class="literal">use diagnostics</tt> pragma in
+your development code. With the <tt class="literal">diagnostics</tt>
+pragma, Perl provides an in-depth explanation of each reported
+warning and error. Note that you should remove this pragma in your
+production code, since it adds a runtime overhead.</p><p>Errors that may occur during the build and installation stages are
+covered in the respective troubleshooting sections of <a href="ch03_01.html">Chapter 3</a>. This chapter deals with errors that may occur
+during the configuration and startup, code parsing and compilation,
+runtime, and shutdown and restart phases.</p><div class="sect1"><a name="pmodperl-CHP-22-SECT-1" />
+<h2 class="sect1">22.1. Configuration and Startup</h2>
+
+<p>This section covers errors you might <a name="pmodperl-CHP-22-ITERM-5761" />encounter <a name="pmodperl-CHP-22-ITERM-5762" />when
+you start the server.</p>
+
+<a name="pmodperl-CHP-22-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">22.1.1. libexec/libperl.so: open failed: No such file or directory</h3>
+
+<p>If you get this error when you start
+<a name="pmodperl-CHP-22-ITERM-5763" />the server, it probably
+means that your version of Perl was itself compiled with a shared
+library called <em class="emphasis">libperl.so</em>. mod_perl detects this
+and links the Apache executable to the same Perl shared library. This
+error simply means that the shared library cannot be found by
+searching the paths that Apache knows about.</p>
+
+<p>Make sure you have Perl installed on the machine, and that you have
+<em class="emphasis">libperl.so</em> in
+<tt class="literal">&lt;perlroot&gt;/&lt;version&gt;/&lt;architecture&gt;/CORE</tt>
+(for example,
+<em class="emphasis">/usr/local/lib/perl5/5.6.1/sun4-solaris/CORE</em>).</p>
+
+<p>If the file is there but you still get the error, you should include
+the directory in which the file is located in the environment
+variable <tt class="literal">LD_LIBRARY_PATH</tt> (or the equivalent
+variable for your operating system). Under normal circumstances,
+Apache should have had the library path configured properly at
+compile time; if Apache was misconfigured, adding the path to
+<tt class="literal">LD_LIBRARY_PATH</tt> manually will help Apache find the
+shared library.</p>
+
+</div>
+<a name="pmodperl-CHP-22-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">22.1.2. install_driver(Oracle) failed: Can't load `.../DBD/Oracle/Oracle.so' for module DBD::Oracle</h3>
+
+<p>Here's an example of the full error
+<a name="pmodperl-CHP-22-ITERM-5764" />report that you might see:</p>
+
+<blockquote><pre class="code">install_driver(Oracle) failed: Can't load
+'/usr/lib/perl5/site_perl/5.6.1/i386-linux/auto/DBD/Oracle/Oracle.so'
+for module DBD::Oracle:
+libclntsh.so.8.0: cannot open shared object file: 
+No such file or directory at
+/usr/lib/perl5/5.6.1/i386-linux/DynaLoader.pm line 169.
+at (eval 27) line 3
+Perhaps a required shared
+library or dll isn't installed where expected at 
+/usr/local/apache/perl/tmp.pl line 11</pre></blockquote>
+
+<p>On BSD-style filesystems, <tt class="literal">LD_LIBRARY_PATH</tt> is not
+searched for <em class="emphasis">setuid</em> programs. If Apache is a
+<em class="emphasis">setuid</em> executable, you might receive this error.
+Therefore, the first solution is to explicitly load the library from
+the system-wide <em class="emphasis">ldconfig</em> configuration file:</p>
+
+<blockquote><pre class="code">panic# echo $ORACLE_HOME/lib &gt;&gt; /etc/ld.so.conf
+panic# ldconfig</pre></blockquote>
+
+<p>Another solution to this problem is to modify the
+<em class="emphasis">Makefile</em> file (which is created when you run
+<em class="emphasis">perl Makefile.PL</em>) as follows:</p>
+
+<ol><li>
+<p>Search for the line <tt class="literal">LD_RUN_PATH=</tt></p>
+</li><li>
+<p>Replace it with <tt class="literal">LD_RUN_PATH=my_oracle_home/lib</tt></p>
+</li></ol>
+<p>where <em class="emphasis">my_oracle_home</em> is, of course, the home
+path to your Oracle installation. In particular, the file
+<em class="emphasis">libclntsh.so.8.0</em> should exist in the
+<em class="emphasis">lib</em> subdirectory.</p>
+
+<p>Then just type <em class="emphasis">make install</em>, and all should go
+well.</p>
+
+<p>Note that setting <tt class="literal">LD_RUN_PATH</tt> has the effect of
+hardcoding the path to <em class="emphasis">my_oracle_home/lib</em> in the
+file <em class="emphasis">Oracle.so</em>, which is generated by
+<tt class="literal">DBD::Oracle</tt>. This is an efficiency mechanism, so
+that at runtime it doesn't have to search through
+<tt class="literal">LD_LIBRARY_PATH</tt> or the default directories used by
+<em class="emphasis">ld</em>.</p>
+
+<p>For more information, see the <em class="emphasis">ld</em> manpage and the
+essay on <tt class="literal">LD_LIBRARY_PATH</tt> at <a href="http://www.visi.com/~barr/ldpath.html">http://www.visi.com/~barr/ldpath.html</a>.</p>
+
+</div>
+<a name="pmodperl-CHP-22-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">22.1.3. Invalid command `PerlHandler'...</h3>
+
+<p>Here's an example of the full error
+<a name="pmodperl-CHP-22-ITERM-5765" />report that you might see:</p>
+
+<blockquote><pre class="code">Syntax error on line 393 of /home/httpd/httpd_perl/conf/httpd.conf:
+Invalid command 'PerlHandler', perhaps mis-spelled or
+defined by a module not included in the server
+configuration [FAILED]</pre></blockquote>
+
+<p>You might get this error when you have a mod_perl-enabled Apache
+server compiled with DSO, but the mod_perl module
+isn't loaded. (This generally happens when
+it's an installed RPM or other binary package.) In
+this case you have to tell Apache to load mod_perl by adding the
+following line to your <em class="emphasis">httpd.conf</em> file:</p>
+
+<blockquote><pre class="code">AddModule mod_perl.c</pre></blockquote>
+
+<p>You might also get this error when you try to run a non-mod_perl
+Apache server using the <em class="emphasis">httpd.conf</em> file from a
+mod_perl server.</p>
+
+</div>
+<a name="pmodperl-CHP-22-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">22.1.4. RegistryLoader: Translation of uri [...] to filename failed</h3>
+
+<p>Here's an example of the full error
+<a name="pmodperl-CHP-22-ITERM-5766" />report that you might see:</p>
+
+<blockquote><pre class="code">RegistryLoader: Translation of uri 
+  [/home/httpd/perl/test.pl] to filename failed
+  [tried: /home/httpd/docs/home/httpd/perl/test.pl]</pre></blockquote>
+
+<p>In this example, this means you are trying to preload a script called
+<em class="emphasis">/perl/test.pl</em>, located at
+<em class="emphasis">/home/httpd/perl/test.pl</em> in the filesystem. This
+error shows up when <tt class="literal">Apache::RegistryLoader</tt> fails
+to translate the URI into the corresponding filesystem path. Most
+failures happen when a user passes a file path (such as
+<em class="emphasis">/home/httpd/perl/test.pl</em>) instead of a relative
+URI (such as <em class="emphasis">/perl/test.pl</em>).</p>
+
+<p>You should either provide both the URI and the filename:</p>
+
+<blockquote><pre class="code">Apache::RegistryLoader-&gt;new-&gt;handler($uri, $filename);</pre></blockquote>
+
+<p>or supply a callback subroutine that will perform the URI-to-filename
+conversion. The callback accepts the URI as an argument and returns a
+filename. For example, if your mod_perl scripts reside in
+<em class="emphasis">/home/httpd/perl-scripts/</em> but the base URI is
+<em class="emphasis">/perl/</em>, you might do the following:</p>
+
+<blockquote><pre class="code">my $rl = Apache::RegistryLoader-&gt;new(
+             trans =&gt; \&amp;uri2filename);
+$rl-&gt;handler("/perl/test.pl");
+
+sub uri2filename{
+    my $uri = shift;
+    $uri =~ s:^/perl/:/perl-scripts/:;
+    return Apache-&gt;server_root_relative($uri);
+}</pre></blockquote>
+
+<p>Here, we initialize the <tt class="literal">Apache::RegistryLoader</tt>
+object with the <tt class="literal">uri2filename( )</tt> function that will
+perform the URI-to-filename translation. In this function, we just
+adjust the URI and return the filename based on the location of the
+server root. So if the server root is
+<em class="emphasis">/home/httpd/</em>, the callback will return
+<em class="emphasis">/home/httpd/perl-scripts/test.pl</em>&#8212;exactly
+what we have requested.</p>
+
+<p>For more <a name="pmodperl-CHP-22-ITERM-5767" />information <a name="pmodperl-CHP-22-ITERM-5768" />please refer to the
+<tt class="literal">Apache::RegistryLoader</tt> manpage.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_10.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch22_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">21.10. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">22.2. Code Parsing and Compilation</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

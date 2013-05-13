@@ -1,0 +1,447 @@
+<html><head><title>Dynamic Content (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appe_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appe_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">E.3. Dynamic Content</h2>
+
+<p>AxKit has a flexible <a name="pmodperl-APP-E-ITERM-6542" />tool called <em class="emphasis">eXtensible
+Server Pages</em> (XSP) for <a name="pmodperl-APP-E-ITERM-6543" /><a name="pmodperl-APP-E-ITERM-6544" />creating XML from various data sources
+such as relational databases, cookies, and form parameters. This
+technology was originally invented by the Apache Cocoon team, and
+AxKit shares their syntax. This allows easier migration of projects
+to and from Cocoon. (Cocoon allows you to embed Java code in your
+XSP, similar to how AxKit allows you to embed Perl code.)</p>
+
+<p>XSP is an XML-based syntax that uses namespaces to provide
+extensibility. In many ways, this is like the Cold Fusion model of
+using tags to provide dynamic functionality. One of the advantages of
+using XSP is that it is impossible to generate invalid XML, which
+makes it ideal for use in an XML framework such as AxKit. Another is
+that the tags can hide complex functionality, allowing the XSP tags
+to be added by designers and freeing programmers to perform more
+complex and more cost-effective tasks.</p>
+
+<p>The XSP framework allows you to design new tags, or use ones provided
+already by others on CPAN. These extra tags
+<a name="pmodperl-APP-E-ITERM-6545" /><a name="pmodperl-APP-E-ITERM-6546" />are called <em class="emphasis">taglibs</em>.
+By using taglibs instead of embedding Perl code in your XSP page, you
+can further build on AxKit's separation of content
+from presentation by separating out logic too. And creating new
+taglibs is almost trivial using AxKit's
+<tt class="literal">TagLibHelper</tt> module, which hides all the details
+for you.</p>
+
+<p>In the examples below, we are going to show some code that embeds
+Perl code in the XSP pages. This is not a recommended practice, due
+to the ease with which you can extract functionality into tag
+libraries. However, it is more obvious to Perl programmers what is
+going on this way and provides a good introduction to the technology.</p>
+
+<a name="pmodperl-APP-E-SECT-3.1" /><div class="sect2">
+<h3 class="sect2">E.3.1. Handling Form Parameters</h3>
+
+<p>The <tt class="literal">AxKit::XSP::Param</tt> taglib
+<a name="pmodperl-APP-E-ITERM-6547" />allows <a name="pmodperl-APP-E-ITERM-6548" /><a name="pmodperl-APP-E-ITERM-6549" />you to easily read form and query string
+parameters within an XSP page. The following example shows how a page
+can submit back to itself. To allow this to work, add the following
+to your <em class="emphasis">httpd.conf</em> file:</p>
+
+<blockquote><pre class="code">AxAddXSPTaglib AxKit::XSP::Param</pre></blockquote>
+
+<p>The XSP page is shown in <a href="appe_03.html#pmodperl-APP-E-EX-3">Example E-3</a>.</p>
+
+<a name="pmodperl-APP-E-EX-3" /><div class="example">
+<h4 class="objtitle">Example E-3. paramtaglib.xsp</h4>
+<blockquote><pre class="code">&lt;xsp:page
+ xmlns:xsp="http://apache.org/xsp/core/v1"
+ xmlns:param="http://axkit.org/NS/xsp/param/v1"
+ language="Perl"
+&gt;
+&lt;page&gt;
+  &lt;xsp:logic&gt;
+  if (&lt;param:name/&gt;) {
+    &lt;xsp:content&gt;
+     Your name is: &lt;param:name/&gt;
+    &lt;/xsp:content&gt;
+  }
+  else {
+    &lt;xsp:content&gt;
+      &lt;form&gt;
+        Enter your name: &lt;input type="text" name="name" /&gt;
+        &lt;input type="submit"/&gt;
+      &lt;/form&gt;
+    &lt;/xsp:content&gt;
+  }
+  &lt;/xsp:logic&gt;
+&lt;/page&gt;
+&lt;/xsp:page&gt;</pre></blockquote>
+</div>
+
+<p>The most significant thing about this example is how we freely mix
+XML tags with our Perl code, and the XSP processor figures out the
+right thing to do depending on the context. The only requirement is
+that the XSP page itself must be valid XML. That is, the following
+would generate an error:</p>
+
+<blockquote><pre class="code">&lt;xsp:logic&gt;
+my $page = &lt;param:page/&gt;;
+if ($page &lt; 3) { # ERROR: less-than is a reserved character in XML
+ ...
+}
+&lt;/xsp:logic&gt;</pre></blockquote>
+
+<p>We need to convert this to valid XML before XSP can handle it. There
+are a number of ways to do so. The simplest is just to reverse the
+expression to <tt class="literal">if (3 &gt; $page)</tt>, because the
+greater-than sign is valid within an XML text section. Another way is
+to encode the less-than sign as <tt class="literal">&amp;lt;</tt>, which
+will be familiar to HTML authors.</p>
+
+<p>The other thing to notice is the <tt class="literal">&lt;xsp:logic&gt;</tt>
+and <tt class="literal">&lt;xsp:content&gt;</tt> tags. The former defines a
+section of Perl code, while the latter allows you to go back to
+processing the contents as XML output. Also note that the
+<tt class="literal">&lt;xsp:content&gt;</tt> tag is not always needed.
+Because the XSP engine inherently understands XML, you can omit the
+<tt class="literal">&lt;xsp:content&gt;</tt> tag when the immediate child
+would be an element, rather than text. For example, the following
+example requires the <tt class="literal">&lt;xsp:content&gt;</tt> tag:</p>
+
+<blockquote><pre class="code">&lt;xsp:logic&gt;
+if (&lt;param:name/&gt;) {
+  # xsp:content needed
+  &lt;xsp:content&gt;
+  Your name is: &lt;param:name/&gt;
+  &lt;/xsp:content&gt;
+}
+&lt;/xsp:logic&gt;</pre></blockquote>
+
+<p>But if you rewrote it like this, it wouldn't,
+because of the surrounding non-XSP tag:</p>
+
+<blockquote><pre class="code">&lt;xsp:logic&gt;
+if (&lt;param:name/&gt;) {
+  # no xsp:content tag needed
+  &lt;p&gt;Your name is: &lt;param:name/&gt;&lt;/p&gt;
+}
+&lt;/xsp:logic&gt;</pre></blockquote>
+
+<p>Note that the initial example, when processed by only the XSP engine,
+will output the following XML:</p>
+
+<blockquote><pre class="code">&lt;page&gt;
+  &lt;form&gt;
+    Enter your name: &lt;input type="text" name="name" /&gt;
+    &lt;input type="submit"/&gt;
+  &lt;/form&gt;
+&lt;/page&gt;</pre></blockquote>
+
+<p>This needs to be processed with XSLT or XPathScript to be reasonably
+viewable in a browser. However, the point is that you can reuse the
+above page as either HTML or WML just by applying different
+stylesheets.</p>
+
+</div>
+<a name="pmodperl-APP-E-SECT-3.2" /><div class="sect2">
+<h3 class="sect2">E.3.2. Handling Cookies</h3>
+
+<p><tt class="literal">AxKit::XSP::Cookie</tt> is a taglib
+<a name="pmodperl-APP-E-ITERM-6550" /><a name="pmodperl-APP-E-ITERM-6551" /><a name="pmodperl-APP-E-ITERM-6552" /><a name="pmodperl-APP-E-ITERM-6553" />interface
+to <tt class="literal">Apache::Cookie</tt> (part of the
+<em class="emphasis">libapreq</em> package). The following example
+demonstrates both retrieving and setting a cookie from within XSP. In
+order for this to run, the following option needs to be added to your
+<em class="emphasis">httpd.conf</em> file:</p>
+
+<blockquote><pre class="code">AxAddXSPTaglib AxKit::XSP::Cookie</pre></blockquote>
+
+<p>The XSP page is shown in <a href="appe_03.html#pmodperl-APP-E-EX-4">Example E-4</a>.</p>
+
+<a name="pmodperl-APP-E-EX-4" /><div class="example">
+<h4 class="objtitle">Example E-4. cookietaglib.xsp</h4>
+<blockquote><pre class="code">&lt;xsp:page
+ xmlns:xsp="http://apache.org/xsp/core/v1"
+ xmlns:cookie="http://axkit.org/NS/xsp/cookie/v1"
+ language="Perl"
+&gt;
+&lt;page&gt;
+  &lt;xsp:logic&gt;
+  my $value;
+  if ($value = &lt;cookie:fetch name="count"/&gt;) {
+    $value++;
+  }
+  else {
+    $value = 1;
+  }
+  &lt;/xsp:logic&gt;
+  &lt;cookie:create name="count"&gt;
+    &lt;cookie:value&gt;&lt;xsp:expr&gt;$value&lt;/xsp:expr&gt;&lt;/cookie:value&gt;
+  &lt;/cookie:create&gt;
+  &lt;p&gt;Cookie value: &lt;xsp:expr&gt;$value&lt;/xsp:expr&gt;&lt;/p&gt;
+&lt;/page&gt;
+&lt;/xsp:page&gt;</pre></blockquote>
+</div>
+
+<p>This page introduces <a name="pmodperl-APP-E-ITERM-6554" /><a name="pmodperl-APP-E-ITERM-6555" />the
+<a name="pmodperl-APP-E-ITERM-6556" />concept
+of XSP <em class="emphasis">expressions</em>, using
+<a name="pmodperl-APP-E-ITERM-6557" />the
+<tt class="literal">&lt;xsp:expr&gt;</tt> tag. In XSP, everything that
+returns a value is an expression of some sort. In the last two
+examples, we have used a taglib tag within a Perl <tt class="literal">if(
+)</tt>statement. These tags are both expressions, even though
+they don't use the
+<tt class="literal">&lt;xsp:expr&gt;</tt>syntax. In XSP, everything
+understands its context and tries to do the right thing. The
+following three examples will all work as expected:</p>
+
+<blockquote><pre class="code">&lt;cookie:value&gt;3&lt;/cookie:value&gt;
+
+&lt;cookie:value&gt;&lt;xsp:expr&gt;2 + 1&lt;/xsp:expr&gt;&lt;/cookie:value&gt;
+
+&lt;cookie:value&gt;&lt;param:cookie_value/&gt;&lt;/cookie:value&gt;</pre></blockquote>
+
+<p>We see this as an extension of how Perl works&#8212;the idea of
+"Do What I Mean," or DWIM.</p>
+
+</div>
+<a name="pmodperl-APP-E-SECT-3.3" /><div class="sect2">
+<h3 class="sect2">E.3.3. Sending Email</h3>
+
+<p>With the <tt class="literal">AxKit::XSP::Sendmail</tt> taglib, it
+<a name="pmodperl-APP-E-ITERM-6558" /><a name="pmodperl-APP-E-ITERM-6559" />is
+very simple to send email from an XSP page. This taglib combines
+email-address verification, using the <tt class="literal">Email::Valid</tt>
+module, with email sending, using the
+<tt class="literal">Mail::Sendmail</tt>
+<a name="pmodperl-APP-E-ITERM-6560" /><a name="pmodperl-APP-E-ITERM-6561" />module
+(which will either interface to an SMTP server or use the
+<em class="emphasis">sendmail</em> executable directly). Again, to allow
+usage of this taglib, the following line must be added to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">AxAddXSPTaglib AxKit::XSP::Sendmail</pre></blockquote>
+
+<p>Then sending email from XSP is as simple as what's
+shown in <a href="appe_03.html#pmodperl-APP-E-EX-5">Example E-5</a>.</p>
+
+<a name="pmodperl-APP-E-EX-5" /><div class="example">
+<h4 class="objtitle">Example E-5. sendmailtaglib.xsp</h4>
+<blockquote><pre class="code">&lt;xsp:page
+ xmlns:xsp="http://apache.org/xsp/core/v1"
+ xmlns:param="http://axkit.org/NS/xsp/param/v1"
+ xmlns:mail="http://axkit.org/NS/xsp/sendmail/v1"
+ language="Perl"
+&gt;
+&lt;page&gt;
+  &lt;xsp:logic&gt;
+  if (!&lt;param:email/&gt;) {
+    &lt;p&gt;You forgot to supply an email address!&lt;/p&gt;
+  }
+  else {
+    my $to;
+    if (&lt;param:subopt/&gt; eq "sub") {
+      $to = "axkit-users-subscribe@axkit.org";
+    }
+    elsif (&lt;param:subopt/&gt; eq "unsub") {
+      $to = "axkit-users-unsubscribe@axkit.org";
+    }
+    &lt;mail:send-mail&gt;
+     &lt;mail:from&gt;&lt;param:user_email/&gt;&lt;/mail:from&gt;
+     &lt;mail:to&gt;&lt;xsp:expr&gt;$to&lt;/xsp:expr&gt;&lt;/mail:to&gt;
+     &lt;mail:body&gt;
+      Subscribe or Unsubscribe &lt;param:user_email/&gt;
+     &lt;/mail:body&gt;
+    &lt;/mail:send-mail&gt;
+    &lt;p&gt;(un)subscription request sent&lt;/p&gt;
+  }
+  &lt;/xsp:logic&gt;
+&lt;/page&gt;
+&lt;/xsp:page&gt;</pre></blockquote>
+</div>
+
+<p>The only thing missing here is some sort of error handling. When the
+<em class="emphasis">sendmail</em> taglib detects an error (either in an
+email address or in sending the email), it throws an exception.</p>
+
+</div>
+<a name="pmodperl-APP-E-SECT-3.4" /><div class="sect2">
+<h3 class="sect2">E.3.4. Handling Exceptions</h3>
+
+<p>The exception taglib, <tt class="literal">AxKit::XSP::Exception</tt>,
+<a name="pmodperl-APP-E-ITERM-6562" /><a name="pmodperl-APP-E-ITERM-6563" /><a name="pmodperl-APP-E-ITERM-6564" />is used to catch exceptions. The
+syntax is very simple: rather than allowing different types of
+exceptions, it is currently a very simple
+<tt class="literal">try</tt>/<tt class="literal">catch</tt> block. To use the
+exceptions taglib, the following has to be added to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">AxAddXSPTaglib AxKit::XSP::Exception</pre></blockquote>
+
+<p>Then you can implement form validation using exceptions, as <a href="appe_03.html#pmodperl-APP-E-EX-6">Example E-6</a> demonstrates.</p>
+
+<a name="pmodperl-APP-E-EX-6" /><div class="example">
+<h4 class="objtitle">Example E-6. exceptiontaglib.xsp</h4>
+<blockquote><pre class="code">&lt;xsp:page
+ xmlns:xsp="http://apache.org/xsp/core/v1"
+ xmlns:param="http://axkit.org/NS/xsp/param/v1"
+ xmlns:except="http://axkit.org/NS/xsp/exception/v1"
+ language="Perl"
+&gt;
+&lt;page&gt;
+ # form validation:
+ &lt;except:try&gt;
+  &lt;xsp:logic&gt;
+  if ((&lt;param:number/&gt; &gt; 10) || (0 &gt; &lt;param:number/&gt;)) {
+    die "Number must be between 0 and 10";
+  }
+  if (!&lt;param:name/&gt;) {
+    die "You must supply a name";
+  }
+  # Now do something with the params
+  &lt;/xsp:logic&gt;
+  &lt;p&gt;Values saved successfully!&lt;/p&gt;
+  &lt;except:catch&gt;
+   &lt;p&gt;Sorry, the values you entered were
+      incorrect: &lt;except:message/&gt;&lt;/p&gt;
+  &lt;/except:catch&gt;
+ &lt;/except:try&gt;
+&lt;/page&gt;</pre></blockquote>
+</div>
+
+<p>The exact same <tt class="literal">try</tt>/<tt class="literal">catch</tt> (and
+message) tags can be used for <em class="emphasis">sendmail</em> and for
+ESQL (discussed in a moment).</p>
+
+</div>
+<a name="pmodperl-APP-E-SECT-3.5" /><div class="sect2">
+<h3 class="sect2">E.3.5. Utilities Taglib</h3>
+
+<p>The <tt class="literal">AxKit::XSP::Util</tt> taglib includes
+<a name="pmodperl-APP-E-ITERM-6565" /><a name="pmodperl-APP-E-ITERM-6566" /><a name="pmodperl-APP-E-ITERM-6567" />some
+utility methods for including XML from the filesystem, from a URI, or
+as the return value from an expression. (Normally an expression would
+be rendered as plain text, so a
+"<tt class="literal">&lt;</tt>" character
+would be encoded as
+"<tt class="literal">&amp;lt;</tt>"). The
+AxKit utilities taglib is a direct copy of the Cocoon utilities
+taglib, and as such uses the same namespace as the Cocoon Util
+taglib, <tt class="literal">http://apache.org/xsp/util/v1</tt>.</p>
+
+</div>
+<a name="pmodperl-APP-E-SECT-3.6" /><div class="sect2">
+<h3 class="sect2">E.3.6. Executing SQL</h3>
+
+<p>Perhaps the most interesting taglib<a name="pmodperl-APP-E-ITERM-6568" /><a name="pmodperl-APP-E-ITERM-6569" /><a name="pmodperl-APP-E-ITERM-6570" /> of all is the ESQL taglib, which allows
+you to execute SQL queries against a DBI-compatible database and
+provides access to the column return values as strings, scalars,
+numbers, dates, or even as XML. (Returning XML requires the utilities
+taglib.) Like the <em class="emphasis">sendmail</em> taglib, the ESQL
+taglib throws exceptions when an error occurs.</p>
+
+<p>One point of interest about the ESQL taglib is that it is a direct
+copy of the Cocoon ESQL taglib. There are only a few minor
+differences between the two, such as how columns of different types
+are returned and how errors are trapped.<a href="#FOOTNOTE-65">[65]</a> Having nearly identical taglibs helps
+you to port projects to or from Cocoon. As with all the other
+taglibs, ESQL requires the addition of the following to your
+<em class="emphasis">httpd.conf</em> file:</p> <blockquote><a name="FOOTNOTE-65" /><p> [65]In Cocoon
+there are ESQL tags for trapping errors, whereas AxKit uses
+exceptions.</p> </blockquote>
+
+<blockquote><pre class="code">AxAddXSPTaglib AxKit::XSP::ESQL</pre></blockquote>
+
+<p><a href="appe_03.html#pmodperl-APP-E-EX-7">Example E-7</a> uses ESQL to read data from an
+address-book table. This page demonstrates that it is possible to
+reuse the same code for both our list of addresses and viewing a
+single address in detail.</p>
+
+<a name="pmodperl-APP-E-EX-7" /><div class="example">
+<h4 class="objtitle">Example E-7. esqltaglib.xsp</h4>
+<blockquote><pre class="code">&lt;xsp:page
+ language="Perl"
+ xmlns:xsp="http://apache.org/xsp/core/v1"
+ xmlns:esql="http://apache.org/xsp/SQL/v2"
+ xmlns:except="http://axkit.org/NS/xsp/exception/v1"
+ xmlns:param="http://axkit.org/NS/xsp/param/v1"
+ indent-result="no"
+&gt;
+&lt;addresses&gt;
+ &lt;esql:connection&gt;
+  &lt;esql:driver&gt;Pg&lt;/esql:driver&gt;
+  &lt;esql:dburl&gt;dbname=phonebook&lt;/esql:dburl&gt;
+  &lt;esql:username&gt;postgres&lt;/esql:username&gt;
+  &lt;esql:password&gt;&lt;/esql:password&gt;
+  &lt;except:try&gt;
+  &lt;esql:execute-query&gt;
+   &lt;xsp:logic&gt;
+   if (&lt;param:address_id/&gt;) {
+    &lt;esql:query&gt;
+     SELECT * FROM address WHERE id =
+     &lt;esql:parameter&gt;&lt;param:address_id/&gt;&lt;/esql:parameter&gt;
+    &lt;/esql:query&gt;
+   }
+   else {
+    &lt;esql:query&gt;
+     SELECT * FROM address
+    &lt;/esql:query&gt;
+   }
+   &lt;/xsp:logic&gt;
+   &lt;esql:results&gt;
+    &lt;esql:row-results&gt;
+     &lt;address&gt;
+      &lt;esql:get-columns/&gt;
+     &lt;/address&gt;
+    &lt;/esql:row-results&gt;
+   &lt;/esql:results&gt;
+  &lt;/esql:execute-query&gt;
+
+  &lt;except:catch&gt;
+   Error Occured: &lt;except:message/&gt;
+  &lt;/except:catch&gt;
+  &lt;/except:try&gt;
+ &lt;/esql:connection&gt;
+&lt;/addresses&gt;
+&lt;/xsp:page&gt;</pre></blockquote>
+</div>
+
+<p>The result of <a name="pmodperl-APP-E-ITERM-6571" />running the above through the XSP
+processor is:</p>
+
+<blockquote><pre class="code">&lt;addresses&gt;
+ &lt;address&gt;
+  &lt;id&gt;2&lt;/id&gt;
+  &lt;last_name&gt;Sergeant&lt;/last_name&gt;
+  &lt;first_name&gt;Matt&lt;/first_name&gt;
+  &lt;title&gt;Mr&lt;/title&gt;
+  &lt;company&gt;AxKit.com Ltd&lt;/company&gt;
+  &lt;email&gt;matt@axkit.com&lt;/email&gt;
+  &lt;classification_id&gt;1&lt;/classification_id&gt;
+ &lt;/address&gt;
+&lt;/addresses&gt;</pre></blockquote>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appe_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appe_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">E.2. Your First AxKit Page</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">E.4. More XPathScript Details</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

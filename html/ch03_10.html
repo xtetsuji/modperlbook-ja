@@ -1,0 +1,202 @@
+<html><head><title>How Can I Tell if mod_perl Is Running? (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_09.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch03_11.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">3.10. How Can I Tell if mod_perl Is Running?</h2>
+
+<p>There are
+<a name="pmodperl-CHP-3-ITERM-3776" /><a name="pmodperl-CHP-3-ITERM-3777" />several
+ways to find out if mod_perl is enabled in your version of Apache. In
+older versions of Apache (versions earlier than 1.3.6), you could
+check by running <em class="emphasis">httpd -v</em>, but that no longer
+works. Now you should use <em class="emphasis">httpd -l</em>.</p>
+
+<p>It is not enough to know that mod_perl is installed&#8212;the server
+needs to be configured for mod_perl as well. Refer to <a href="ch04_01.html">Chapter 4</a> to learn about mod_perl configuration.</p>
+
+<a name="pmodperl-CHP-3-SECT-10.1" /><div class="sect2">
+<h3 class="sect2">3.10.1. Checking the error_log File</h3>
+
+<p>One
+way<a name="pmodperl-CHP-3-ITERM-3778" /><a name="pmodperl-CHP-3-ITERM-3779" /><a name="pmodperl-CHP-3-ITERM-3780" /> to check for mod_perl is to check the
+<em class="emphasis">error_log</em> file for the following message at
+server startup:</p>
+
+<blockquote><pre class="code">[Sat May 18 18:08:01 2002] [notice]
+Apache/1.3.24 (Unix) mod_perl/1.26 configured
+  -- resuming normal operations</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-10.2" /><div class="sect2">
+<h3 class="sect2">3.10.2. Testing by Viewing /perl-status</h3>
+
+<p>Assuming <a name="pmodperl-CHP-3-ITERM-3781" /><a name="pmodperl-CHP-3-ITERM-3782" /><a name="pmodperl-CHP-3-ITERM-3783" />that you have configured the
+<tt class="literal">&lt;Location /perl-status&gt;</tt>section in the
+server configuration file as explained in <a href="ch09_01.html">Chapter 9</a>, fetch
+<em class="emphasis">http://www.example.com/perl-status/</em> using your
+favorite browser.</p>
+
+<p>You should see something like this:</p>
+
+<blockquote><pre class="code">Embedded Perl version 5.6.1 for Apache/1.3.24 (Unix)
+mod_perl/1.26 process 50880,
+running since Sat May 18 18:08:01 2002</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-10.3" /><div class="sect2">
+<h3 class="sect2">3.10.3. Testing via Telnet</h3>
+
+<p>Knowing <a name="pmodperl-CHP-3-ITERM-3784" /><a name="pmodperl-CHP-3-ITERM-3785" /><a name="pmodperl-CHP-3-ITERM-3786" />the port you have configured Apache to
+listen on, you can use <tt class="literal">Telnet</tt> to talk directly to
+it.</p>
+
+<p>Assuming that your mod_perl-enabled server listens to port
+8080,<a href="#FOOTNOTE-22">[22]</a> telnet to your server at port 8080,
+type <tt class="literal">HEAD</tt> <tt class="literal">/</tt>
+<tt class="literal">HTTP/1.0</tt>, and then press the Enter key twice:</p> <blockquote><a name="FOOTNOTE-22" /><p> [22]If in doubt, try port 80, which is the standard
+HTTP port.</p> </blockquote>
+
+<blockquote><pre class="code">panic% telnet localhost 8080
+HEAD / HTTP/1.0</pre></blockquote>
+
+<p>You should see a response like this:</p>
+
+<blockquote><pre class="code">HTTP/1.1 200 OK
+Date: Mon, 06 May 2002 09:49:41 GMT
+Server: Apache/1.3.24 (Unix) mod_perl/1.26
+Connection: close
+Content-Type: text/html; charset=iso-8859-1
+
+Connection closed.</pre></blockquote>
+
+<p>The line:</p>
+
+<blockquote><pre class="code">Server: Apache/1.3.24 (Unix) mod_perl/1.26</pre></blockquote>
+
+<p>confirms that you have mod_perl installed and that its version is
+1.26.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-10.4" /><div class="sect2">
+<h3 class="sect2">3.10.4. Testing via a CGI Script</h3>
+
+<p>Another method
+<a name="pmodperl-CHP-3-ITERM-3787" /><a name="pmodperl-CHP-3-ITERM-3788" /><a name="pmodperl-CHP-3-ITERM-3789" /><a name="pmodperl-CHP-3-ITERM-3790" />to test for mod_perl is to invoke a
+CGI script that dumps the server's environment.</p>
+
+<p>We assume that you have configured the server so that scripts running
+under the location <em class="emphasis">/perl/</em> are handled by the
+<tt class="literal">Apache::Registry</tt> handler and that you have the
+<tt class="literal">PerlSendHeader</tt> directive set to
+<tt class="literal">On</tt>.</p>
+
+<p>Copy and paste the script below. Let's say you name
+it <em class="emphasis">test.pl</em> and save it at the root of the CGI
+scripts, which is mapped directly to the <em class="emphasis">/perl</em>
+location of your server.</p>
+
+<blockquote><pre class="code">print "Content-type: text/plain\n\n";
+print "Server's environment\n";
+foreach ( keys %ENV ) {
+    print "$_\t$ENV{$_}\n";
+}</pre></blockquote>
+
+<p>Make it readable and executable by the server (you may need to tune
+these permissions on a public host):</p>
+
+<blockquote><pre class="code">panic% chmod a+rx test.pl</pre></blockquote>
+
+<p>Now fetch the URL
+<em class="emphasis">http://www.example.com:8080/perl/test.pl</em>
+(replacing 8080 with the port your mod_perl-enabled server is
+listening to). You should see something like this (the output has
+been edited):</p>
+
+<blockquote><pre class="code">SERVER_SOFTWARE Apache/1.3.24 (Unix) mod_perl/1.26
+GATEWAY_INTERFACE       CGI-Perl/1.1
+DOCUMENT_ROOT   /home/httpd/docs
+REMOTE_ADDR     127.0.0.1
+[more environment variables snipped]
+MOD_PERL        mod_perl/1.21_01-dev
+[more environment variables snipped]</pre></blockquote>
+
+<p>If you see the that the value of <tt class="literal">GATEWAY_INTERFACE</tt>
+is <tt class="literal">CGI-Perl/1.1</tt>, everything is OK.</p>
+
+<p>If there is an error, you might have to add a shebang line
+(<tt class="literal">#!/usr/bin/perl</tt>) as the first line of the CGI
+script and then try it again. If you see:</p>
+
+<blockquote><pre class="code">GATEWAY_INTERFACE       CGI/1.1</pre></blockquote>
+
+<p>it means you have configured this location to run under mod_cgi and
+not mod_perl.</p>
+
+<p>Also note that there is a <tt class="literal">$ENV{MOD_PERL}</tt>
+environment variable if you run under a mod_perl handler. This
+variable is set to the <tt class="literal">mod_perl/1.xx</tt>string, where
+<tt class="literal">1.xx</tt> is the version number of mod_perl.</p>
+
+<p>Based on this difference, you can write code like this:</p>
+
+<blockquote><pre class="code">BEGIN {
+    # perl5.004 or better is a must under mod_perl
+    require 5.004 if $ENV{MOD_PERL};
+}</pre></blockquote>
+
+<p>If you develop a generic Perl module aimed at mod_perl, mod_cgi, and
+other runtime environments, this information comes in handy, because
+it allows you to do mod_perl-specific things when running under
+mod_perl. For example, <tt class="literal">CGI.pm</tt> is mod_perl-aware:
+when <tt class="literal">CGI.pm</tt> knows that it is running under
+mod_perl, it registers a cleanup handler for its global
+<tt class="literal">$Q</tt> object, retrieves the query string via
+<tt class="literal">Apache-&gt;request-&gt;args</tt>, and does a few other
+things differently than when it runs under mod_cgi.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-10.5" /><div class="sect2">
+<h3 class="sect2">3.10.5. Testing via lwp-request</h3>
+
+<p>Assuming you<a name="pmodperl-CHP-3-ITERM-3791" /><a name="pmodperl-CHP-3-ITERM-3792" /><a name="pmodperl-CHP-3-ITERM-3793" /> have the
+<tt class="literal">libwww-perl</tt> (<tt class="literal">LWP</tt>) package
+installed, you can run the following tests. (Most likely you do have
+it installed, since you need it to pass mod_perl's
+<em class="emphasis">make test</em>.)</p>
+
+<blockquote><pre class="code">panic% lwp-request -e -d http://www.example.com</pre></blockquote>
+
+<p>This shows you just the headers; the <em class="emphasis">-d</em> option
+disables printing the response content. If you just want to see the
+server version, try:</p>
+
+<blockquote><pre class="code">panic% lwp-request -e -d http://www.example.com | egrep '^Server:'</pre></blockquote>
+
+<p>Of course, you should use
+<em class="emphasis">http://www.example.com:port_number</em> if your
+server is listening to a port other than port 80.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_09.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch03_11.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">3.9. Installation into a Nonstandard Directory</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">3.11. General Notes</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

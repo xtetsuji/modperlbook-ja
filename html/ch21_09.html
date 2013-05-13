@@ -1,0 +1,339 @@
+<html><head><title>Looking Inside the Server (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch21_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">21.9. Looking Inside the Server</h2>
+
+<p>There are a number of tools that allow you look at the server
+internals at runtime, through a convenient web interface.</p>
+
+<a name="pmodperl-CHP-21-SECT-9.1" /><div class="sect2">
+<h3 class="sect2">21.9.1. Apache::Status&#8212;Embedded Interpreter Status Information</h3>
+
+<p>This is a very <a name="pmodperl-CHP-21-ITERM-5739" /><a name="pmodperl-CHP-21-ITERM-5740" />useful
+<a name="pmodperl-CHP-21-ITERM-5741" />module. It lets you watch what happens to
+the Perl part of the mod_perl server. You can watch the size of all
+subroutines and variables, variable dumps, lexical information,
+opcode trees, and more.</p>
+
+<p>You shouldn't use it on a production server, as it
+adds quite a bit of overhead for each request.</p>
+
+<a name="pmodperl-CHP-21-SECT-9.1.1" /><div class="sect3">
+<h3 class="sect3">21.9.1.1. Minimal configuration</h3>
+
+<p>This
+<a name="pmodperl-CHP-21-ITERM-5742" /><a name="pmodperl-CHP-21-ITERM-5743" />configuration
+enables the <tt class="literal">Apache::Status</tt> module with its minimum
+feature set. Add this to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">&lt;Location /perl-status&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Status
+&lt;/Location&gt;</pre></blockquote>
+
+<p>If you are going to use <tt class="literal">Apache::Status</tt>
+it's important to put it as the first module in the
+startup file, or in <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code"># startup.pl
+use Apache::Status ( );
+use Apache::Registry ( );
+use Apache::DBI ( );</pre></blockquote>
+
+<p>For example, if you use <tt class="literal">Apache::DBI</tt> and you
+don't load <tt class="literal">Apache::Status</tt> before
+<tt class="literal">Apache::DBI</tt>, you will not get the
+<tt class="literal">Apache::DBI</tt> menu entry (which allows you to see
+persistent connections).</p>
+
+</div>
+
+<a name="pmodperl-CHP-21-SECT-9.1.2" /><div class="sect3">
+<h3 class="sect3">21.9.1.2. Extended configuration</h3>
+
+<p>There are several <a name="pmodperl-CHP-21-ITERM-5744" /><a name="pmodperl-CHP-21-ITERM-5745" />variables you can use to modify
+the behavior of <tt class="literal">Apache::Status</tt>:</p>
+
+<dl>
+<a name="pmodperl-CHP-21-ITERM-5746" /><dt><b><tt class="literal">PerlSetVar StatusOptionsAll On</tt></b></dt>
+<dd>
+This single directive will enable all of the options described below.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-21-ITERM-5747" /><dt><b><tt class="literal">PerlSetVar StatusDumper On</tt></b></dt>
+<dd>
+When you are browsing symbol tables, you can view the values of your
+arrays, hashes, and scalars with <tt class="literal">Data::Dumper</tt>.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-21-ITERM-5748" /><dt><b><tt class="literal">PerlSetVar StatusPeek On</tt></b></dt>
+<dd>
+With this option <tt class="literal">On</tt> and the
+<tt class="literal">Apache::Peek</tt> module installed, functions and
+variables can be viewed in <tt class="literal">Devel::Peek</tt>style.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-21-ITERM-5749" /><dt><b><tt class="literal">PerlSetVar StatusLexInfo On</tt></b></dt>
+<dd>
+With this option <tt class="literal">On</tt> and the
+<tt class="literal">B::LexInfo</tt> module installed, subroutine lexical
+variable information can be viewed.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-21-ITERM-5750" /><dt><b><tt class="literal">PerlSetVar StatusDeparse On</tt></b></dt>
+<dd>
+With this option <tt class="literal">On</tt> and
+<tt class="literal">B::Deparse</tt> version 0.59 or higher (included in
+Perl 5.005_59+), subroutines can be
+"deparsed." Options can be passed
+to <tt class="literal">B::Deparse::new</tt> like so:</p>
+
+<blockquote><pre class="code">PerlSetVar StatusDeparseOptions "-p -sC"</pre></blockquote>
+
+<p>See the <tt class="literal">B::Deparse</tt> manpage for details.</p>
+</dd>
+
+
+<a name="pmodperl-CHP-21-ITERM-5751" /><dt><b><tt class="literal">PerlSetVar StatusTerse On</tt></b></dt>
+<dd>
+With this option <tt class="literal">On</tt>, text-based optree graphs of
+subroutines can be displayed, thanks to <tt class="literal">B::Terse</tt>.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-21-ITERM-5752" /><dt><b><tt class="literal">PerlSetVar StatusTerseSize On</tt></b></dt>
+<dd>
+With this option <tt class="literal">On</tt> and the
+<tt class="literal">B::TerseSize</tt> module installed, text-based optree
+graphs of subroutines and their sizes can be displayed. See the
+<tt class="literal">B::TerseSize</tt> documentation for more info.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-21-ITERM-5753" /><dt><b><tt class="literal">PerlSetVar StatusTerseSizeMainSummary On</tt></b></dt>
+<dd>
+With this option <tt class="literal">On</tt> and the
+<tt class="literal">B::TerseSize</tt> module installed, a
+"Memory Usage" submenu will be
+added to the <tt class="literal">Apache::Status</tt> main menu. This option
+is disabled by default, as it can be rather CPU-intensive to
+summarize memory usage for the entire server. It is strongly
+suggested that this option be used only with a development server
+running in <em class="emphasis">-X</em> mode, as the results will be
+cached.</p>
+
+<p>Remember to preload <tt class="literal">B::TerseSize</tt> in
+<em class="emphasis">httpd.conf</em> and make sure that
+it's loaded after <tt class="literal">Apache::Status</tt>:</p>
+
+<blockquote><pre class="code">PerlModule Apache::Status
+PerlModule B::Terse</pre></blockquote>
+</dd>
+
+
+<a name="pmodperl-CHP-21-ITERM-5754" /><dt><b><tt class="literal">PerlSetVar StatusGraph On</tt></b></dt>
+<dd>
+When <tt class="literal">StatusDumper</tt> (see above) is enabled, another
+submenu, "OP Tree Graph," will be
+present with the dump if this configuration variable is set to
+<tt class="literal">On</tt>.</p>
+
+<p>This requires the <tt class="literal">B</tt> module (part of the Perl
+compiler kit) and the <tt class="literal">B::Graph</tt> module, Version
+0.03 or higher, to be installed along with the <tt class="literal">dot</tt>
+program. <tt class="literal">dot</tt> is part of the graph-visualization
+toolkit from AT&amp;T (<a href="http://www.research.att.com/sw/tools/graphviz/">http://www.research.att.com/sw/tools/graphviz/</a>).</p>
+
+<p>WARNING: Some graphs may produce very large images, and some graphs
+may produce no image if
+<tt class="literal">B::Graph</tt>'s output is incorrect.</p>
+</dd>
+
+</dl>
+
+<p>There is more information about <tt class="literal">Apache::Status</tt> in
+its manpage.</p>
+
+</div>
+
+<a name="pmodperl-CHP-21-SECT-9.1.3" /><div class="sect3">
+<h3 class="sect3">21.9.1.3. Usage</h3>
+
+<p>Assuming <a name="pmodperl-CHP-21-ITERM-5755" />that your
+mod_perl server is listening on port 81, fetch
+<em class="emphasis">http://www.example.com:81/perl-status</em>:</p>
+
+<blockquote><pre class="code">Embedded Perl version v5.6.1 for Apache/1.3.17 (Unix) mod_perl/1.25
+process 9943, running since Fri Feb 9 17:48:50 2001</pre></blockquote>
+
+<p>All the sections below are links when you view them through
+<em class="emphasis">/perl-status</em>:</p>
+
+<blockquote><pre class="code">Perl Configuration
+Loaded Modules
+Inheritance Tree
+Enabled mod_perl Hooks
+Environment
+PerlRequire'd Files
+Signal Handlers
+Symbol Table Dump
+ISA Tree
+Compiled Registry Scripts</pre></blockquote>
+
+<p>Here's what these sections show:</p>
+
+<ul><li>
+<p><em class="emphasis">Perl Configuration</em> is the same as the output
+from <em class="emphasis">perl -V</em> (loaded from
+<em class="emphasis">Config.pm</em>).</p>
+</li><li>
+<p><em class="emphasis">Loaded Modules</em> shows the loaded Perl modules.</p>
+</li><li>
+<p><em class="emphasis">Inheritance Tree</em> shows the inheritance tree of
+the loaded modules.</p>
+</li><li>
+<p><em class="emphasis">Enabled mod_perl Hooks</em> shows all mod_perl hooks
+that were enabled at compile time.</p>
+</li><li>
+<p><em class="emphasis">Environment</em> shows the contents of
+<tt class="literal">%ENV</tt>.</p>
+</li><li>
+<p><em class="emphasis">PerlRequire'd Files</em> displays
+the files that were required via <tt class="literal">PerlRequire</tt>.</p>
+</li><li>
+<p><em class="emphasis">Signal Handlers</em> shows the status of all signal
+handlers (using <tt class="literal">%SIG</tt>).</p>
+</li><li>
+<p><em class="emphasis">Symbol Table Dump</em> shows the symbol table dump of
+all packages loaded in the process&#8212;you can click through the
+symbols and, for example, see the values of scalars, jump to the
+symbol dumps of specific packages, and more.</p>
+</li><li>
+<p><em class="emphasis">ISA Tree</em> shows the ISA inheritance tree.</p>
+</li><li>
+<p><em class="emphasis">Compiled Registry Scripts</em> shows
+<tt class="literal">Apache::Registry</tt>,
+<tt class="literal">Apache::PerlRun</tt>, and other scripts compiled on the
+fly.</p>
+</li></ul>
+<p>From some menus you can move deeper to peek into the internals of the
+server, to see the values of the global variables in the packages, to
+see the cached scripts and modules, and much more. Just click around.</p>
+
+<p>Remember that whenever you access <em class="emphasis">/perl-status</em>
+you are always inside one of the child processes, so you may not see
+what you expect, since this child process might have a different
+history of processed requests and therefore a different internal
+state. Sometimes when you fetch <em class="emphasis">/perl-status</em> and
+look at the <em class="emphasis">Compiled Registry Scripts</em> section
+you see no listing of scripts at all.
+<tt class="literal">Apache::Status</tt>shows the registry scripts compiled
+in the <em class="emphasis">httpd</em> child that is serving your request
+for <em class="emphasis">/perl-status</em>; if the child has not yet
+compiled the requested script, <em class="emphasis">/perl-status</em> will
+just show you the <a name="pmodperl-CHP-21-ITERM-5756" /><a name="pmodperl-CHP-21-ITERM-5757" />main menu.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-21-SECT-9.2" /><div class="sect2">
+<h3 class="sect2">21.9.2. mod_status</h3>
+
+<p>The <a name="pmodperl-CHP-21-ITERM-5758" /><a name="pmodperl-CHP-21-ITERM-5759" /><a name="pmodperl-CHP-21-ITERM-5760" />mod_status
+module allows a server administrator to find out how well the server
+is performing. An HTML page is presented that gives the current
+server statistics in an easily readable form. If required, given a
+compatible browser, this page can be automatically refreshed. Another
+page gives a simple machine-readable list of the current server
+state.</p>
+
+<p>This Apache module is written in C. It is compiled by default, so all
+you have to do to use it is enable it in your configuration file:</p>
+
+<blockquote><pre class="code">&lt;Location /status&gt;
+    SetHandler server-status
+&lt;/Location&gt;</pre></blockquote>
+
+<p>For security reasons you will probably want to limit access to it. If
+you have installed Apache according to the instructions given in this
+book, you will find a prepared configuration section in
+<em class="emphasis">httpd.conf</em>. To enable use of the mod_status
+module, just uncomment it:</p>
+
+<blockquote><pre class="code">ExtendedStatus On
+&lt;Location /status&gt;
+    SetHandler server-status
+    Order deny,allow
+    Deny from all
+    Allow from localhost
+&lt;/Location&gt;</pre></blockquote>
+
+<p>You can now access server statistics by using a web browser to access
+the page <em class="emphasis">http://localhost/status</em> (as long as
+your server recognizes <em class="emphasis">localhost</em>).</p>
+
+<p>The details given by mod_status are:</p>
+
+<ul><li>
+<p>The number of children serving requests</p>
+</li><li>
+<p>The number of idle children</p>
+</li><li>
+<p>The status of each child, the number of requests that child has
+performed and the total number of bytes served by the child</p>
+</li><li>
+<p>The total number of accesses and the total bytes served</p>
+</li><li>
+<p>The time the server was last started/restarted and for how long it
+has been running</p>
+</li><li>
+<p>Averages giving the number of requests per second, the number of
+bytes served per second, and the number of bytes per request</p>
+</li><li>
+<p>The current percentage of the CPU being used by each child and in
+total by Apache</p>
+</li><li>
+<p>The current hosts and requests being processed</p>
+</li></ul>
+<p>In <a href="ch05_01.html">Chapter 5</a> you can read about
+<tt class="literal">Apache::VMonitor</tt>, which is a more advanced sibling
+of mod_status.</p>
+
+<p>Turning the <tt class="literal">ExtendedStatus</tt> mode on is not
+recommended for high-performance production sites, as it adds
+overhead to the request response times.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch21_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">21.8. Useful Debug Modules</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">21.10. References</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

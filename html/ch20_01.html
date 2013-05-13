@@ -1,0 +1,541 @@
+<html><head><title>Relational Databases and mod_perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch19_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch20_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 20. Relational Databases and mod_perl</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch20_01.html#pmodperl-CHP-20-SECT-1">Persistent Database Connections with Apache::DBI</a><br />
+<a href="ch20_02.html">Improving Performance</a><br />
+<a href="ch20_03.html">DBI Debug Techniques</a><br />
+<a href="ch20_04.html">References</a><br /></p></div><p>Nowadays, millions of people surf the Internet. There are millions of
+terabytes of data lying around, and many new techniques and
+technologies have been invented to manipulate this data. One of these
+inventions is the relational database, which makes it possible to
+search and modify huge stores of data very quickly. The Structured
+Query Language (SQL) is used to access and manipulate the contents of
+these databases.</p><p>Let's say that you started your web services with a
+simple, flat-file database. Then with time your data grew big, which
+made the use of a flat-file database slow and inefficient. So you
+switched to the next simple solution&#8212;using DBM files. But your
+data set continued to grow, and even the DBM files
+didn't provide a scalable enough solution. So you
+finally decided to switch to the most advanced solution, a relational
+database.</p><p>On the other hand, it's quite possible that you had
+big ambitions in the first place and you decided to go with a
+relational database right away.</p><p>We went through both scenarios, sometimes doing the minimum
+development using DBM files (when we knew that the data set was small
+and unlikely to grow big in the short term) and sometimes developing
+full-blown systems with relational databases at the heart.</p><p>As we repeat many times in this book, none of our suggestions and
+examples should be applied without thinking. But since
+you're reading this chapter, the chances are that
+you are doing the right thing, so we are going to concentrate on the
+extra benefits that mod_perl provides when you use relational
+databases. We'll also talk about related coding
+techniques that will help you to improve the performance of your
+service.</p><p>From now on, we assume <a name="pmodperl-CHP-20-ITERM-5380" /><a name="pmodperl-CHP-20-ITERM-5381" /><a name="pmodperl-CHP-20-ITERM-5382" />that you use the
+<tt class="literal">DBI</tt> module to talk to the databases. This in turn
+uses the unique database driver module for your database, which
+resides in the <tt class="literal">DBD:</tt>: namespace (for example,
+<tt class="literal">DBD::Oracle</tt> for Oracle and
+<tt class="literal">DBD::mysql</tt> for MySQL). If you stick to standard
+SQL, you maximize portability from one database to another. Changing
+to a new database server should simply be a matter of using a
+different database driver. You do this just by changing the data set
+name string (<tt class="literal">$dsn</tt>) in the
+<tt class="literal">DBI-&gt;connect( )</tt> call.</p><p>Rather than writing your queries in plain SQL, you should probably
+use some other abstraction module on top of the
+<tt class="literal">DBI</tt> module. This can help to make your code more
+extensible and maintainable. Raw SQL coupled with
+<tt class="literal">DBI</tt> usually gives you the best machine
+performance, but sometimes time to market is what counts, so you have
+to make your choices. An abstraction layer with a well-thought-out
+API is a pleasure to work with, and future modifications to the code
+will be less troublesome. Several DBI abstraction solutions are
+available on CPAN. <tt class="literal">DBIx::Recordset</tt>,
+<tt class="literal">Alzabo</tt>, and <tt class="literal">Class::DBI</tt> are just
+a few such modules that you may want to try. Take a look at the other
+modules in the <tt class="literal">DBIx:</tt>: category&#8212;many of them
+provide some kind of wrapping and abstraction around
+<tt class="literal">DBI</tt>.</p><div class="sect1"><a name="pmodperl-CHP-20-SECT-1" />
+<h2 class="sect1">20.1. Persistent Database Connections with Apache::DBI</h2>
+
+<p>When people first started <a name="pmodperl-CHP-20-ITERM-5383" /><a name="pmodperl-CHP-20-ITERM-5384" /><a name="pmodperl-CHP-20-ITERM-5385" />to use the Web, they found that they
+needed to write web interfaces to their databases, or add databases
+to drive their web interfaces. Whichever way you look at it, they
+needed to connect to the databases in order to use them.</p>
+
+<p>CGI is the most widely used protocol for building such interfaces,
+implemented in Apache's mod_cgi and its equivalents.
+For working with databases, the main limitation of most
+<a name="pmodperl-CHP-20-ITERM-5386" /><a name="pmodperl-CHP-20-ITERM-5387" /><a name="pmodperl-CHP-20-ITERM-5388" />implementations, including mod_cgi,
+is that they don't allow persistent connections to
+the database. For every HTTP request, the CGI script has to connect
+to the database, and when the request is completed the connection is
+closed. Depending on the relational database that you use, the time
+to instantiate a connection may be very fast (for example, MySQL) or
+very slow (for example, Oracle). If your database provides a very
+short connection latency, you may get away without having persistent
+connections. But if not, it's possible that opening
+a connection may consume a significant slice of the time to serve a
+request. It may be that if you can cut this overhead you can greatly
+improve the performance of your service.</p>
+
+<p><tt class="literal">Apache::DBI</tt> was written to solve this problem.
+When you use it with mod_perl, you have a database connection that
+persists for the entire life of a mod_perl process. This is possible
+because with mod_perl, the child process does not quit when a request
+has been served. When a mod_perl script needs to use a database,
+<tt class="literal">Apache::DBI</tt> immediately provides a valid
+connection (if it was already open) and your script starts doing the
+real work right away without having to make a database connection
+first.</p>
+
+<p>Of course, the persistence doesn't help with any
+latency problems you may encounter during the actual use of the
+database connections. Oracle, for example, is notorious for
+generating a network transaction for each row returned. This slows
+things down if the query execution matches many rows.</p>
+
+<p>You may want to read Tim Bunce's
+"Advanced DBI" talk, at <a href="http://dbi.perl.org/doc/conferences/tim_1999/index.html">http://dbi.perl.org/doc/conferences/tim_1999/index.html</a>,
+which covers many techniques to reduce latency.</p>
+
+<a name="pmodperl-CHP-20-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">20.1.1. Apache::DBI Connections</h3>
+
+<p>The <tt class="literal">DBI</tt> module <a name="pmodperl-CHP-20-ITERM-5389" /><a name="pmodperl-CHP-20-ITERM-5390" /><a name="pmodperl-CHP-20-ITERM-5391" /><a name="pmodperl-CHP-20-ITERM-5392" />can make use of the
+<tt class="literal">Apache::DBI</tt> module. When the
+<tt class="literal">DBI</tt> module loads, it tests whether the environment
+variable <tt class="literal">$ENV{MOD_PERL}</tt> is set and whether the
+<tt class="literal">Apache::DBI</tt> module has already been loaded. If so,
+the <tt class="literal">DBI</tt> module forwards every <tt class="literal">connect(
+)</tt> request <a name="pmodperl-CHP-20-ITERM-5393" /><a name="pmodperl-CHP-20-ITERM-5394" />to the <tt class="literal">Apache::DBI</tt>
+module.</p>
+
+<p>When <tt class="literal">Apache::DBI</tt> gets a <tt class="literal">connect(
+)</tt> request, it checks whether it already has a handle with
+the same <tt class="literal">connect( )</tt> arguments. If it finds one, it
+checks that the connection is still valid using the <tt class="literal">ping(
+)</tt> method. If this operation succeeds, the database handle
+is returned immediately. If there is no appropriate database handle,
+or if the <tt class="literal">ping( )</tt> method fails,
+<tt class="literal">Apache::DBI</tt> establishes a new connection, stores
+the handle, and then returns the handle to the caller.</p>
+
+<p>It is important to understand that the pool of connections is not
+shared between the processes. Each process has its own pool of
+connections.</p>
+
+<p>When you start <a name="pmodperl-CHP-20-ITERM-5395" /><a name="pmodperl-CHP-20-ITERM-5396" />using
+<tt class="literal">Apache::DBI</tt>, there is no need to delete all the
+<tt class="literal">disconnect( )</tt>statements from your code. They
+won't do anything, because the
+<tt class="literal">Apache::DBI</tt> module overloads the
+<tt class="literal">disconnect( )</tt> method with an empty one. You
+shouldn't modify your scripts at all for use with
+<tt class="literal">Apache::DBI</tt>.</p>
+
+</div>
+<a name="pmodperl-CHP-20-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">20.1.2. When to Use Apache::DBI (and When Not to Use It)</h3>
+
+<p>You will want to use <a name="pmodperl-CHP-20-ITERM-5397" />the
+<tt class="literal">Apache::DBI</tt> module only if you are opening just a
+few database connections per process. If there are ten child
+processes and each opens two different connections (using different
+<tt class="literal">connect( )</tt> arguments), in total there will be 20
+opened and persistent connections.</p>
+
+<p>This module must <em class="emphasis">not</em> be used if (for example)
+you have many <a name="pmodperl-CHP-20-ITERM-5398" /><a name="pmodperl-CHP-20-ITERM-5399" /><a name="pmodperl-CHP-20-ITERM-5400" />users, and a unique
+connection (with unique <tt class="literal">connect( )</tt> arguments) is
+required for each user.<a href="#FOOTNOTE-48">[48]</a> You cannot ensure that requests from one
+user will be served by any particular process, and connections are
+not shared between the child processes, so many child processes will
+open a separate, persistent connection for each user. In the worst
+case, if you have 100 users and 50 processes, you could end up with
+5,000 persistent connections, which might be largely unused. Since
+database servers have limitations on the maximum number of opened
+connections, at some point new connections will not be permitted, and
+eventually your service will become unavailable.</p> <blockquote><a name="FOOTNOTE-48" /><p> [48]That is, database user
+connections. This doesn't mean that if many people
+register as users on your web site you shouldn't use
+<tt class="literal">Apache::DBI</tt>; it is only a very special
+case.</p> </blockquote>
+
+<p>If you want to use <tt class="literal">Apache::DBI</tt> but you have both
+situations on one machine, at the time of writing the only solution
+is to run two mod_perl-enabled servers, one that uses
+<tt class="literal">Apache::DBI</tt> and one that does not.</p>
+
+<p>In mod_perl 2.0, a threaded server can be used, and this situation is
+much improved. Assuming that you have a single process with many
+threads and each unique open connection is needed by only a single
+thread, it's possible to have a pool of database
+connections that are reused by different threads.</p>
+
+</div>
+<a name="pmodperl-CHP-20-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">20.1.3. Configuring Apache::DBI</h3>
+
+<p><tt class="literal">Apache::DBI</tt> will not work
+<a name="pmodperl-CHP-20-ITERM-5401" /><a name="pmodperl-CHP-20-ITERM-5402" /><a name="pmodperl-CHP-20-ITERM-5403" />unless
+mod_perl was built with:</p>
+
+<blockquote><pre class="code">PERL_CHILD_INIT=1 PERL_STACKED_HANDLERS=1</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">EVERYTHING=1</pre></blockquote>
+
+<p>during the <tt class="literal">perl Makefile.PL ..</tt>. stage.</p>
+
+<p>After installing this module, configuration is simple&#8212;just add
+a single directive to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Apache::DBI</pre></blockquote>
+
+<p>Note that it is important to load this module before any other
+<tt class="literal">Apache*DBI</tt> module and before the
+<tt class="literal">DBI</tt> module itself. The best rule is just to load
+it first of all. You can skip preloading <tt class="literal">DBI</tt> at
+server startup, since <tt class="literal">Apache::DBI</tt> does that for
+you, but there is no harm in leaving it in, as long as
+<tt class="literal">Apache::DBI</tt> is loaded first.</p>
+
+</div>
+<a name="pmodperl-CHP-20-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">20.1.4. Debugging Apache::DBI</h3>
+
+<p>If you are not sure whether <a name="pmodperl-CHP-20-ITERM-5404" /><a name="pmodperl-CHP-20-ITERM-5405" />this module is working as advertised
+and that your connections are actually persistent, you should enable
+debug mode in the <em class="emphasis">startup.pl</em> script, like this:</p>
+
+<blockquote><pre class="code">$Apache::DBI::DEBUG = 1;</pre></blockquote>
+
+<p>Starting with <tt class="literal">Apache::DBI</tt> Version 0.84, the above
+setting will produce only minimal output. For a full trace, you
+should set:</p>
+
+<blockquote><pre class="code">$Apache::DBI::DEBUG = 2;</pre></blockquote>
+
+<p>After setting the <tt class="literal">DEBUG</tt> level, you will see
+entries in the <em class="emphasis">error_log</em> file. Here is a sample
+of the output with a <tt class="literal">DEBUG</tt> level of 1:</p>
+
+<blockquote><pre class="code">12851 Apache::DBI new connect to
+'test::localhostPrintError=1RaiseError=0AutoCommit=1'
+
+12853 Apache::DBI new connect to
+'test::localhostPrintError=1RaiseError=0AutoCommit=1'</pre></blockquote>
+
+<p>When a connection is reused, <tt class="literal">Apache::DBI</tt>stays
+silent, so you can see when a real <tt class="literal">connect( )</tt> is
+called. If you set the <tt class="literal">DEBUG</tt> level to 2,
+you'll see a more verbose output. This output was
+generated after two identical requests with a single server running:</p>
+
+<blockquote><pre class="code">12885 Apache::DBI need ping: yes
+12885 Apache::DBI new connect to
+'test::localhostPrintError=1RaiseError=0AutoCommit=1'
+12885 Apache::DBI need ping: yes
+12885 Apache::DBI already connected to
+'test::localhostPrintError=1RaiseError=0AutoCommit=1'</pre></blockquote>
+
+<p>You can see that process 12885 created a new connection on the first
+request and on the next request reused it, since it was using the
+same <tt class="literal">connect( )</tt> argument. Moreover, you can see
+that the connection was validated each time with the <tt class="literal">ping( )</tt>
+method.</p>
+
+</div>
+<a name="pmodperl-CHP-20-SECT-1.5" /><div class="sect2">
+<h3 class="sect2">20.1.5. Caveats and Troubleshooting</h3>
+
+<p>This section covers some of the risks and things to keep in mind when
+using <tt class="literal">Apache::DBI</tt>.</p>
+
+<a name="pmodperl-CHP-20-SECT-1.5.1" /><div class="sect3">
+<h3 class="sect3">20.1.5.1. Database locking risks</h3>
+
+<p>When you use <tt class="literal">Apache::DBI</tt>
+<a name="pmodperl-CHP-20-ITERM-5406" /><a name="pmodperl-CHP-20-ITERM-5407" /><a name="pmodperl-CHP-20-ITERM-5408" />or similar persistent
+connections, be very careful about locking the database
+(<tt class="literal">LOCK TABLE ..</tt>.) or single rows. MySQL threads
+keep tables locked until the thread ends (i.e., the connection is
+closed) or until the tables are explicitly unlocked. If your session
+dies while tables are locked, they will stay locked, as your
+connection to the database won't be closed. In <a href="ch06_01.html">Chapter 6</a> we discussed how to terminate the program
+cleanly if the session is aborted prematurely.</p>
+
+</div>
+
+<a name="pmodperl-CHP-20-SECT-1.5.2" /><div class="sect3">
+<h3 class="sect3">20.1.5.2. Transactions</h3>
+
+<p>A standard Perl script <a name="pmodperl-CHP-20-ITERM-5409" /><a name="pmodperl-CHP-20-ITERM-5410" /><a name="pmodperl-CHP-20-ITERM-5411" /><a name="pmodperl-CHP-20-ITERM-5412" />using <tt class="literal">DBI</tt> will
+automatically perform a rollback whenever the script exits. In the
+case of persistent database connections, the database handle will not
+be destroyed and hence no automatic rollback will occur. At first
+glance it even seems to be possible to handle a transaction over
+multiple requests, but the temptation should be avoided because
+different requests are handled by different mod_perl processes, and a
+mod_perl process does not know the state of a specific transaction
+that has been started by another mod_perl process.</p>
+
+<p>In general, it is good practice to perform an explicit commit or
+rollback at the end of every script. To avoid inconsistencies in the
+database in case <tt class="literal">AutoCommit</tt> is
+<tt class="literal">Off</tt> and the script terminates prematurely without
+an explicit rollback, the <tt class="literal">Apache::DBI</tt> module uses
+a <tt class="literal">PerlCleanupHandler</tt> to issue a rollback at the
+end of every request.</p>
+
+</div>
+
+<a name="pmodperl-CHP-20-SECT-1.5.3" /><div class="sect3">
+<h3 class="sect3">20.1.5.3. Opening connections with different parameters</h3>
+
+<p>When <tt class="literal">Apache::DBI</tt> receives
+<a name="pmodperl-CHP-20-ITERM-5413" /><a name="pmodperl-CHP-20-ITERM-5414" />a connection request, before it
+decides to use an existing cached connection it insists that the new
+connection be opened in exactly the same way as the cached
+connection. If you have one script that sets
+<tt class="literal">AutoCommit</tt> and one that does not,
+<tt class="literal">Apache::DBI</tt> will make two different connections.
+So, for example, if you have limited Apache to 40 servers at most,
+instead of having a maximum of 40 open connections, you may end up
+with 80.</p>
+
+<p>These two <tt class="literal">connect( )</tt> calls will create two
+different connections:</p>
+
+<blockquote><pre class="code">my $dbh = DBI-&gt;connect
+    ("DBI:mysql:test:localhost", '', '',
+     {
+      PrintError =&gt; 1, # warn( ) on errors
+      RaiseError =&gt; 0, # don't die on error
+      AutoCommit =&gt; 1, # commit executes immediately
+     }
+    ) or die "Cannot connect to database: $DBI::errstr";
+
+my $dbh = DBI-&gt;connect
+    ("DBI:mysql:test:localhost", '', '',
+     {
+      PrintError =&gt; 1, # warn( ) on errors
+      RaiseError =&gt; 0, # don't die on error
+      AutoCommit =&gt; 0, # don't commit executes immediately
+     }
+    ) or die "Cannot connect to database: $DBI::errstr";</pre></blockquote>
+
+<p>Notice that the only difference is in the value of
+<tt class="literal">AutoCommit</tt>.</p>
+
+<p>However, you are free to modify the handle immediately after you get
+it from the cache, so always initiate connections using the same
+parameters and set <tt class="literal">AutoCommit</tt> (or whatever)
+afterward. Let's rewrite the second
+<tt class="literal">connect( )</tt> call to do the right thing (i.e., not
+to create a new connection):</p>
+
+<blockquote><pre class="code">my $dbh = DBI-&gt;connect
+    ("DBI:mysql:test:localhost", '', '',
+     {
+      PrintError =&gt; 1, # warn( ) on errors
+      RaiseError =&gt; 0, # don't die on error
+      AutoCommit =&gt; 1, # commit executes immediately
+     }
+    ) or die "Cannot connect to database: $DBI::errstr";
+$dbh-&gt;{AutoCommit} = 0; # don't commit if not asked to</pre></blockquote>
+
+<p>When you aren't sure whether you're
+doing the right thing, turn on debug mode.</p>
+
+<p>When the <tt class="literal">$dbh</tt> attribute is altered after
+<tt class="literal">connect( )</tt>, it affects all other handlers
+retrieving this database handle. Therefore, it's
+best to restore the modified attributes to their original values at
+the end of database handle usage. As of
+<tt class="literal">Apache::DBI</tt> Version 0.88, the caller has to do
+this manually. The simplest way to handle this is to localize the
+attributes when modifying them:</p>
+
+<blockquote><pre class="code">my $dbh = DBI-&gt;connect(...) ...
+{
+  local $dbh-&gt;{LongReadLen} = 40;
+}</pre></blockquote>
+
+<p>Here, the <tt class="literal">LongReadLen</tt> attribute overrides the
+value set in the <tt class="literal">connect( )</tt> call or its default
+value only within the enclosing block.</p>
+
+<p>The problem with this approach is that prior to Perl Version 5.8.0 it
+causes memory leaks. So the only clean alternative for older Perl
+versions is to manually restore
+<tt class="literal">$dbh</tt>'s values:</p>
+
+<blockquote><pre class="code">my @attrs = qw(LongReadLen PrintError);
+my %orig = ( );
+
+my $dbh = DBI-&gt;connect(...) ...
+
+# store the values away
+$orig{$_} = $dbh-&gt;{$_} for @attrs;
+# do local modifications
+$dbh-&gt;{LongReadLen} = 40;
+$dbh-&gt;{PrintError}  = 1;
+
+# do something with the database handle
+# ...
+
+# now restore the values
+$dbh-&gt;{$_} = $orig{$_} for @attrs;</pre></blockquote>
+
+<p>Another thing to remember is that with some database servers
+it's possible to access more than one database using
+the same database connection. MySQL is one of those servers. It
+allows you to use a fully qualified table specification notation. So
+if there is a database <em class="emphasis">foo</em> with a table
+<em class="emphasis">test</em> and a database <em class="emphasis">bar</em>
+with its own table <em class="emphasis">test</em>, you can always use:</p>
+
+<blockquote><pre class="code">SELECT * FROM foo.test ...</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">SELECT * FROM bar.test ...</pre></blockquote>
+
+<p>No matter what database you have used in the database name string in
+the <tt class="literal">connect( )</tt> call (e.g.,
+<tt class="literal">DBI:mysql:foo:localhost</tt>), you can still access
+both tables by using a fully qualified syntax.</p>
+
+<p>Alternatively, you can switch databases with <tt class="literal">USE
+foo</tt> and <tt class="literal">USE bar</tt>, but this approach seems
+less convenient, and therefore error-prone.</p>
+
+</div>
+
+<a name="pmodperl-CHP-20-SECT-1.5.4" /><div class="sect3">
+<h3 class="sect3">20.1.5.4. Cannot find the DBI handler</h3>
+
+<p>You must use <tt class="literal">DBI-&gt;connect( )</tt> as in
+<a name="pmodperl-CHP-20-ITERM-5415" /><a name="pmodperl-CHP-20-ITERM-5416" />normal
+<tt class="literal">DBI</tt> usage to get your <tt class="literal">$dbh</tt>
+database handle. Using <tt class="literal">Apache::DBI</tt> does not
+eliminate the need to write proper <tt class="literal">DBI</tt> code. As
+the <tt class="literal">Apache::DBI</tt> manpage states, you should program
+as if you are not using <tt class="literal">Apache::DBI</tt> at all.
+<tt class="literal">Apache::DBI</tt> will override the
+<tt class="literal">DBI</tt> methods where necessary and return your cached
+connection. Any <tt class="literal">disconnect( )</tt> calls will just be
+ignored.</p>
+
+</div>
+
+<a name="pmodperl-CHP-20-SECT-1.5.5" /><div class="sect3">
+<h3 class="sect3">20.1.5.5. The morning bug</h3>
+
+<p>The SQL server keeps a connection <a name="pmodperl-CHP-20-ITERM-5417" /><a name="pmodperl-CHP-20-ITERM-5418" />to the client open for a
+limited period of time. In the early days of
+<tt class="literal">Apache::DBI</tt>, everyone was bitten by the so-called
+<em class="emphasis">morning bug</em>&#8212;every morning the first user
+to use the site received a "No Data
+Returned" message, but after that everything worked
+fine.</p>
+
+<p>The error was caused by <tt class="literal">Apache::DBI</tt> returning an
+invalid connection handle (the server had closed it because of a
+timeout), and the script was dying on that error. The <tt class="literal">ping(
+)</tt> method was introduced to solve this problem, but it
+didn't work properly until
+<tt class="literal">Apache::DBI</tt> Version 0.82 was released. In that
+version and after, <tt class="literal">ping( )</tt> was called inside an
+<tt class="literal">eval</tt> block, which resolved the problem.</p>
+
+<p>It's still possible that some
+<tt class="literal">DBD:</tt>: drivers don't have the
+<tt class="literal">ping( )</tt> method implemented. The
+<tt class="literal">Apache::DBI</tt> manpage explains how to write it.</p>
+
+<p>Another solution is to increase the timeout parameter when starting
+the database server. We usually start the MySQL server with the
+script <em class="emphasis">safe_mysqld</em>, so we modified it to use
+this option:</p>
+
+<blockquote><pre class="code">nohup $ledir/mysqld [snipped other options] -O wait_timeout=172800</pre></blockquote>
+
+<p>The timeout value that we use is 172,800 seconds, or 48 hours. This
+change solves the problem, but the <tt class="literal">ping( )</tt> method
+works properly in <tt class="literal">DBD::mysql</tt> as well.</p>
+
+</div>
+
+<a name="pmodperl-CHP-20-SECT-1.5.6" /><div class="sect3">
+<h3 class="sect3">20.1.5.6. Apache:DBI does not work</h3>
+
+<p>If <tt class="literal">Apache::DBI</tt> doesn't work,
+first make <a name="pmodperl-CHP-20-ITERM-5419" />sure
+that you have it installed. Then make sure that you configured
+mod_perl with either:</p>
+
+<blockquote><pre class="code">PERL_CHILD_INIT=1 PERL_STACKED_HANDLERS=1</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">EVERYTHING=1</pre></blockquote>
+
+<p>Turn on debug mode using the <tt class="literal">$Apache::DBI::DEBUG</tt>
+variable.</p>
+
+</div>
+
+<a name="pmodperl-CHP-20-SECT-1.5.7" /><div class="sect3">
+<h3 class="sect3">20.1.5.7. Skipping connection cache during server startup</h3>
+
+<p>Does your error_log look <a name="pmodperl-CHP-20-ITERM-5420" />like this?</p>
+
+<blockquote><pre class="code">10169 Apache::DBI PerlChildInitHandler
+10169 Apache::DBI skipping connection cache during server startup
+Database handle destroyed without explicit disconnect at
+/usr/lib/perl5/site_perl/5.6.1/Apache/DBI.pm line 29.</pre></blockquote>
+
+<p>If so, you are trying to open a database connection in the parent
+<em class="emphasis">httpd</em> process. If you do, the children will each
+get a copy of this handle, causing clashes when the handle is used by
+two processes at the same time. Each child must have its own unique
+connection handle.</p>
+
+<p>To avoid this problem, <tt class="literal">Apache::DBI</tt> checks whether
+it is called during server startup. If so, the module skips the
+connection cache and returns immediately without a database handle.</p>
+
+<p>You must use the <tt class="literal">Apache::DBI-&gt;connect_on_init(
+)</tt> method (see the next section) in the startup file to
+preopen a connection <a name="pmodperl-CHP-20-ITERM-5421" />before the<a name="pmodperl-CHP-20-ITERM-5422" /> child <a name="pmodperl-CHP-20-ITERM-5423" />processes are
+spawned.</p>
+
+</div>
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch19_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch20_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">19.7. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">20.2. Improving Performance</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

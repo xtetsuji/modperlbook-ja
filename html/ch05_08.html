@@ -1,0 +1,1102 @@
+<html><head><title>Upgrading a Live Server (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch05_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">5.8. Upgrading a Live Server</h2>
+
+<p>When
+<a name="pmodperl-CHP-5-ITERM-4097" /><a name="pmodperl-CHP-5-ITERM-4098" />you're
+developing code on a development server, anything goes: modifying the
+configuration, adding or upgrading Perl modules without checking that
+they are syntactically correct, not checking that Perl modules
+don't collide with other modules, adding
+experimental new modules from CPAN, etc. If something goes wrong,
+configuration changes can be rolled back (assuming
+you're using some form of version control), modules
+can be uninstalled or reinstalled, and the server can be started and
+stopped as many times as required to get it working.</p>
+
+<p>Of course, if there is more than one developer working on a
+development server, things can't be quite so
+carefree. Possible solutions for the problems that can arise when
+multiple developers share a development server will be discussed
+shortly.</p>
+
+<p>The most difficult situation is transitioning changes to a live
+server. However much the changes have been tested on a development
+server, there is always the risk of breaking something when a change
+is made to the live server. Ideally, any changes should be made in a
+way that will go unnoticed by the users, except as new or improved
+functionality or better performance. No users should be exposed to
+even a single error message from the upgraded
+service&#8212;especially not the "database
+busy" or "database
+error" messages that some high-profile sites seem to
+consider acceptable.</p>
+
+<p>Live services can be divided into two categories: servers that must
+be up 24 hours a day and 7 days a week, and servers that can be
+stopped during non-working hours. The latter generally applies to
+Intranets of companies with offices located more or less in the same
+time zone and not scattered around the world. Since the Intranet
+category is the easier case, let's talk about it
+first.</p>
+
+<a name="pmodperl-CHP-5-SECT-8.1" /><div class="sect2">
+<h3 class="sect2">5.8.1. Upgrading Intranet Servers</h3>
+
+<p>An Intranet <a name="pmodperl-CHP-5-ITERM-4099" /><a name="pmodperl-CHP-5-ITERM-4100" /><a name="pmodperl-CHP-5-ITERM-4101" />server generally serves the
+company's internal staff by allowing them to share
+and distribute internal information, read internal email, and perform
+other similar tasks. When all the staff is located in the same time
+zone, or when the time difference between sites does not exceed a few
+hours, there is often no need for the server to be up all the time.
+This doesn't necessarily mean that no one will need
+to access the Intranet server from home in the evenings, but it does
+mean that the server can probably be stopped for a few minutes when
+it is necessary to perform some maintenance work.</p>
+
+<p>Even if the update of a live server occurs during working hours and
+goes wrong, the staff will generally tolerate the inconvenience
+unless the Intranet has become a really mission-critical tool. For
+servers that <em class="emphasis">are</em> mission critical, the following
+section will describe the least disruptive and safest upgrade
+approach.</p>
+
+<p>If possible, any administration or upgrades of the
+company's Intranet server should be undertaken
+during non-working hours, or, if this is not possible, during the
+times of least activity (e.g., lunch time). Upgrades that are carried
+out while users are using the service should be done with a great
+deal of care.</p>
+
+<p>In very large organizations, upgrades are often scheduled events and
+employees are notified ahead of time that the service might not be
+available. Some organizations deem these periods
+"at-risk" times, when employees are
+expected to use the service as little as possible and then only for
+noncritical work. Again, these major updates are generally scheduled
+during the weekends and late evening hours.</p>
+
+<p>The next section deals with this issue for services that need to be
+available all the time.</p>
+
+</div>
+<a name="pmodperl-CHP-5-SECT-8.2" /><div class="sect2">
+<h3 class="sect2">5.8.2. Upgrading 24  &#xD7;  7 Internet Servers</h3>
+
+<p>Internet servers are normally expected to be available 24 hours a
+day, 7 days a week. E-commerce sites, global B2B
+(business-to-business) sites, and any other revenue-producing sites
+may be critical to the companies that run them, and their
+unavailability could prove to be very expensive. The approach taken
+to ensure that servers remain in service even when they are being
+upgraded depends on the type of server in use. There are two
+categories to consider: <em class="emphasis">server clusters</em> and
+<em class="emphasis">single servers</em>.</p>
+
+<a name="pmodperl-CHP-5-SECT-8.2.1" /><div class="sect3">
+<h3 class="sect3">5.8.2.1. The server cluster</h3>
+
+<p>When a <a name="pmodperl-CHP-5-ITERM-4102" /><a name="pmodperl-CHP-5-ITERM-4103" /><a name="pmodperl-CHP-5-ITERM-4104" />service is very popular, a single
+machine probably will not be able to keep up with the number of
+requests the service has to handle. In this situation, the solution
+is to add more machines and to distribute the load amongst them. From
+the user's point of view, the use of multiple
+servers must be completely transparent; users must still have a
+single access point to the service (i.e., the same single URL) even
+though there may be many machines with different server names
+actually delivering the service. The requests must also be properly
+distributed across the machines: not simply by giving equal numbers
+of requests to each machine, but rather by giving each machine a load
+that reflects its actual capabilities, given that not all machines
+are built with identical hardware. This leads to the need for some
+smart load-balancing techniques.</p>
+
+<p>All current load-balancing techniques are based on a central machine
+that dispatches all incoming requests to machines that do the real
+processing. Think of it as the only entrance into a building with a
+doorkeeper directing people into different rooms, all of which have
+identical contents but possibly a different number of clerks.
+Regardless of what room they're directed to, all
+people use the entrance door to enter and exit the building, and an
+observer located outside the building cannot tell what room people
+are visiting. The same thing happens with the cluster of
+servers&#8212;users send their browsers to URLs, and back come the
+pages they requested. They remain unaware of the particular machines
+from which their browsers collected their pages.</p>
+
+<p>No matter what load-balancing technique is used, it should always be
+straightforward to be able to tell the central machine that a new
+machine is available or that some machine is not available any more.</p>
+
+<p>How does this long introduction relate to the upgrade problem?
+Simple. When a particular machine requires upgrading, the dispatching
+server is told to stop sending requests to that machine. All the
+requests currently being executed must be left to complete, at which
+point whatever maintenance and upgrade work is to be done can be
+carried out. Once the work is complete and has been tested to ensure
+that everything works correctly, the central machine can be told that
+it can again send requests to the newly upgraded machine. At no point
+has there been any interruption of service or any indication to users
+that anything has occurred. Note that for some services, particularly
+ones to which users must log in, the wait for all the users to either
+log out or time out may be considerable. Thus, some sites stop
+requests to a machine at the end of the working day, in the hope that
+all requests will have completed or timed out by the morning.</p>
+
+<p>How do we talk to the central machine? This depends on the
+load-balancing technology that is implemented and is beyond the scope
+of this book. The references section at the end of this chapter gives
+a list of relevant online resources.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2" /><div class="sect3">
+<h3 class="sect3">5.8.2.2. The single server</h3>
+
+<p>It's not <a name="pmodperl-CHP-5-ITERM-4105" /><a name="pmodperl-CHP-5-ITERM-4106" /><a name="pmodperl-CHP-5-ITERM-4107" />uncommon for a popular web site to run
+on a single machine. It's also common for a web site
+to run on multiple machines, with one machine dedicated to serving
+static objects (such as images and static HTML files), another
+serving dynamically generated responses, and perhaps even a third
+machine that acts as a dedicated database server.</p>
+
+<p>Therefore, the situation that must be addressed is where just one
+machine runs the service or where the service is spread over a few
+machines, with each performing a unique task, such that no machine
+can be shut down even for a single minute, and leaving the service
+unavailable for more than five seconds is unacceptable. In this case,
+two different tasks may be required: upgrading the software on the
+server (including the Apache server), and upgrading the code of the
+service itself (i.e., custom modules and scripts).</p>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2.1" /><div class="sect4">
+<h4 class="sect4">5.8.2.2.1. Upgrading live server components by swapping machines</h4>
+
+<p>There <a name="pmodperl-CHP-5-ITERM-4108" /><a name="pmodperl-CHP-5-ITERM-4109" /><a name="pmodperl-CHP-5-ITERM-4110" />are many things that you might need to
+update on a server, ranging from a major upgrade of the operating
+system to just an update of a single piece of software (such as the
+Apache server itself).</p>
+
+<p>One simple approach to performing an upgrade painlessly is to have a
+backup machine, of similar capacity and identical configuration, that
+can replace the production machine while the upgrade is happening. It
+is a good idea to have such a machine handy and to use it whenever
+major upgrades are required. The two machines must be kept
+synchronized, of course. (For Unix/Linux users, tools such as
+<em class="emphasis">rsync</em> and <em class="emphasis">mirror</em> can be
+used for synchronization.)</p>
+
+<p>However, it may not be necessary to have a special machine on standby
+as a backup. Unless the service is hosted elsewhere and you
+can't switch the machines easily, the development
+machine is probably the best choice for a backup&#8212;all the
+software and scripts are tested on the development machine as a
+matter of course, and it probably has a software setup identical to
+that of the production machine. The development machine might not be
+as powerful as the live server, but this may well be acceptable for a
+short period, especially if the upgrade is timed to happen when the
+site's traffic is fairly quiet.
+It's much better to have a slightly slower service
+than to close the doors completely. A web log analysis tool such as
+<em class="emphasis">analog</em> can be used to determine the hour of the
+day when the server is under the least load.</p>
+
+<p>Switching between the two machines is very simple:</p>
+
+<ol><li>
+<p>Shut down the network on the backup machine.</p>
+</li><li>
+<p>Configure the backup machine to use the same IP address and domain
+name as the live machine.</p>
+</li><li>
+<p>Shut down the network on the live machine (do not shut down the
+machine itself!).</p>
+</li><li>
+<p>Start up the network on the backup machine.</p>
+</li></ol>
+<p>When you are certain that the backup server has successfully replaced
+the live server (that is, requests are being serviced, as revealed by
+the backup machine's
+<em class="emphasis">access_log</em>), it is safe to switch off the master
+machine or do any necessary upgrades.</p>
+
+<p>Why bother waiting to check that everything is working correctly with
+the backup machine? If something goes wrong, the change can
+immediately be rolled back by putting the known working machine back
+online. With the service restored, there is time to analyze and fix
+the problem with the replacement machine before trying it again.
+Without the ability to roll back, the service may be out of operation
+for some time before the problem is solved, and users may become
+frustrated.</p>
+
+<p>We recommend that you practice this technique with two unused
+machines before using the production boxes.</p>
+
+<p>After the backup machine has been put into service and the original
+machine has been upgraded, test the original machine. Once the
+original machine has been passed as ready for service, the server
+replacement technique described above should be repeated in reverse.
+If the original machine does not work correctly once returned to
+service, the backup machine can immediately be brought online while
+the problems with the original are fixed.</p>
+
+<p>You cannot have two machines configured to use the same IP address,
+so the first machine must release the IP address by shutting down the
+link using this IP before the second machine can enable its own link
+with the same IP address. This leads to a short downtime during the
+switch. You can use the <em class="emphasis">heartbeat</em> utility to
+automate this process and thus possibly shorten the downtime period.
+See the references section at the end of this chapter for more
+information about <em class="emphasis">heartbeat</em>.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2.2" /><div class="sect4">
+<h4 class="sect4">5.8.2.2.2. Upgrading a live server with port forwarding</h4>
+
+<p>Using<a name="pmodperl-CHP-5-ITERM-4111" /> <a name="pmodperl-CHP-5-ITERM-4112" /><a name="pmodperl-CHP-5-ITERM-4113" /><a name="pmodperl-CHP-5-ITERM-4114" />more than one machine to perform an
+update may not be convenient, or even possible. An alternative
+solution is to use the port-forwarding capabilities of the
+host's operating system.</p>
+
+<p>One approach is to configure the web server to listen on an
+unprivileged port, such as 8000, instead of 80. Then, using a
+firewalling tool such as <em class="emphasis">iptables</em>,
+<em class="emphasis">ipchains</em>, or <em class="emphasis">ipfwadm</em>,
+redirect all traffic coming for port 80 to port 8000. Keeping a rule
+like this enabled at all times on a production machine will not
+noticeably affect performance.</p>
+
+<p>Once this rule is in place, it's a matter of getting
+the new code in place, adjusting the web server configuration to
+point to the new location, and picking a new unused port, such as
+8001. This way, you can start the
+"new" server listening on that port
+and not affect the current setup.</p>
+
+<p>To check that everything is working, you could test the server by
+accessing it directly by port number. However, this might break links
+and redirections. Instead, add another port forwarding rule before
+the first one, redirecting traffic for port 80 from your test machine
+or network to port 8001.</p>
+
+<p>Once satisfied with the new server, publishing the change is just a
+matter of changing the port-forwarding rules one last time. You can
+then stop the now old server and everything is done.</p>
+
+<p>Now you have your primary server listening on port 8001, answering
+requests coming in through port 80, and nobody will have noticed the
+change.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2.3" /><div class="sect4">
+<h4 class="sect4">5.8.2.2.3. Upgrading a live server with prepackaged components</h4>
+
+<p>Assuming<a name="pmodperl-CHP-5-ITERM-4115" /><a name="pmodperl-CHP-5-ITERM-4116" /><a name="pmodperl-CHP-5-ITERM-4117" /> that the testbed machine and the
+live server have an identical software installation, consider
+preparing an upgrade package with the components that must be
+upgraded. Test this package on the testbed machine, and when it is
+evident that the package gets installed flawlessly, install it on the
+live server. Do not build the software from scratch on the live
+server, because if a mistake is made, it could cause the live server
+to misbehave or even to fail.</p>
+
+<p>For example, many Linux distributions use the Red Hat Package Manager
+(RPM) utility, <em class="emphasis">rpm</em>, to distribute source and
+binary packages. It is not necessary for a binary package to include
+any compiled code (for example, it can include Perl scripts, but it
+is still called a binary). A binary package allows the new or
+upgraded software to be used the moment you install it. The
+<em class="emphasis">rpm</em> utility is smart enough to make upgrades
+(i.e., remove previous installation files, preserve configuration
+files, and execute appropriate installation scripts).</p>
+
+<p>If, for example, the mod_perl server needs to be upgraded, one
+approach is to prepare a package on a similarly configured machine.
+Once the package has been built, tested, and proved satisfactory, it
+can then be transferred to the live machine. The
+<em class="emphasis">rpm</em> utility can then be used to upgrade the
+mod_perl server. For example, if the package file is called
+<em class="emphasis">mod_perl-1.26-10.i386.rpm</em>, this command:</p>
+
+<blockquote><pre class="code">panic% rpm -Uvh mod_perl-1.26-10.i386.rpm</pre></blockquote>
+
+<p>will remove the previous server (if any) and install the new one.</p>
+
+<p>There's no problem upgrading software that
+doesn't break any dependencies in other packages, as
+in the above example. But what would happen if, for example, the Perl
+interpreter needs to be upgraded on the live machine?</p>
+
+<p>If the mod_perl package described earlier was properly prepared, it
+would specify the packages on which it depends and their versions. So
+if Perl was upgraded using an RPM package, the
+<em class="emphasis">rpm</em> utility would detect that the upgrade would
+break a dependency, since the mod_perl package is supposed to work
+with the previous version of Perl. <em class="emphasis">rpm</em> will not
+allow the upgrade unless forced to.</p>
+
+<p>This is a very important feature of RPM. Of course, it relies on the
+fact that the person who created the package has set all the
+dependencies correctly. Do not trust packages downloaded from the
+Web. If you have to use an RPM package prepared by someone else, get
+its source, read its specification file, and make doubly sure that
+it's what you want.</p>
+
+<p>The Perl upgrade task is in fact a very easy problem to solve. Have
+two packages ready on the development machine: one for Perl and the
+other for mod_perl, the latter built using the Perl version that is
+going to be installed. Upload both of them to the live server and
+install them together. For example:</p>
+
+<blockquote><pre class="code">panic% rpm -Uvh mod_perl-1.26-10.i386.rpm perl-5.6.1-5.i386.rpm</pre></blockquote>
+
+<p>This should be done as an <em class="emphasis">atomic</em>
+operation&#8212;i.e., as a single execution of the
+<em class="emphasis">rpm</em> program. If the installation of the packages
+is attempted with separate commands, they will both fail, because
+each of them will break some dependency.</p>
+
+<p>If a mistake is made and checks reveal that a faulty package has been
+installed, it is easy to roll back. Just make sure that the previous
+version of the properly packaged software is available. The packages
+can be downgraded by using the <em class="emphasis">&#8212;force</em>
+option&#8212;and voil&#xE0;, the previously working system is
+restored. For example:</p>
+
+<blockquote><pre class="code">panic% rpm -Uvh --force mod_perl-1.26-9.i386.rpm perl-5.6.1-4.i386.rpm</pre></blockquote>
+
+<p>Although this example uses the <em class="emphasis">rpm</em> utility,
+other similar utilities exist for various operating systems and
+distributions. Creating packages provides a simple way of upgrading
+live systems (and downgrading them if need be). The packages used for
+any successful upgrade should be kept, because they will become the
+packages to downgrade to if a subsequent upgrade with a new package
+fails.</p>
+
+<p>When using a cluster of machines with identical setups, there is
+another important benefit of prepackaged upgrades. Instead of doing
+all the upgrades by hand, which could potentially involve dozens or
+even hundreds of files, preparing a package can save lots of time and
+will minimize the possibility of error. If the packages are properly
+written and have been tested thoroughly, it is perfectly possible to
+make updates to machines that are running live services. (Note that
+not all operating systems permit the upgrading of running software.
+For example, Windows does not permit DLLs that are in active use to
+be updated.)</p>
+
+<p>It should be noted that the packages referred to in this discussion
+are ones made locally, specifically for the systems to be upgraded,
+not generic packages downloaded from the Internet. Making local
+packages provides complete control over what is installed and
+upgraded and makes upgrades into atomic actions that can be rolled
+back if necessary. We do not recommend using third-party packaged
+binaries, as they will almost certainly have been built for a
+different environment and will not have been fine-tuned <a name="pmodperl-CHP-5-ITERM-4118" /><a name="pmodperl-CHP-5-ITERM-4119" /><a name="pmodperl-CHP-5-ITERM-4120" />for your system.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2.4" /><div class="sect4">
+<h4 class="sect4">5.8.2.2.4. Upgrading a live server using symbolic links</h4>
+
+<p>Yet another <a name="pmodperl-CHP-5-ITERM-4121" /><a name="pmodperl-CHP-5-ITERM-4122" /><a name="pmodperl-CHP-5-ITERM-4123" />alternative is to use symbolic links for
+upgrades. This concept is quite simple: install a package into some
+directory and symlink to it. So, if some software was expected in the
+directory <em class="emphasis">/usr/local/foo</em>, you could simply
+install the first version of the software in the directory
+<em class="emphasis">/usr/local/foo-1.0</em> and point to it from the
+expected directory:</p>
+
+<blockquote><pre class="code">panic# ln -sf /usr/local/foo-1.0 /usr/local/foo</pre></blockquote>
+
+<p>If later you want to install a second version of the software,
+install it into the directory <em class="emphasis">/usr/local/foo-2.0</em>
+and change the symbolic link to this new directory:</p>
+
+<blockquote><pre class="code">panic# ln -sf /usr/local/foo-2.0 /usr/local/foo</pre></blockquote>
+
+<p>Now if something goes wrong, you can always switch back with:</p>
+
+<blockquote><pre class="code">panic# ln -sf /usr/local/foo-1.0 /usr/local/foo</pre></blockquote>
+
+<p>In reality, things aren't as simple as in this
+example. It works if you can place all the software components under
+a single directory, as with the default Apache installation.
+Everything is installed under a single directory, so you can have:</p>
+
+<blockquote><pre class="code">/usr/local/apache-1.3.17
+/usr/local/apache-1.3.19</pre></blockquote>
+
+<p>and use the symlink <em class="emphasis">/usr/local/apache</em> to switch
+between the two versions.</p>
+
+<p>However, if you use a default installation of Perl, files are spread
+across multiple directories. In this case, it's not
+easy to use symlinks&#8212;you need several of them, and
+they're hard to keep track of. Unless you automate
+the symlinks with a script, it might take a while to do a switch,
+which might mean some downtime. Of course, you can install all the
+Perl components under a single root, just like the default Apache
+installation, which simplifies things.</p>
+
+<p>Another complication with upgrading Perl is that you may need to
+recompile mod_perl and other Perl third-party modules that use
+<tt class="literal">XS</tt> extensions. Therefore, you probably want to
+build everything on some other machine, test it, and when ready, just
+un<em class="emphasis">tar</em> everything at once on the production
+machine and adjust the symbolic links.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2.5" /><div class="sect4">
+<h4 class="sect4">5.8.2.2.5. Upgrading Perl code</h4>
+
+<p>Although <a name="pmodperl-CHP-5-ITERM-4124" /><a name="pmodperl-CHP-5-ITERM-4125" /><a name="pmodperl-CHP-5-ITERM-4126" />new
+versions of mod_perl and Apache may not be released for months at a
+time and the need to upgrade them may not be pressing, the handlers
+and scripts being used at a site may need regular tweaks and changes,
+and new ones may be added quite frequently.</p>
+
+<p>Of course, the safest and best option is to prepare an RPM (or
+equivalent) package that can be used to automatically upgrade the
+system, as explained in the previous section. Once an RPM
+specification file has been written (a task that might take some
+effort), future upgrades will be much less time consuming and have
+the advantage of being very easy to roll back.</p>
+
+<p>But if the policy is to just overwrite files by hand, this section
+will explain how to do so as safely as possible.</p>
+
+<p>All code should be thoroughly tested on a development machine before
+it is put on the live server, and both machines must have an
+identical software base (i.e., the same versions of the operating
+system, Apache, any software that Apache and mod_perl depend on,
+mod_perl itself, and all Perl modules). If the versions do not match,
+code that works perfectly on the development machine might not work
+on the live server.</p>
+
+<p>For example, we have encountered a problem when the live and
+development servers were using different versions of the MySQL
+database server. The new code took advantage of new features added in
+the version installed on the development machine. The code was tested
+and shown to work correctly on the development machine, and when it
+was copied to the live server it seemed to work fine. Only by chance
+did we discover that scripts did not work correctly when the new
+features were used.</p>
+
+<p>If the code hadn't worked at all, the problem would
+have been obvious and been detected and solved immediately, but the
+problem was subtle. Only after a thorough analysis did we understand
+that the problem was that we had an older version of the MySQL server
+on the live machine. This example reminded us that all modifications
+on the development machine should be logged and the live server
+updated with all of the modifications, not just the new version of
+the Perl code for a project.</p>
+
+<p>We solved this particular problem by immediately reverting to the old
+code, upgrading the MySQL server on the live machine, and then
+successfully reapplying the new code.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2.6" /><div class="sect4">
+<h4 class="sect4">5.8.2.2.6. Moving files and restarting the server</h4>
+
+<p>Now<a name="pmodperl-CHP-5-ITERM-4127" /><a name="pmodperl-CHP-5-ITERM-4128" /><a name="pmodperl-CHP-5-ITERM-4129" /><a name="pmodperl-CHP-5-ITERM-4130" /><a name="pmodperl-CHP-5-ITERM-4131" /> let's
+discuss the techniques used to upgrade live server scripts and
+handlers.</p>
+
+<p>The most common scenario is a live running service that needs to be
+upgraded with a new version of the code. The new code has been
+prepared and uploaded to the production server, and the server has
+been restarted. Unfortunately, the service does not work anymore.
+What could be worse than that? There is no way back, because the
+original code has been overwritten with the new but non-working code.</p>
+
+<p>Another scenario is where a whole set of files is being transferred
+to the live server but some network problem has occurred in the
+middle, which has slowed things down or totally aborted the transfer.
+With some of the files old and some new, the service is most likely
+broken. Since some files were overwritten, you can't
+roll back to the previously working version of the service.</p>
+
+<p>No matter what file transfer technique is used, be it FTP, NFS, or
+anything else, live running code should never be directly overwritten
+during file transfer. Instead, files should be transferred to a
+temporary directory on the live machine, ready to be moved when
+necessary. If the transfer fails, it can then be restarted safely.</p>
+
+<p>Both scenarios can be made safer with two approaches. First, do not
+overwrite working files. Second, use a revision control system such
+as CVS so that changes to working code can easily be undone if the
+working code is accidentally overwritten. Revision control will be
+covered later in this chapter.</p>
+
+<p>We recommend performing all updates on the live server in the
+following sequence. Assume for this example that the
+project's code directory is
+<em class="emphasis">/home/httpd/perl/rel</em>. When
+we're about to update the files, we create a new
+directory, <em class="emphasis">/home/httpd/perl/test</em>, into which we
+copy the new files. Then we do some final sanity checks: check that
+file permissions are readable and executable for the user the server
+is running under, and run <em class="emphasis">perl -Tcw</em> on the new
+modules to make sure there are no syntax errors in them.</p>
+
+<p>To save some typing, we set up some aliases for some of the
+<em class="emphasis">apachectl</em> commands and for
+<em class="emphasis">tail</em>ing the <em class="emphasis">error_log</em> file:</p>
+
+<blockquote><pre class="code">panic% alias graceful /home/httpd/httpd_perl/bin/apachectl graceful
+panic% alias restart  /home/httpd/httpd_perl/bin/apachectl restart
+panic% alias start    /home/httpd/httpd_perl/bin/apachectl start
+panic% alias stop     /home/httpd/httpd_perl/bin/apachectl stop
+panic% alias err      tail -f /home/httpd/httpd_perl/logs/error_log</pre></blockquote>
+
+<p>Finally, when we think we are ready, we do:</p>
+
+<blockquote><pre class="code">panic% cd /home/httpd/perl
+panic% mv rel old &amp;&amp; mv test rel &amp;&amp; stop &amp;&amp; sleep 3 &amp;&amp; restart &amp;&amp; err</pre></blockquote>
+
+<p>Note that all the commands are typed as a single line, joined by
+<tt class="literal">&amp;&amp;</tt>, and only at the end should the Enter
+key be pressed. The <tt class="literal">&amp;&amp;</tt> ensures that if any
+command fails, the following commands will not be executed.</p>
+
+<p>The elements of this command line are:</p>
+
+<dl>
+<dt><b><tt class="literal">mv rel old &amp;&amp;</tt></b></dt>
+<dd>
+Backs up the working directory to <em class="emphasis">old</em>, so none
+of the original code is deleted or overwritten</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">mv test rel &amp;&amp;</tt></b></dt>
+<dd>
+Puts the new code in place of the original</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">stop &amp;&amp;</tt></b></dt>
+<dd>
+Stops the server</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">sleep 3 &amp;&amp;</tt></b></dt>
+<dd>
+Allows the server a few seconds to shut down (it might need a longer
+sleep)</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">restart &amp;&amp;</tt></b></dt>
+<dd>
+Restarts the server</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">err</tt></b></dt>
+<dd>
+<em class="emphasis">tail</em>s the <em class="emphasis">error_log</em> file to
+make sure that everything is OK</p>
+</dd>
+
+</dl>
+
+<p>If <em class="emphasis">mv</em> is overriden by a global alias
+<em class="emphasis">mv -i</em>, which requires confirming every action,
+you will need to call <em class="emphasis">mv -f</em> to override the
+<em class="emphasis">-i</em> option.</p>
+
+<p>When updating code on a remote machine, it's a good
+idea to prepend <em class="emphasis">nohup</em> to the beginning of the
+command line:</p>
+
+<blockquote><pre class="code">panic% nohup mv rel old &amp;&amp; mv test rel &amp;&amp; stop &amp;&amp; sleep 3 &amp;&amp; restart &amp;&amp; err</pre></blockquote>
+
+<p>This approach ensures that if the connection is suddenly dropped, the
+server will not stay down if the last command that executes is
+<em class="emphasis">stop</em>.</p>
+
+<p><em class="emphasis">apachectl</em> generates its status messages a little
+too early. For example, when we execute <em class="emphasis">apachectl
+stop</em>, a message saying that the server has been stopped is
+displayed, when in fact the server is still running. Similarly, when
+we execute <em class="emphasis">apachectl start</em>, a message is
+displayed saying that the server has been started, while it is
+possible that it hasn't yet. In both cases, this
+happens because these status messages are not generated by Apache
+itself. Do not rely on them. Rely on the
+<em class="emphasis">error_log</em> file instead, where the running Apache
+server indicates its real status.</p>
+
+<p>Also note that we use <em class="emphasis">restart</em> and not just
+<em class="emphasis">start</em>. This is because of
+Apache's potentially long stopping times if it has
+to run lots of destruction and cleanup code on exit. If
+<em class="emphasis">start</em> is used and Apache has not yet released
+the port it is listening to, the start will fail and the
+<em class="emphasis">error_log</em> will report that the port is in use.
+For example:</p>
+
+<blockquote><pre class="code">Address already in use: make_sock: could not bind to port 8000</pre></blockquote>
+
+<p>However, if <em class="emphasis">restart</em> is used,
+<em class="emphasis">apachectl</em> will wait for the server to quit and
+unbind the port and will then cleanly restart it.</p>
+
+<p>Now, what happens if the new modules are broken and the newly
+restarted server reports problems or refuses to start at all?</p>
+
+<p>The aliased <em class="emphasis">err</em> command executes <em class="emphasis">tail
+-f</em> on the <em class="emphasis">error_log</em>, so that the
+failed restart or any other problems will be immediately apparent.
+The situation can quickly and easily be rectified by returning the
+system to its pre-upgrade state with this command:</p>
+
+<blockquote><pre class="code">panic% mv rel bad &amp;&amp; mv old rel &amp;&amp; stop &amp;&amp; sleep 3 &amp;&amp; restart &amp;&amp; err</pre></blockquote>
+
+<p>This command line moves the new code to the directory
+<em class="emphasis">bad</em>, moves the original code back into the
+runtime directory <em class="emphasis">rel</em>, then stops and restarts
+the server. Once the server is back up and running, you can analyze
+the cause of the problem, fix it, and repeat the upgrade again.
+Usually everything will be fine if the code has been extensively
+tested on the development server. When upgrades go smoothly, the
+downtime should be only about 5-10 seconds, and most users will not
+even notice anything has<a name="pmodperl-CHP-5-ITERM-4132" /><a name="pmodperl-CHP-5-ITERM-4133" /><a name="pmodperl-CHP-5-ITERM-4134" /><a name="pmodperl-CHP-5-ITERM-4135" /> happened.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.2.2.7" /><div class="sect4">
+<h4 class="sect4">5.8.2.2.7. Using CVS for code upgrades</h4>
+
+<p>The <em class="emphasis">Concurrent Versions System</em> (CVS) <a name="pmodperl-CHP-5-ITERM-4136" /><a name="pmodperl-CHP-5-ITERM-4137" /><a name="pmodperl-CHP-5-ITERM-4138" /><a name="pmodperl-CHP-5-ITERM-4139" />is an open source version-control
+system that allows multiple developers to work on code or
+configuration in a central repository while tracking any changes
+made. We use it because it's the dominant open
+source tool, but it's not the only possibility:
+commercial tools such as Perforce would also work for these purposes.</p>
+
+<p>If you aren't familiar with CVS, you can learn about
+it from the resources provided at the end of this chapter. CVS is too
+broad a topic to be covered in this book. Instead, we will
+concentrate on the CVS techniques that are relevant to our purpose.</p>
+
+<p>Things are much simpler when using CVS for server updates, especially
+since it allows you to tag each production release. By
+<em class="emphasis">tagging</em> files, we mean having a group of files
+under CVS control share a common label. Like RCS and other
+revision-control systems, CVS gives each file its own version number,
+which allows us to manipulate different versions of this file. But if
+we want to operate on a group of many files, chances are that they
+will have different version numbers. Suppose we want to take
+snapshots of the whole project so we can refer to these snapshots
+some time in the future, after the files have been modified and their
+respective version numbers have been changed. We can do this using
+tags.</p>
+
+<p>To tag the project whose module name is
+<em class="emphasis">myproject</em>, execute the following from any
+directory on any machine:</p>
+
+<blockquote><pre class="code">panic% cvs -rtag PRODUCTION_1_20 myproject</pre></blockquote>
+
+<p>Now when the time comes to update the online version, go to the
+directory on the live machine that needs to be updated and execute:</p>
+
+<blockquote><pre class="code">panic% cvs update -dP -r PRODUCTION_1_20</pre></blockquote>
+
+<p>The <em class="emphasis">-P</em> option to <em class="emphasis">cvs</em> prunes
+empty directories and deleted files, the <em class="emphasis">-d</em>
+option brings in new directories and files (like <em class="emphasis">cvs
+checkout</em> does), and <em class="emphasis">-r
+PRODUCTION_1_20</em> tells CVS to update the current directory
+recursively to the <tt class="literal">PRODUCTION_1_20</tt> CVS version of
+the project.</p>
+
+<p>Suppose that after a while, we have more code updated and we need to
+make a new release. The currently running version has the tag
+<tt class="literal">PRODUCTION_1_20</tt>, and the new version has the tag
+<tt class="literal">PRODUCTION_1_21</tt>. First we tag the files in the
+current state with a new tag:</p>
+
+<blockquote><pre class="code">panic% cvs -rtag PRODUCTION_1_21 myproject</pre></blockquote>
+
+<p>and update the live machine:</p>
+
+<blockquote><pre class="code">panic% cvs update -dP -r PRODUCTION_1_21</pre></blockquote>
+
+<p>Now if there is a problem, we can go back to the previous working
+version very easily. If we want to get back to version
+<tt class="literal">PRODUCTION_1_20</tt>, we can run the command:</p>
+
+<blockquote><pre class="code">panic% cvs update -dP -r PRODUCTION_1_20</pre></blockquote>
+
+<p>As before, the update brings in new files and directories not already
+present in the local directory (because of the
+<em class="emphasis">-dP</em> options).</p>
+
+<p>Remember that when you use CVS to update the live server, you should
+avoid making any minor changes to the code on this server.
+That's because of potential collisions that might
+happen during the CVS update. If you modify a single line in a single
+file and then do <em class="emphasis">cvs update</em>, and someone else
+modifies the same line at the same time and commits it just before
+you do, CVS will try to merge the changes. If they are different, it
+will see a conflict and insert both versions into the file. CVS
+leaves it to you to resolve the conflict. If this file is Perl code,
+it won't compile and it will cause temporal troubles
+until the conflict is resolved. Therefore, the best approach is to
+think of live server files as being read-only.</p>
+
+<p>Updating the live code directory should be done only if the update is
+atomic&#8212;i.e., if all files are updated in a very short period of
+time, and when no network problems can occur that might delay the
+completion of the file update.</p>
+
+<p>The safest approach is to use CVS in conjunction with the safe code
+update technique presented previously, by working with CVS in a
+separate directory. When all files are extracted, move them to the
+directory the live server uses. Better yet, use symbolic links, as
+described earlier in this chapter: when you update the code, prepare
+everything in a new directory and, when you're
+ready, just change the symlink to point to this new directory. This
+approach will prevent cases where only a partial update happens
+because of a network or other problem.</p>
+
+<p>The use of CVS needn't apply exclusively to code. It
+can be of great benefit for configuration management, too. Just as
+you want your mod_perl programs to be identical between the
+development and production servers, you probably also want to keep
+your <em class="emphasis">httpd.conf</em> files in sync. CVS is well
+suited for this task too, and the same methods apply.</p>
+
+</div>
+</div>
+</div>
+<a name="pmodperl-CHP-5-SECT-8.3" /><div class="sect2">
+<h3 class="sect2">5.8.3. Disabling Scripts and Handlers on a Live Server</h3>
+
+<p>Perl programs
+<a name="pmodperl-CHP-5-ITERM-4140" /><a name="pmodperl-CHP-5-ITERM-4141" />running
+on the mod_perl server may be dependent on resources that can become
+temporarily unavailable when they are being upgraded or maintained.
+For example, once in a while a database server (and possibly its
+corresponding DBD module) may need to be upgraded, rendering it
+unusable for a short period of time.</p>
+
+<p>Using the development server as a temporary replacement is probably
+the best way to continue to provide service during the upgrade. But
+if you can't, the service will be unavailable for a
+while.</p>
+
+<p>Since none of the code that relies on the temporarily unavailable
+resource will work, users trying to access the mod_perl server will
+see either the ugly gray "An Error has
+occurred" message or a customized error message (if
+code has been added to trap errors and customize the error-reporting
+facility). In any case, it's not a good idea to let
+users see these errors, as they will make your web site seem
+amateurish.</p>
+
+<p>A friendlier approach is to confess to the users that some
+maintenance work is being undertaken and plead for patience,
+promising that the service will become fully functional in a few
+minutes (or however long the scheduled downtime is expected to be).</p>
+
+<p>It is a good idea to be honest and report the real duration of the
+maintenance operation, not just "we will be back in
+10 minutes." Think of a user (or journalist) coming
+back 20 minutes later and still seeing the same message! Make sure
+that if the time of resumption of service is given, it is not the
+system's local time, since users will be visiting
+the site from different time zones. Instead, we suggest using
+Greenwich Mean Time (GMT). Most users have some idea of the time
+difference between their location and GMT, or can find out easily
+enough. Although GMT is known by programmers as Universal Coordinated
+Time (UTC), end users may not know what UTC is, so using the older
+acronym is probably best.</p>
+
+<a name="pmodperl-CHP-5-SECT-8.3.1" /><div class="sect3">
+<h3 class="sect3">5.8.3.1. Disabling code running under Apache::Registry</h3>
+
+<p>If just a few <a name="pmodperl-CHP-5-ITERM-4142" /><a name="pmodperl-CHP-5-ITERM-4143" /><a name="pmodperl-CHP-5-ITERM-4144" />scripts
+need to be disabled temporarily, and if they are running under the
+<tt class="literal">Apache::Registry</tt> handler, a maintenance message
+can be displayed without messing with the server. Prepare a little
+script in <em class="emphasis">/home/httpd/perl/down4maintenance.pl</em>:</p>
+
+<blockquote><pre class="code">#!/usr/bin/perl -Tw
+
+use strict;
+print "Content-type: text/plain\n\n",
+  qq{We regret that the service is temporarily 
+     unavailable while essential maintenance is undertaken.
+     It is expected to be back online from 12:20 GMT.
+     Please, bear with us. Thank you!};</pre></blockquote>
+
+<p>Let's say you now want to disable the
+<em class="emphasis">/home/httpd/perl/chat.pl</em> script. Just do this:</p>
+
+<blockquote><pre class="code">panic% mv /home/httpd/perl/chat.pl /home/httpd/perl/chat.pl.orig
+panic% ln -s /home/httpd/perl/down4maintenance.pl /home/httpd/perl/chat.pl</pre></blockquote>
+
+<p>Of course, the server configuration must allow symbolic links for
+this trick to work. Make sure that the directive:</p>
+
+<blockquote><pre class="code">Options FollowSymLinks</pre></blockquote>
+
+<p>is in the <tt class="literal">&lt;Location&gt;</tt> or
+<tt class="literal">&lt;Directory&gt;</tt>section of
+<em class="emphasis">httpd.conf</em>.</p>
+
+<p>Alternatively, you can just back up the real script and then copy the
+file over it:</p>
+
+<blockquote><pre class="code">panic% cp /home/httpd/perl/chat.pl /home/httpd/perl/chat.pl.orig
+panic% cp /home/httpd/perl/down4maintenance.pl /home/httpd/perl/chat.pl</pre></blockquote>
+
+<p>Once the maintenance work has been completed, restoring the previous
+setup is easy. Simply overwrite the symbolic link or the file:</p>
+
+<blockquote><pre class="code">panic% mv /home/httpd/perl/chat.pl.orig /home/httpd/perl/chat.pl</pre></blockquote>
+
+<p>Now make sure that the script has the current timestamp:</p>
+
+<blockquote><pre class="code">panic% touch /home/httpd/perl/chat.pl</pre></blockquote>
+
+<p><tt class="literal">Apache::Registry</tt> will automatically detect the
+change and use the new script from now on.</p>
+
+<p>This scenario is possible because <tt class="literal">Apache::Registry</tt>
+checks the modification time of the script before each invocation. If
+the script's file is more recent than the version
+already loaded in memory, <tt class="literal">Apache::Registry</tt> reloads
+the script from disk.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.3.2" /><div class="sect3">
+<h3 class="sect3">5.8.3.2. Disabling code running under other handlers</h3>
+
+<p>Under <a name="pmodperl-CHP-5-ITERM-4145" /><a name="pmodperl-CHP-5-ITERM-4146" /><a name="pmodperl-CHP-5-ITERM-4147" />non-<tt class="literal">Apache::Registry</tt>
+handlers, you need to modify the configuration. You must either point
+all requests to a new location or replace the handler with one that
+will serve the requests during the maintenance period.</p>
+
+<p><a href="ch05_08.html#pmodperl-CHP-5-EX-2">Example 5-2</a> illustrates a maintenance handler.</p>
+
+<a name="pmodperl-CHP-5-EX-2" /><div class="example">
+<h4 class="objtitle">Example 5-2. Book/Maintenance.pm</h4>
+<blockquote><pre class="code">package Book::Maintenance;
+
+use strict;
+use Apache::Constants qw(:common);
+
+sub handler {
+  my $r = shift;
+  $r-&gt;send_http_header("text/plain");
+  print qq{We regret that the service is temporarily
+           unavailable while essential maintenance is undertaken.
+           It is expected to be back online from 12:20 GMT.
+           Please be patient. Thank you!};
+  return OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>In practice, the maintenance script may well read the
+"back online" time from a variable
+set with a <tt class="literal">PerlSetVar</tt> directive in
+<em class="emphasis">httpd.conf</em>, so the script itself need never be
+changed.</p>
+
+<p>Edit <em class="emphasis">httpd.conf</em> and change the handler line from:</p>
+
+<blockquote><pre class="code">&lt;Location /perl&gt;
+    SetHandler perl-script
+    PerlHandler Book::Handler
+    ...
+&lt;/Location&gt;</pre></blockquote>
+
+<p>to:</p>
+
+<blockquote><pre class="code">&lt;Location /perl&gt;
+    SetHandler perl-script
+    #PerlHandler Book::Handler
+    PerlHandler Book::Maintenance
+    ...
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now restart the server. Users will be happy to read their email for
+10 minutes, knowing that they will return to a much improved service.</p>
+
+</div>
+
+<a name="pmodperl-CHP-5-SECT-8.3.3" /><div class="sect3">
+<h3 class="sect3">5.8.3.3. Disabling services with help from the frontend server</h3>
+
+<p>Many<a name="pmodperl-CHP-5-ITERM-4148" /><a name="pmodperl-CHP-5-ITERM-4149" /><a name="pmodperl-CHP-5-ITERM-4150" /> sites use a more
+complicated setup in which a
+"light" Apache frontend server
+serves static content but proxies all requests for dynamic content to
+the "heavy" mod_perl backend server
+(see <a href="ch12_01.html">Chapter 12</a>). Those sites can use a third
+solution to temporarily disable scripts.</p>
+
+<p>Since the frontend machine rewrites all incoming requests to
+appropriate requests for the backend machine, a change to the
+<tt class="literal">RewriteRule</tt> is sufficient to take handlers out of
+service. Just change the directives to rewrite all incoming requests
+(or a subgroup of them) to a single URI. This URI simply tells users
+that the service is not available during the maintenance period.</p>
+
+<p>For example, the following
+<tt class="literal">RewriteRule</tt><a name="pmodperl-CHP-5-ITERM-4151" />
+rewrites all URIs starting with <em class="emphasis">/perl</em> to the
+maintenance URI <em class="emphasis">/control/maintain</em> on the
+mod_perl server:</p>
+
+<blockquote><pre class="code">RewriteRule ^/perl/(.*)$ http://localhost:8000/control/maintain [P,L]</pre></blockquote>
+
+<p>The <tt class="literal">Book::Maintenance</tt> handler from the previous
+section can be used to generate the response to the URI
+<em class="emphasis">/control/maintain</em>.</p>
+
+<p>Make sure that this rule is placed before all the other
+<tt class="literal">RewriteRule</tt>s so that none of the other rules need
+to be commented out. Once the change has been made, check that the
+configuration is not broken and restart the server so that the new
+configuration takes effect. Now the database server can be shut down,
+the upgrade can be performed, and the database server can be
+restarted. The <tt class="literal">RewriteRule</tt> that has just been
+added can be commented out and the Apache server stopped and
+restarted. If the changes lead to any problems, the maintenance
+<tt class="literal">RewriteRule</tt> can simply be uncommented while you
+sort them out.</p>
+
+<p>Of course, all this is error-prone, especially when the maintenance
+is urgent. Therefore, it can be a good idea to prepare all the
+required configurations ahead of time, by having different
+configuration sections and enabling the right one with the help of
+the <tt class="literal">IfDefine</tt> directive during server startup.</p>
+
+<p>The following configuration will make this approach clear:</p>
+
+<blockquote><pre class="code">RewriteEngine On
+
+&lt;IfDefine maintain&gt;
+    RewriteRule /perl/  http://localhost:8000/control/maintain [P,L]
+&lt;/IfDefine&gt;
+
+&lt;IfDefine !maintain&gt;
+   RewriteRule ^/perl/(.*)$ http://localhost:8000/$1 [P,L]
+   # more directives
+&lt;/IfDefine&gt;</pre></blockquote>
+
+<p>Now enable the maintenance section by starting the server with:</p>
+
+<blockquote><pre class="code">panic% httpd -Dmaintain</pre></blockquote>
+
+<p>Request URIs starting with <em class="emphasis">/perl/</em> will be
+processed by the <em class="emphasis">/control/maintain</em> handler or
+script on the mod_perl side.</p>
+
+<p>If the <em class="emphasis">-Dmaintain</em> option is not passed, the
+"normal" configuration will take
+effect and each URI will be remapped to the mod_perl server as usual.</p>
+
+<p>Of course, if <em class="emphasis">apachectl</em> or any other script is
+used for server control, this new mode should be added so that it
+will be easy to make the correct change without making any mistakes.
+When you're in a rush, the less typing you have to
+do, the better. Ideally, all you'd have to type is:</p>
+
+<blockquote><pre class="code">panic% apachectl maintain</pre></blockquote>
+
+<p>Which will both shut down the server (if it is running) and start it
+with the <em class="emphasis">-Dmaintain</em> option. Alternatively, you
+could use:</p>
+
+<blockquote><pre class="code">panic% apachectl start_maintain</pre></blockquote>
+
+<p>to start the server in maintenance mode. <em class="emphasis">apachectl
+graceful</em> will stop the server and restart it in normal
+mode.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-5-SECT-8.4" /><div class="sect2">
+<h3 class="sect2">5.8.4. Scheduled Routine Maintenance</h3>
+
+<p>If
+maintenance<a name="pmodperl-CHP-5-ITERM-4152" /><a name="pmodperl-CHP-5-ITERM-4153" /><a name="pmodperl-CHP-5-ITERM-4154" />
+tasks can be scheduled when no one is using the server, you can write
+a simple
+<tt class="literal">PerlAccessHandler</tt><a name="pmodperl-CHP-5-ITERM-4155" /> that will
+automatically disable the server and return a page stating that the
+server is under maintenance and will be back online at a specified
+time. When using this approach, you don't need to
+worry about fiddling with the server configuration when the
+maintenance hour comes. However, all maintenance must be completed
+within the given time frame, because once the time is up, the service
+will resume.</p>
+
+<p>The <tt class="literal">Apache::DayLimit</tt> module from <a href="http://www.modperl.com/">http://www.modperl.com/</a> is a good example of
+such a module. It provides options for specifying which day server
+maintenance occurs. For example, if Sundays are used for maintenance,
+the configuration for <tt class="literal">Apache::DayLimit</tt> is as
+follows:</p>
+
+<blockquote><pre class="code">&lt;Location /perl&gt;
+    PerlSetVar ReqDay Sunday
+    PerlAccessHandler Apache::DayLimit
+&lt;/Location&gt;</pre></blockquote>
+
+<p>It is very easy to adapt this module to do more advanced filtering.
+For example, to specify both a day and a time, use a configuration
+similar to this:</p>
+
+<blockquote><pre class="code">&lt;Location /perl&gt;
+    PerlSetVar ReqDay    Sunday
+    PerlSetVar StartHour 09:00
+    PerlSetVar EndHour   11:00
+    PerlAccessHandler Apache::DayTimeLimit
+&lt;/Location&gt;</pre></blockquote>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch05_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">5.7. Preparing for Machine Reboot</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">5.9. Three-Tier Server Scheme: Development, Staging, and Production</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

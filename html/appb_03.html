@@ -1,0 +1,119 @@
+<html><head><title>Control and Monitoring Modules (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appb_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appb_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">B.3. Control and Monitoring Modules</h2>
+
+<a name="pmodperl-APP-B-SECT-3.1" /><div class="sect2">
+<h3 class="sect2">B.3.1. Apache::Watchdog::RunAway&#8212;Hanging Processes Monitor and Terminator</h3>
+
+<p>Covered in <a href="ch05_01.html">Chapter 5</a>.</p>
+
+<p>Available from CPAN. See <a name="pmodperl-APP-B-ITERM-6193" /><a name="pmodperl-APP-B-ITERM-6194" />the module
+<a name="pmodperl-APP-B-ITERM-6195" /><a name="pmodperl-APP-B-ITERM-6196" />manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-3.2" /><div class="sect2">
+<h3 class="sect2">B.3.2. Apache::VMonitor&#8212;Visual System and Apache Server Monitor</h3>
+
+<p>Covered in <a href="ch05_01.html">Chapter 5</a>.</p>
+
+<p>Available from CPAN. See the module
+<a name="pmodperl-APP-B-ITERM-6197" /><a name="pmodperl-APP-B-ITERM-6198" />manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-3.3" /><div class="sect2">
+<h3 class="sect2">B.3.3. Apache::SizeLimit&#8212;Limit Apache httpd Processes</h3>
+
+<p>This module allows you to kill off Apache
+<a name="pmodperl-APP-B-ITERM-6199" /><a name="pmodperl-APP-B-ITERM-6200" /><a name="pmodperl-APP-B-ITERM-6201" />processes if they grow too large or if
+they share too little of their memory. It's similar
+to <tt class="literal">Apache::GTopLimit</tt>.</p>
+
+<p>Covered in <a href="ch14_01.html">Chapter 14</a>.</p>
+
+<p>Supplied with the mod_perl distribution. See the module manpage for
+more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-3.4" /><div class="sect2">
+<h3 class="sect2">B.3.4. Apache::GTopLimit&#8212;Limit Apache httpd Processes</h3>
+
+<p>This module allows you to kill off Apache
+<a name="pmodperl-APP-B-ITERM-6202" /><a name="pmodperl-APP-B-ITERM-6203" />processes if they grow too large or if
+they share too little of their memory. It's similar
+to <tt class="literal">Apache::SizeLimit</tt>.</p>
+
+<p>Covered in <a href="ch14_01.html">Chapter 14</a>.</p>
+
+<p>Available from CPAN. See the module manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-3.5" /><div class="sect2">
+<h3 class="sect2">B.3.5. Apache::TimedRedirect&#8212;Redirect URLs for a Given Time Period</h3>
+
+<p><tt class="literal">Apache::TimedRedirect</tt> is a mod_perl
+<tt class="literal">TransHandler</tt>
+<a name="pmodperl-APP-B-ITERM-6204" /><a name="pmodperl-APP-B-ITERM-6205" />module that allows the configuration of a
+timed redirect. In other words, if a user enters a web site and the
+URI matches a regex <em class="emphasis">and</em> it is within a certain
+time period she will be redirected somewhere else.</p>
+
+<p>This was first created to <em class="emphasis">politely</em> redirect
+visitors away from database-driven sections of a web site while the
+databases were being refreshed.</p>
+
+<p>Available from CPAN. See the module manpage for more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-3.6" /><div class="sect2">
+<h3 class="sect2">B.3.6. Apache::Resource&#8212;Limit Resources Used by httpd Children</h3>
+
+<p><tt class="literal">Apache::Resource</tt> uses the
+<tt class="literal">BSD::Resource</tt> module, which
+<a name="pmodperl-APP-B-ITERM-6206" /><a name="pmodperl-APP-B-ITERM-6207" />uses the C function <tt class="literal">setrlimit(
+)</tt> to set limits on system resources such as memory and CPU
+usage.</p>
+
+<p>Covered in <a href="ch05_01.html">Chapter 5</a>.</p>
+
+<p>Supplied with the mod_perl distribution. See the module manpage for
+more information.</p>
+
+</div>
+<a name="pmodperl-APP-B-SECT-3.7" /><div class="sect2">
+<h3 class="sect2">B.3.7. Apache::Status&#8212;Embedded Interpreter Status Information</h3>
+
+<p>The <tt class="literal">Apache::Status</tt> module provides various
+<a name="pmodperl-APP-B-ITERM-6208" /><a name="pmodperl-APP-B-ITERM-6209" />information about the status of the Perl
+interpreter embedded in the server.</p>
+
+<p>Covered in <a href="ch21_01.html">Chapter 21</a>.</p>
+
+<p>Available from CPAN. See the module manpage <a name="pmodperl-APP-B-ITERM-6210" /><a name="pmodperl-APP-B-ITERM-6211" />for more
+information.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appb_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appb_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">B.2. Modules to Aid Debugging</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">B.4. Server Configuration Modules</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

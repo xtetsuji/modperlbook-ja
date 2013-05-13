@@ -1,0 +1,202 @@
+<html><head><title>Coding with mod_perl in Mind (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_12.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 6. Coding with mod_perl in Mind</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch06_01.html#pmodperl-CHP-6-SECT-1">Before You Start to Code</a><br />
+<a href="ch06_02.html">Exposing Apache::Registry Secrets</a><br />
+<a href="ch06_03.html">Namespace Issues</a><br />
+<a href="ch06_04.html">Perl Specifics in the mod_perl Environment</a><br />
+<a href="ch06_05.html">CHECK and INIT Blocks</a><br />
+<a href="ch06_06.html">Apache::Registry Specifics</a><br />
+<a href="ch06_07.html">Transition from mod_cgi Scripts to Apache Handlers</a><br />
+<a href="ch06_08.html">Loading and Reloading Modules</a><br />
+<a href="ch06_09.html">Handling the "User Pressed Stop Button" Case</a><br />
+<a href="ch06_10.html">Handling Server Timeout Cases and Working with $SIG{ALRM}</a><br />
+<a href="ch06_11.html">Generating Correct HTTP Headers</a><br />
+<a href="ch06_12.html">Method Handlers: The Browse and See, Browse and View Example</a><br />
+<a href="ch06_13.html">References</a><br /></p></div><p>This is the most important chapter of this book. In this chapter, we
+cover all the nuances the programmer should know when porting an
+existing CGI script to work under mod_perl, or when writing one from
+scratch.</p><p>This chapter's main goal is to teach the reader how
+to think in mod_perl. It involves showing most of the mod_perl
+peculiarities and possible traps the programmer might fall into. It
+also shows you some of the things that are impossible with vanilla
+CGI but easily done with mod_perl.</p><div class="sect1"><a name="pmodperl-CHP-6-SECT-1" />
+<h2 class="sect1">6.1. Before You Start to Code</h2>
+
+<p>There are three important things you need to know before you start
+your journey in a mod_perl world: how to access mod_perl and related
+documentation, and how to develop your Perl code when the
+<tt class="literal">strict</tt> and <tt class="literal">warnings</tt> modes are
+enabled.</p>
+
+<a name="pmodperl-CHP-6-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">6.1.1. Accessing Documentation</h3>
+
+<p>mod_perl
+<a name="pmodperl-CHP-6-ITERM-4305" />doesn't
+tolerate sloppy programming. Although we're
+confident that you're a talented, meticulously
+careful programmer whose programs run perfectly every time, you still
+might want to tighten up some of your Perl programming practices.</p>
+
+<p>In this chapter, we include discussions that rely on prior knowledge
+of some areas of Perl, and we provide short refreshers where
+necessary. We assume that you can already program in Perl and that
+you are comfortable with finding Perl-related information in books
+and Perl documentation. There are many Perl books that you may find
+helpful. We list some of these in <a href="ch06_13.html#pmodperl-CHP-6-SECT-13">Section 6.13</a> at the end
+of each chapter.</p>
+
+<p>If you prefer the
+<a name="pmodperl-CHP-6-ITERM-4306" /><a name="pmodperl-CHP-6-ITERM-4307" /><a name="pmodperl-CHP-6-ITERM-4308" />documentation that comes with
+Perl, you can use either its online version (start at <a href="http://www.perldoc.com/">http://www.perldoc.com/</a> or <a href="http://theoryx5.uwinnipeg.ca/CPAN/perl/">http://theoryx5.uwinnipeg.ca/CPAN/perl/</a>) or
+the <em class="emphasis">perldoc</em><a name="pmodperl-CHP-6-ITERM-4309" /> utility, which provides access to the
+documentation installed on your system.</p>
+
+<p>To find out what Perl <a name="pmodperl-CHP-6-ITERM-4310" />manpages
+are available, execute:</p>
+
+<blockquote><pre class="code">panic% perldoc perl</pre></blockquote>
+
+<p>For example, to find what
+<a name="pmodperl-CHP-6-ITERM-4311" />functions Perl has and to learn about
+their usage, execute:</p>
+
+<blockquote><pre class="code">panic% perldoc perlfunc</pre></blockquote>
+
+<p>To learn the
+<a name="pmodperl-CHP-6-ITERM-4312" />syntax and to find examples of a
+specific function, use the <em class="emphasis">-f</em> flag and the name
+of the function. For example, to learn more about <tt class="literal">open(
+)</tt>, execute:</p>
+
+<blockquote><pre class="code">panic% perldoc -f open</pre></blockquote>
+
+<p>The <em class="emphasis">perldoc</em> supplied with Perl versions prior to
+5.6.0 presents the information in POD (Plain Old Documentation)
+format. From 5.6.0 onwards, the documentation is shown in manpage
+format.</p>
+
+<p>You may find the
+<em class="emphasis">perlfaq</em><a name="pmodperl-CHP-6-ITERM-4313" />
+<a name="pmodperl-CHP-6-ITERM-4314" />manpages
+very useful, too. To find all the FAQs (Frequently Asked Questions)
+about a function, use the <em class="emphasis">-q</em> flag. For example,
+to search through the FAQs for the <tt class="literal">open( )</tt>
+function, execute:</p>
+
+<blockquote><pre class="code">panic% perldoc -q open</pre></blockquote>
+
+<p>This will show you all the relevant <em class="emphasis">question</em> and
+<em class="emphasis">answer</em> sections.</p>
+
+<p>Finally, to learn about <em class="emphasis">perldoc</em> itself, refer to
+the <em class="emphasis">perldoc</em>
+<a name="pmodperl-CHP-6-ITERM-4315" />manpage:</p>
+
+<blockquote><pre class="code">panic% perldoc perldoc</pre></blockquote>
+
+<p>The documentation available through <em class="emphasis">perldoc</em>
+provides good information and examples, and should be able to answer
+most Perl questions that arise.</p>
+
+<p><a href="ch23_01.html">Chapter 23</a> provides more information about mod_perl
+and related documentation.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">6.1.2. The strict Pragma</h3>
+
+<p>We're sure you<a name="pmodperl-CHP-6-ITERM-4316" />
+<a name="pmodperl-CHP-6-ITERM-4317" /><a name="pmodperl-CHP-6-ITERM-4318" /><a name="pmodperl-CHP-6-ITERM-4319" />already do this, but
+it's absolutely essential to start all your scripts
+and modules with:</p>
+
+<blockquote><pre class="code">use strict;</pre></blockquote>
+
+<p>It's especially important to have the
+<tt class="literal">strict</tt> pragma enabled under mod_perl. While
+it's not required by the language, its use cannot be
+too strongly recommended. It will save you a great deal of time. And,
+of course, clean scripts will still run under mod_cgi!</p>
+
+<p>In the rare cases where it is necessary, you can turn off the
+<tt class="literal">strict</tt> pragma, or a part of it, inside a block.
+For example, if you want to use symbolic references (see the
+<em class="emphasis">perlref</em> manpage) inside a particular block, you
+can use <tt class="literal">no</tt> <tt class="literal">strict</tt>
+'<tt class="literal">refs';</tt>, as follows:</p>
+
+<blockquote><pre class="code">use strict;
+{
+    no strict 'refs';
+    my $var_ref = 'foo';
+    $$var_ref = 1;
+}</pre></blockquote>
+
+<p>Starting the block with <tt class="literal">no strict 'refs';</tt> allows
+you to use symbolic references in the rest of the block. Outside this
+block, the use of symbolic references will trigger a runtime error.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">6.1.3. Enabling Warnings</h3>
+
+<p>It's
+also<a name="pmodperl-CHP-6-ITERM-4320" /><a name="pmodperl-CHP-6-ITERM-4321" /> important to develop your code with Perl
+reporting every possible relevant warning. Under mod_perl, you can
+turn this mode on globally, just like you would by using the
+<em class="emphasis">-w</em> command-line switch to Perl. Add this
+directive to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlWarn On</pre></blockquote>
+
+<p>In Perl 5.6.0 and later, you can also enable warnings only for the
+scope of a file, by adding:</p>
+
+<blockquote><pre class="code">use warnings;</pre></blockquote>
+
+<p>at the top of your code. You can turn them off in the same way as
+<tt class="literal">strict</tt> for certain blocks. See the
+<em class="emphasis">warnings</em> manpage for more information.</p>
+
+<p>We will talk extensively about warnings in many sections of the book.
+Perl code written for mod_perl should run without generating any
+warnings with both the <tt class="literal">strict</tt> and
+<tt class="literal">warnings</tt> pragmas in effect (that is, with
+<tt class="literal">use</tt> <tt class="literal">strict</tt> and
+<tt class="literal">PerlWarn</tt> <tt class="literal">On</tt> or
+<tt class="literal">use</tt> <tt class="literal">warnings</tt>).</p>
+
+<p>Warnings are almost always caused by errors in your code, but on some
+occasions you may get warnings for totally legitimate code.
+That's part of why they're warnings
+and not errors. In the unlikely event that your code really does
+reveal a spurious warning, it is possible to switch off the warning.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch05_12.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">5.12. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.2. Exposing Apache::Registry Secrets</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

@@ -1,0 +1,444 @@
+/*** main elements ***/
+
+/* body specs */
+
+body {
+  font-size: 82%; /* 12px */
+  line-height: 130%;
+  font-family: sans-serif;
+  color: #000000;
+}
+
+#container
+        {
+                position: relative;
+                background: #FFFfff no-repeat 0 92px;
+                margin: 30 auto 10px auto;
+                text-align: left;
+        }
+
+
+/* opera */
+body[class="body-margins"] {
+  width: auto !important;
+}
+
+h1, h2, h3, h4 {
+  font-family: Helvetica, arial, tahoma, sans-serif;
+  color: #000000;
+  background-color: transparent;
+  padding-bottom: 2px;
+}
+
+h1 { font-size: 1.2em; }
+h2 { font-size: 1.0em; }
+h3 { font-size: 0.9em; }
+h4 { font-size: 0.8em; }
+
+p, dl, ul, ol, li, blockquote {
+/*  font-family: Arial, Verdana, sans-serif; */
+/*  font-size: 0.9em; */
+}
+
+code {
+  font-family: courier new, courier, monospace;
+/*  font-size: 0.9em; */
+}
+
+pre {
+/*  font-size: 0.9em; */
+}
+
+
+div.logobox {
+  position: relative;
+  max-width: 800px;
+    /* IE workaround for max-width */
+  width: expression(document.body.clientWidth > 800 ? "800px" : "auto");
+}
+
+div.tailbox {
+  max-width: 800px;
+    /* IE workaround for max-width */
+  width: expression(document.body.clientWidth > 800 ? "800px" : "auto");
+}
+
+
+.body-margins {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+
+  /* this border MUST be _0px_ for ns4 and others */
+  border: 0px;
+
+  padding: 0px 0px 0px 0px;
+  margin: 0px 15px 0px 0px;
+}
+
+
+
+/*** headers ***/
+
+
+
+
+
+
+/*** links ***/
+
+/* hidden links */
+h1 a:link,    h2 a:link,    h3 a:link,    h4 a:link,
+h1 a:visited, h2 a:visited, h3 a:visited, h4 a:visited,
+h1 a:hover,   h2 a:hover,   h3 a:hover,   h4 a:hover  {
+    background-color: transparent;
+    color: #000000;
+    text-decoration: none;
+}
+
+a.more {
+    font-family: arial, helvetica, sans-serif;
+    font-size: 0.8em;
+    background-color: transparent;
+    color: #993333;
+    text-decoration: none;
+}
+
+/*ul a{
+    text-decoration: none;
+}*/
+
+ul.toc a, dl.toc a {
+    text-decoration: none;
+}
+
+ul a:hover, ul.toc a:hover, dl.toc a:hover {
+    text-decoration: underline;
+}
+
+
+div.nonselectedmenuitem a:link,
+div.nonselectedmenuitem a:visited,
+div.nonselectedmenuitem a:active {
+    background-color: transparent;
+    color: #525d76;
+    text-decoration: none;
+}
+div.nonselectedmenuitem a:hover {
+    text-decoration: underline;
+}
+
+div.selectedmenuitem a,
+div.selectedmenuitem a:link,
+div.selectedmenuitem a:visited,
+div.selectedmenuitem a:active {
+    background-color: transparent;
+    color: #ffffff;
+    text-decoration: none;
+}
+div.selectedmenuitem a:hover {
+    text-decoration: underline;
+}
+
+div.menu-title a:link,
+div.menu-title a:visited,
+div.menu-title a:active,
+div.menu-title a:hover {
+    background-color: transparent;
+    color: #000000;
+    text-decoration: none;
+}
+
+
+
+
+/*** main boxes ***/
+
+div.leftbox {
+    position: absolute;
+    top: 75px;
+    left: 0px;
+
+    width: 174px;
+    /* this border MUST be _1px_ for ns4 */
+    border: 1px;
+}
+
+
+div.rightbox {
+    position: inherit; /*this can not be relative, absolute or unspecifed*/
+    padding: 0px 0px 0px 0px;
+    margin: 0px 0px 0px 196px;
+    max-width: 650px;
+    /* IE workaround for max-width */
+    width: 450px;
+    border: 1px; /* this border MUST be _1px_ for ns4 */
+    background-color: #ffffff;
+    color: #000000;
+}
+
+div.footer {
+    position: inherit; 
+    top: 0px;
+    left: 0px;
+    padding: 40px 50px 0px 0px;
+    margin: 0px 0px 0px 175px;
+    border: 1px; /* this border MUST be _1px_ for ns4 */
+    text-align: center;
+    background-color: #ffffff;
+    color: #000000;
+    max-width: 630px;
+      /* IE workaround for max-width */
+    width: expression(document.body.clientWidth > 800 ? "630px" : "auto");
+}
+
+div.adtext {
+    font-family: arial, helvetica, sans-serif;
+/*    font-size: 0.8em; */
+    text-align: center;
+    padding: 5px;
+}
+
+div.adwrap {
+    padding: 0;
+    margin: 12px 0 30px 0;
+    height: 80px;
+    position: relative;
+}
+
+p.modified {
+    font-family: arial, helvetica, sans-serif;
+/*    font-size: 0.85em; */
+    text-align: center;
+}
+
+p.copyright {
+    font-family: arial, helvetica, sans-serif;
+    font-size: 0.60em;
+    text-align: center;
+}
+
+td.headline {
+    font-family: arial, helvetica, sans-serif;
+  /*  font-size: 1.3em; */
+    font-weight: bold;
+}
+
+
+/*** breadcrumb ***/
+td.navbarglobal {
+    font-family: arial, helvetica, sans-serif;
+    font-size: 0.85em;
+    background-color: #ffffff;
+    color: #525d76;
+}
+
+td.navbarglobal a:link, td.navbarglobal a:visited, td.navbarglobal a:active {
+    font-family: arial, helvetica, sans-serif;
+    text-decoration: none;
+    color: #828da6;
+    background-color: #ffffff;
+}
+
+td.navbarglobal a:hover {
+    font-family: arial, helvetica, sans-serif;
+    text-decoration: none;
+    color: #666666;
+    background-color: #ffffff;
+}
+
+
+
+
+
+
+
+/*** menu styles ***/
+
+/* light blue bg-color for menu-titles */
+td.menu-title-bg {
+    background-color: #eeeeee;
+    color: #ffffff;
+}
+
+/* white bg-color for non-selected menu-items */
+td.non-sel-bg {
+    background-color: #ffffff;
+    color: #525d76;
+}
+
+/* dark blue bg-color for selected menu-items */
+td.sel-bg {
+    background-color: #525d76;
+    color: #ffffff;
+}
+
+div.nonselectedmenuitem {
+    padding: 2px 3px 2px 3px;
+    background-color: #ffffff;
+    color: #525d76;
+    font-size: 0.9em;
+    font-family: arial, helvetica, sans-serif;
+}
+
+
+div.selectedmenuitem {
+    background-color: #525d76;
+    color: #ffffff;
+    padding: 2px 3px 2px 3px;
+    font-family: arial, helvetica, sans-serif;
+    font-size: 0.9em;
+}
+
+div.menu-title {
+    font-family: arial, helvetica, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    padding: 2px 3px 2px 3px;
+    background-color: #828da6;
+    color: #000000;
+}
+
+
+/* dark blue border color for menu-boxes */
+td.menu-border {
+    background-color: #333333;
+    color: #ffffff;
+}
+
+
+/* Wrapped around each section of content */
+div.index-section {
+    font-family: arial, helvetica, sans-serif;
+    /*font-size: 1.0em;*/
+}
+
+/*** misc ***/
+
+/* general border-color for ad-images */
+.img-border {
+    border: 0;
+    color: #000000;
+    border-color: #000000;
+    background-color: transparent;
+}
+
+/* dark-blue bg-color */
+td.blue-bg {
+    background-color: #525d76;
+    color: #000000; /* please triple check this!!!!*/
+}
+
+/* light gray/white bg-color for ad-sec */
+td.ad-bg {
+    background-color: #ffffff;
+    color: #000000; /* please triple check this!!!!*/
+}
+
+
+/* lines for camel */
+td.camel-line-top {
+    background-color: #bfcfe7;
+    color: #000000; /* please triple check this!!!!*/
+}
+td.camel-line-bottom {
+    background-color: #525d76;
+    color: #000000; /* please triple check this!!!!*/
+}
+
+
+.hr {
+    height: 1px;
+}
+
+div.changes {
+   text-align: center;
+}
+
+
+
+
+/*** notorious space gif feat ***/
+/*
+we use the html tag <small> for this feat, hence that tag wont work as normal
+we can [probably] use any non block tag we want
+*/
+
+small.nbr{
+    font-family: arial, helvetica, sans-serif;
+    font-size: 1px ;
+    line-height: 1px;
+    display: run-in ;  /* must _not_ be "inline" */
+}
+
+br.smallbr {
+    font-family: arial, helvetica, sans-serif;
+    font-size: 1px ;
+    line-height: 1px;
+    display: run-in ;
+}
+
+/* opera, ns6 display inline if you meet <small class="nbr"> , display must not be #inline" for opera*/
+small[class="nbr"] {
+    display: block;
+}
+
+/* for internet explorer 5.5 windows nt/2000, others? */
+small {
+    display: none;
+}
+
+/*** table styles, make them fit with the general design ***/
+/* mostly stolen from menu though */
+
+/* light blue bg-color for titles */
+td.table-title-bg,
+th.table-title-bg {
+    background-color: #828da6;
+    color: #ffffff;
+}
+
+div.table-title {
+    font-family: arial, helvetica, sans-serif;
+/*    font-size: 14px; */
+    font-weight: bold;
+    text-align: center;
+    padding: 2px 3px 2px 3px;
+    background-color: #828da6;
+    color: #000000;
+}
+
+td.table-bg {
+    background-color: #eeeeee;
+    color: #000000;
+}
+
+
+/* sociable */
+
+div .sociable { margin: 3em 0; }
+
+span.sociable_tagline { position: relative; }
+span.sociable_tagline span { display: none; width: 14em; }
+span.sociable_tagline:hover span {
+	position: absolute;
+	display: block;
+	top: -5em;
+	background: #ffe;
+	border: 1px solid #ccc;
+	color: black;
+	line-height: 1.25em;
+}
+
+.sociable span { display: block; }
+.sociable ul { display: inline; }
+.sociable li {
+	background: none;
+	display: inline;
+	list-style-type: none;
+	margin: 0;
+	padding: 2px;
+}
+.sociable ul li:before { content: ""; }
+.sociable img { border: 0; }

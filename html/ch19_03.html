@@ -1,0 +1,132 @@
+<html><head><title>Flawed Locking Methods (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch19_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch19_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">19.3. Flawed Locking Methods</h2>
+
+<p>The suggested locking methods in the first and <a name="pmodperl-CHP-19-ITERM-5347" />second <a name="pmodperl-CHP-19-ITERM-5348" />editions of the book
+<em class="emphasis">Programming Perl</em> (O'Reilly) and
+the <tt class="literal">DB_File</tt> manpage (before Version 1.72, fixed in
+1.73) are flawed. If you use them in an environment where more than
+one process can modify the DBM file, it can be corrupted. The
+following is an explanation of why this happens.</p>
+
+<p>You cannot use a tied file's file handle for
+locking, since you get the file handle after the file has already
+been tied. It's too late to lock. The problem is
+that the database file is locked <em class="emphasis">after</em> it is
+opened. When the database is opened, the first 4 KB (for the Berkeley
+DB library, at least) are read and then cached in memory. Therefore,
+a process can open the database file, cache the first 4 KB, and then
+block while another process writes to the file. If the second process
+modifies the first 4 KB of the file, when the original process gets
+the lock it now has an inconsistent view of the database. If it
+writes using this view it may easily corrupt the database on disk.</p>
+
+<p>This problem can be difficult to trace because it does not cause
+corruption every time a process has to wait for a lock. One can do
+quite a bit of writing to a database file without actually changing
+the first 4 KB. But once you suspect this problem, you can easily
+reproduce it by making your program modify the records in the first 4
+KB of the DBM file.</p>
+
+<p>It's better to resort to using the standard modules
+for locking than to try to invent your own.</p>
+
+<p>If your DBM file is used only in the read-only mode, generally there
+is no need for locking at all. If you access the DBM file in
+read/write mode, the safest method is to tie the DBM file after
+acquiring an external lock and untie it before the lock is released.
+So to access the file in shared mode
+(<tt class="literal">FLOCK_SH</tt><a href="#FOOTNOTE-47">[47]</a>), follow
+this pseudocode:</p> <blockquote><a name="FOOTNOTE-47" /><p> [47]The
+<tt class="literal">FLOCK_*</tt> constants are defined in the
+<tt class="literal">Fcntl</tt> module; <tt class="literal">FLOCK_SH</tt> for
+shared, <tt class="literal">FLOCK_EX</tt> for exclusive, and
+<tt class="literal">FLOCK_UN</tt> for unlock.</p> </blockquote>
+
+<blockquote><pre class="code">flock $fh, FLOCK_SH &lt;=  ==  == start critical section
+tie...
+read...
+untie...
+flock $fh, FLOCK_UN &lt;=  ==  == end critical section</pre></blockquote>
+
+<p>Similarly for the exclusive (EX) write access:</p>
+
+<blockquote><pre class="code">flock FLOCK_EX &lt;=  ==  == start critical section
+tie...
+write...
+sync...
+untie...
+flock FLOCK_UN &lt;=  ==  == end critical section</pre></blockquote>
+
+<p>You might want to save <a name="pmodperl-CHP-19-ITERM-5349" />a
+<a name="pmodperl-CHP-19-ITERM-5350" /><a name="pmodperl-CHP-19-ITERM-5351" /><a name="pmodperl-CHP-19-ITERM-5352" />few <tt class="literal">tie(
+)</tt>/<tt class="literal">untie( )</tt> calls if the same request
+accesses the DBM file more than once. Be careful, though. Based on
+the caching effect explained above, a process can perform an atomic
+downgrade of an exclusive lock to a shared one without retying the
+file:</p>
+
+<blockquote><pre class="code">flock FLOCK_EX &lt;=  ==  == start critical section
+tie...
+write...
+sync...
+               &lt;=  ==  == end critical section
+flock FLOCK_SH &lt;=  ==  == start critical section
+read...
+untie...
+flock FLOCK_UN &lt;=  ==  == end critical section</pre></blockquote>
+
+<p>because it has the updated data in its cache. By atomic, we mean
+it's ensured that the lock status gets changed
+without any other process getting exclusive access in between.</p>
+
+<p>If you can ensure that one process safely upgrades a shared lock to
+an exclusive lock, you can save the overhead of doing the extra
+<tt class="literal">tie( )</tt> and <tt class="literal">untie( )</tt>. But this
+operation might lead to a deadlock if two processes try to upgrade
+from shared to exclusive locks at the same time. Remember that in
+order to acquire an exclusive lock, all other processes need to
+release <em class="emphasis">all</em> locks. If your OS's
+locking implementation resolves this deadlock by denying one of the
+upgrade requests, make sure your program handles that appropriately.
+The process that was denied has to untie the DBM file and then ask
+for an exclusive lock.</p>
+
+<p>A DBM file always has to be untied before the lock is released
+(unless you do an atomic downgrade from exclusive to shared, as we
+have just explained). Remember that if at any given moment a process
+wants to lock and access the DBM file, it has to retie this file if
+it was tied already. If this is not done, the integrity of the DBM
+file is not ensured.</p>
+
+<p>To conclude, the safest method of reading from a DBM file is to lock
+the file before tying it, untie it before releasing the lock, and, in
+the <a name="pmodperl-CHP-19-ITERM-5353" />case
+<a name="pmodperl-CHP-19-ITERM-5354" />of
+writing, call <tt class="literal">sync( )</tt> before untying it.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch19_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch19_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">19.2. Resource Locking</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">19.4. Locking Wrappers Overview</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

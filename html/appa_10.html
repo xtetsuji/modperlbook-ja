@@ -1,0 +1,116 @@
+<html><head><title>mod_rewrite in Perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appa_09.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appa_11.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">A.10. mod_rewrite in Perl</h2>
+
+<p>mod_rewrite provides
+<a name="pmodperl-APP-A-ITERM-6091" /><a name="pmodperl-APP-A-ITERM-6092" /><a name="pmodperl-APP-A-ITERM-6093" />virtually
+any functionality you can think of for manipulating URLs. Because of
+its highly generalized nature and use of complex regular expressions,
+it is not easy to use and has a high learning curve.</p>
+
+<p>With the help of <tt class="literal">PerlTransHandler</tt>, which is
+invoked at the beginning of request processing, we can easily
+implement everything mod_rewrite does in Perl. For example, if we
+need to perform a redirect based on the query string and URI, we can
+use the following handler:</p>
+
+<blockquote><pre class="code">package Apache::MyRedirect;
+use Apache::Constants qw(OK REDIRECT);
+use constant DEFAULT_URI =&gt; 'http://www.example.org';
+
+sub handler {
+    my $r    = shift;
+    my %args = $r-&gt;args;
+    my $path = $r-&gt;uri;
+
+    my $uri = (($args{'uri'}) ? $args{'uri'} : DEFAULT_URI) . $path;
+
+    $r-&gt;header_out-&gt;add('Location' =&gt; $uri);
+    $r-&gt;status(REDIRECT);
+    $r-&gt;send_http_header;
+
+    return OK;
+}
+1;</pre></blockquote>
+
+<p>Set it up in <em class="emphasis">httpd.conf</em> as:</p>
+
+<blockquote><pre class="code">PerlTransHandler Apache::MyRedirect</pre></blockquote>
+
+<p>The code consists of four parts: retrieving the request data,
+deciding what to do based on this data, setting the headers and the
+status code, and issuing the redirect.</p>
+
+<p>So if a client submits the following request:</p>
+
+<blockquote><pre class="code">http://www.example.com/news/?uri=http://www2.example.com/</pre></blockquote>
+
+<p>the <tt class="literal">$uri</tt> parameter is set to
+<tt class="literal">http://www2.example.com/news/</tt>, and the request
+will be redirected to that URI.</p>
+
+<p>Let's look at another example. Suppose you want to
+make this translation before a content handler is invoked:</p>
+
+<blockquote><pre class="code">/articles/10/index.html  =&gt;  /articles/index.html?id=10</pre></blockquote>
+
+<p>The <tt class="literal">TransHandler</tt>shown in <a href="appa_10.html#pmodperl-APP-A-EX-4">Example A-4</a> will do that for you.</p>
+
+<a name="pmodperl-APP-A-EX-4" /><div class="example">
+<h4 class="objtitle">Example A-4. Book/Trans.pm</h4>
+<blockquote><pre class="code">package Book::Trans;
+use Apache::Constants qw(:common);
+sub handler {
+    my $r = shift;
+    my $uri = $r-&gt;uri;
+    my($id) = ($uri =~ m|^/articles/(.*?)/|);
+    $r-&gt;uri("/articles/index.html");
+    $r-&gt;args("id=$id");
+    return DECLINED;
+}
+1;</pre></blockquote>
+</div>
+
+<p>To configure this handler, add these lines to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Book::Trans
+PerlTransHandler Book::Trans</pre></blockquote>
+
+<p>The handler code retrieves the request object and the URI. Then it
+retrieves the <em class="emphasis">id</em>, using the regular expression.
+Finally, it sets the new value of the URI and the arguments string.
+The handler returns <tt class="literal">DECLINED</tt>so the default Apache
+<tt class="literal">TransHandler</tt> will take care of URI-to-filename
+remapping.</p>
+
+<p>Notice the technique to set the arguments. By the time the Apache
+request object has been created, arguments are handled in a separate
+slot, so you cannot just push them into the original URI. Therefore,
+the <tt class="literal">args( )</tt> method should be used.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appa_09.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appa_11.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">A.9. Sending Email from mod_perl</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">A.11. Setting PerlHandler Based on MIME Type</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

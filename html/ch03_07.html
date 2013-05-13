@@ -1,0 +1,153 @@
+<html><head><title>Installing mod_perl with the CPAN.pm Interactive Shell (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch03_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">3.7. Installing mod_perl with the CPAN.pm Interactive Shell</h2>
+
+<p>Installation <a name="pmodperl-CHP-3-ITERM-3707" /><a name="pmodperl-CHP-3-ITERM-3708" /><a name="pmodperl-CHP-3-ITERM-3709" />of mod_perl and
+all the required packages is much easier with the help of the
+<tt class="literal">CPAN.pm</tt> module, which provides, among other
+features, a shell interface to the CPAN repository (see the <a href="ch00_01.html">Preface</a>).</p>
+
+<p>First, download the Apache source code and unpack it into a directory
+(the name of which you will need very soon).</p>
+
+<p>Now execute:</p>
+
+<blockquote><pre class="code">panic% perl -MCPAN -eshell</pre></blockquote>
+
+<p>You will see the <tt class="literal">cpan</tt> prompt:</p>
+
+<blockquote><pre class="code">cpan&gt;</pre></blockquote>
+
+<p>All you need to do to install mod_perl is to type:</p>
+
+<blockquote><pre class="code">cpan&gt; install mod_perl</pre></blockquote>
+
+<p>You will see something like the following:</p>
+
+<blockquote><pre class="code">Running make for DOUGM/mod_perl-1.xx.tar.gz
+Fetching with LWP:
+http://www.cpan.org/authors/id/DOUGM/mod_perl-1.xx.tar.gz
+
+CPAN.pm: Going to build DOUGM/mod_perl-1.xx.tar.gz</pre></blockquote>
+
+<p>(As with earlier examples in this book, we use
+<em class="emphasis">x.xx</em> as a placeholder for real version numbers,
+because these change very frequently.)</p>
+
+<p><tt class="literal">CPAN.pm</tt> will search for the latest Apache sources
+and suggest a directory. If the CPAN shell did not find your version
+of Apache and suggests the wrong directory name, type the name of the
+directory into which you unpacked Apache:</p>
+
+<blockquote><pre class="code">Enter 'q' to stop search
+Please tell me where I can find your apache src
+[../apache_1.3.xx/src]</pre></blockquote>
+
+<p>Answer <tt class="literal">yes</tt> to the following questions, unless you
+have a good reason not to:</p>
+
+<blockquote><pre class="code">Configure mod_perl with /home/stas/src/apache_1.3.xx/src ? [y]
+Shall I build httpd in /home/stas/src/apache_1.3.xx/src for you? [y]</pre></blockquote>
+
+<p>After you have built mod_perl and Apache, tested mod_perl, and
+installed its Perl modules, you can quit the CPAN shell and finish
+the installation. Go to the Apache source root directory and run:</p>
+
+<blockquote><pre class="code">cpan&gt; quit
+panic% cd /home/stas/src/apache_1.3.xx
+panic% make install</pre></blockquote>
+
+<p>This will complete the installation by installing
+Apache's headers and the <em class="emphasis">httpd</em>
+binary into the appropriate directories.</p>
+
+<p>The only caveat of the process we've just described
+is that you don't have control over the
+configuration process. But that problem is easy to solve&#8212;you
+can tell <tt class="literal">CPAN.pm</tt> to pass whatever parameters you
+want to <em class="emphasis">perl Makefile.PL</em>. You do this with the
+<em class="emphasis">o conf makepl_arg</em> command:</p>
+
+<blockquote><pre class="code">cpan&gt; o conf makepl_arg 'DO_HTTPD=1 USE_APACI=1 EVERYTHING=1'</pre></blockquote>
+
+<p>If you had previously set <em class="emphasis">makepl_arg</em> to some
+value, you will probably want to save it somewhere so that you can
+restore it when you have finished with the mod_perl installation. In
+that case, type the following command first:</p>
+
+<blockquote><pre class="code">cpan&gt; o conf makepl_arg</pre></blockquote>
+
+<p>and copy its value somewhere before unsetting the variable.</p>
+
+<p>List all the parameters as if you were passing them to the familiar
+<em class="emphasis">perl Makefile.PL</em>. If you add the
+<tt class="literal">APACHE_SRC=/home/stas/src/apache_1.3.xx/src</tt> and
+<tt class="literal">DO_HTTPD=1</tt> parameters, you will not be asked a
+single question.</p>
+
+<p>Now proceed with <em class="emphasis">install mod_perl</em> as before.
+When the installation is complete, remember to reset the
+<tt class="literal">makepl_arg</tt> variable by executing:</p>
+
+<blockquote><pre class="code">cpan&gt; o conf makepl_arg ''</pre></blockquote>
+
+<p>Note that if there was a previous value, use that instead of
+''. You can now install all the modules you want
+to use with mod_perl. You can install them all at once with a single
+command:</p>
+
+<blockquote><pre class="code">cpan&gt; install Bundle::Apache</pre></blockquote>
+
+<p>This will install mod_perl if hasn't already been
+installed. It will also install many other packages, such as
+<tt class="literal">ExtUtils::Embed</tt>, <tt class="literal">MIME::Base64</tt>,
+<tt class="literal">URI::URL</tt>, <tt class="literal">Digest::MD5</tt>,
+<tt class="literal">Net::FTP</tt>, <tt class="literal">LWP</tt>,
+<tt class="literal">HTML::TreeBuilder</tt>, <tt class="literal">CGI</tt>,
+<tt class="literal">Devel::Symdump</tt>, <tt class="literal">Apache::DB</tt>,
+<tt class="literal">Tie::IxHash</tt>, <tt class="literal">Data::Dumper</tt>, and
+so<a name="pmodperl-CHP-3-ITERM-3710" /><a name="pmodperl-CHP-3-ITERM-3711" /><a name="pmodperl-CHP-3-ITERM-3712" /> on.</p>
+
+<a name="pmodperl-CHP-3-SIDEBAR-6" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Bundling Modules</h4>
+
+<p>If you have <a name="pmodperl-CHP-3-ITERM-3713" /><a name="pmodperl-CHP-3-ITERM-3714" /><a name="pmodperl-CHP-3-ITERM-3715" />a system that's already
+configured with all the Perl modules you use, making your own bundle
+is a way to replicate them on another system without worrying about
+binary incompatibilities. To accomplish this, the command
+<em class="emphasis">autobundle</em> can be used on the CPAN shell command
+line. This command writes a bundle definition file for all modules
+that are installed for the currently running Perl interpreter.</p>
+
+<p>With the clever bundle file you can then simply say:</p>
+
+<blockquote><pre class="code">cpan&gt; install Bundle::my_bundle</pre></blockquote>
+
+<p>and, after answering a few questions, go out for a coffee.</p>
+</td></tr></table><p></blockquote>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch03_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">3.6. Building mod_perl with Other Components</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">3.8. Installing mod_perl on Multiple Machines</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

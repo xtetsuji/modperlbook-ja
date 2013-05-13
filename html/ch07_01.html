@@ -1,0 +1,156 @@
+<html><head><title>Identifying Your Performance Problems (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part2.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch07_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 7. Identifying Your Performance Problems</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch07_01.html#pmodperl-CHP-7-SECT-1">Looking at the Big Picture</a><br />
+<a href="ch07_02.html">Asking the Right Questions</a><br />
+<a href="ch07_03.html">References</a><br /></p></div><p>You have been assigned to improve the performance of your
+company's web service. The hardest thing is to get
+started. How should you tackle this task? And how do you sort out the
+insignificant issues and identify those that will make a difference
+once resolved?</p><p>In this chapter, we look at this problem from different angles. Only
+after you understand the problem should you start looking for
+solutions. Don't search for a solution before the
+problem has been precisely identified, or you'll end
+up wasting a lot of time concentrating on trivial issues. Instead,
+try to identify where you can make the biggest difference in
+performance.</p><p>Note that in this book, we use the term "web
+service" to mean the whole aggregate that provides
+the service: the machine, the network, and the software.
+Don't confuse this with web services such as SOAP
+and XML-RPC.</p><div class="sect1"><a name="pmodperl-CHP-7-SECT-1" />
+<h2 class="sect1">7.1. Looking at the Big Picture</h2>
+
+<p>To make the user's web-browsing experience as
+painless as possible, every effort must be made to wring the last
+drop of <a name="pmodperl-CHP-7-ITERM-4630" /><a name="pmodperl-CHP-7-ITERM-4631" />performance from the server. Many factors
+affect web site usability, but one of the most important is speed.
+(This applies to any web server, not just Apache.)</p>
+
+<p>How do we measure the speed of a server? Since the user (and not the
+computer) is the one that interacts with the web site, one good speed
+measurement is the time that elapses between the moment the user
+clicks on a link or presses a Submit button, and the time when the
+resulting page is fully rendered in his browser.</p>
+
+<p>The requests and resulting responses are broken into packets. Each
+packet has to make its own way from one machine to another, perhaps
+passing through many interconnection nodes. We must measure the time
+starting from when the request's first packet leaves
+our user's machine to when the
+reply's last packet arrives back there.</p>
+
+<p>A request may be made up of
+<a name="pmodperl-CHP-7-ITERM-4632" /><a name="pmodperl-CHP-7-ITERM-4633" />several packets, and a response may contain
+a few hundred (typical for a <tt class="literal">GET</tt> request).
+Remember that the Internet standard for Maximum Transmission Unit
+(MTU), which is the size of a TCP/IP packet, is 576 bytes. While the
+packet size can be 1,500 bytes or more, if it crosses a network where
+the MTU is 576, it will be broken into smaller packets.</p>
+
+<p>It is also possible that a request will be made up of many more
+packets than its response (typical for a <tt class="literal">POST</tt>
+request where an uploaded file is followed by a short confirmation
+response). Therefore, it is important to optimize the handling of
+both the input and the output.</p>
+
+<p>A web server is only one of the entities the packets see on their
+journey. If we follow them from browser to server and back again,
+they may travel via different routes through many different entities.
+For example, here is the route the packets may go through to reach
+<em class="emphasis">perl.apache.org</em> from our machine:</p>
+
+<blockquote><pre class="code">% /usr/sbin/traceroute -n perl.apache.org
+
+traceroute to perl.apache.org (63.251.56.142), 30 hops max, 38 byte packets
+ 1  10.0.0.1           0.847 ms    1.827 ms    0.817 ms
+ 2  165.21.104.1       7.628 ms   11.271 ms   12.646 ms
+ 3  165.21.78.37       8.613 ms    7.882 ms   12.479 ms
+ 4  202.166.127.28    10.131 ms    8.686 ms   12.163 ms
+ 5  203.208.145.125    9.033 ms    7.281 ms    9.930 ms
+ 6  203.208.172.30   225.319 ms  231.167 ms  234.747 ms
+ 7  203.208.172.46   252.473 ms           *  252.602 ms
+ 8  198.32.176.29    250.532 ms  251.693 ms  226.962 ms
+ 9  207.136.163.125  232.632 ms  231.504 ms  232.019 ms
+10  206.132.110.98   225.417 ms  224.801 ms  252.480 ms
+11  206.132.110.138  254.443 ms  225.056 ms  259.674 ms
+12  64.209.88.54     227.754 ms  226.362 ms  253.664 ms
+13  63.251.63.71     252.921 ms  252.573 ms  258.014 ms
+14  64.125.132.18    237.191 ms  234.256 ms *
+15  63.251.56.142    254.539 ms  252.895 ms  253.895 ms</pre></blockquote>
+
+<p>As you can see, the packets travel through 14 gateways before they
+reach <em class="emphasis">perl.apache.org</em>. Each of the hops between
+these gateways may slow down the packet.</p>
+
+<p>Before they are processed by the server, the packets may have to go
+through proxy servers, and if the request contains more than one
+packet, packets might arrive at the server by different routes and at
+different times. It is possible that some packets may arrive out of
+order, causing some that arrive earlier to have to wait for other
+packets before they can be reassembled into a chunk of the request
+message that can then be read by the server. The whole process is
+then repeated in the opposite direction as response packets travel
+back to the browser.</p>
+
+<p>Even if you work hard to fine-tune your web server's
+performance, a slow Network Interface Card (NIC) or a slow network
+connection from your server might defeat it all. That is why it is
+important to think about the big picture and to be aware of possible
+bottlenecks between your server and the Web.</p>
+
+<p>Of course, there is little you can do if the user has a slow
+connection. You might tune your scripts and web server to process
+incoming requests ultra quickly, so you will need only a small number
+of working servers, but even then you may find that the server
+processes are all busy waiting for slow clients to accept their
+responses.</p>
+
+<p>There are techniques to cope with this. For example, you can compress
+the response before delivery. If you are delivering a pure text
+response, <em class="emphasis">gzip</em> compression will reduce the size
+of the sent text by two to five times.</p>
+
+<p>You should analyze all the components involved when you try to create
+the best service for your users, not just the web server or the code
+that the web server executes.</p>
+
+<blockquote><pre class="code">                           _ _  _ _  _
+                             |
+                      A web service is
+                    like      a      car,
+                   if        one     of the
+                  parts or mechanisms  is  broken
+                  the car may ~ not ~  run  smoothly;
+                  it can even stop dead if pushed too
+                    far without  first  fixing  it.
+                       \_ _  _/         \_ _  _/</pre></blockquote>
+
+<p>If you want to have success in the web service business, you should
+start worrying about the client's browsing
+experience, not only how good your code benchmarks are.</p>
+
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part2.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch07_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">II. mod_perl Performance</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">7.2. Asking the Right Questions</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

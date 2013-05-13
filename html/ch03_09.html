@@ -1,0 +1,696 @@
+<html><head><title>Installation into a Nonstandard Directory (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch03_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">3.9. Installation into a Nonstandard Directory</h2>
+
+<p>There<a name="pmodperl-CHP-3-ITERM-3723" /> are situations when you need to
+install mod_perl-enabled Apache and other components (such as Perl
+libraries) into nonstandard locations. For example, you might work on
+a system to which you don't have
+<em class="emphasis">root</em> access, or you might need to install more
+than one set of mod_perl-enabled Apache and Perl modules on the same
+machine (usually when a few developers are using the same server and
+want to have their setups isolated from each other, or when you want
+to test a few different setups on the same machine).</p>
+
+<p>We have already seen that you can install mod_perl-enabled Apache
+into different directories on the system (using the
+<tt class="literal">APACHE_PREFIX</tt> parameter of
+<em class="emphasis">Makefile.PL</em>). Until now, all our scenarios have
+installed the Perl files that are part of the mod_perl package into
+the same directory as the system Perl files (usually
+<em class="emphasis">/usr/lib/perl5</em>).</p>
+
+<p>Now we are going to show how can you install both the Apache and the
+Perl files into a nonstandard directory. We'll show
+a complete installation example using <em class="emphasis">stas</em> as a
+username, assuming that <em class="emphasis">/home/stas</em> is the home
+directory of that user.</p>
+
+<a name="pmodperl-CHP-3-SECT-9.1" /><div class="sect2">
+<h3 class="sect2">3.9.1. Installing Perl Modules into a Nonstandard Directory</h3>
+
+<p>Before <a name="pmodperl-CHP-3-ITERM-3724" /><a name="pmodperl-CHP-3-ITERM-3725" /><a name="pmodperl-CHP-3-ITERM-3726" /><a name="pmodperl-CHP-3-ITERM-3727" />we proceed,
+let's look at how to install any Perl module into a
+nonstandard directory. For an example, let's use the
+package that includes <tt class="literal">CGI.pm</tt> and a few other
+<tt class="literal">CGI::*</tt> modules.</p>
+
+<p>First, you have to decide where to install the modules. The simplest
+approach is to simulate the portion of the <em class="emphasis">/</em>
+filesystem relevant to Perl under your home directory. Actually, we
+need only two directories:</p>
+
+<blockquote><pre class="code">/home/stas/bin
+/home/stas/lib</pre></blockquote>
+
+<p>We don't have to create them, as they are created
+automatically when the first module is installed. Ninety-nine percent
+of the files will go into the <em class="emphasis">lib</em> directory.
+Only occasionally does a module distribution come with Perl scripts
+that are installed into the <em class="emphasis">bin</em> directory, at
+which time <em class="emphasis">bin</em> will be created if it
+doesn't exist.</p>
+
+<p>As usual, download the package from the CPAN repository
+(<em class="emphasis">CGI.pm-x.xx.tar.gz</em>), unpack it, and
+<em class="emphasis">chdir</em> to the newly created directory.</p>
+
+<p>Now do a standard <em class="emphasis">perl Makefile.PL</em> to create the
+<em class="emphasis">Makefile</em>, but this time make use of your
+nonstandard Perl installation directory instead of the default one:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PREFIX=/home/stas</pre></blockquote>
+
+<p>Specifying <tt class="literal">PREFIX=/home/stas</tt> is the only part of
+the installation process that is different from usual. Note that if
+you don't like how <em class="emphasis">Makefile.PL</em>
+chooses the rest of the directories, or if you are using an older
+version of it that requires an explicit declaration of all the target
+directories, you should do this:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PREFIX=/home/stas \
+    INSTALLPRIVLIB=/home/stas/lib/perl5 \
+    INSTALLSCRIPT=/home/stas/bin \
+    INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+    INSTALLBIN=/home/stas/bin \
+    INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+    INSTALLMAN3DIR=/home/stas/lib/perl5/man3</pre></blockquote>
+
+<p>The rest is as usual:</p>
+
+<blockquote><pre class="code">panic% make
+panic% make test
+panic% make install</pre></blockquote>
+
+<p><em class="emphasis">make install</em> installs all the files in the
+private repository. Note that all the missing directories are created
+automatically, so you don't need to create them
+beforehand. Here is what it does (slightly edited):</p>
+
+<blockquote><pre class="code">Installing /home/stas/lib/perl5/CGI/Cookie.pm
+Installing /home/stas/lib/perl5/CGI.pm
+Installing /home/stas/lib/perl5/man3/CGI.3
+Installing /home/stas/lib/perl5/man3/CGI::Cookie.3
+Writing /home/stas/lib/perl5/auto/CGI/.packlist
+Appending installation info to /home/stas/lib/perl5/perllocal.pod</pre></blockquote>
+
+<p>If you have to use explicit target parameters instead of a single
+<tt class="literal">PREFIX</tt> parameter, you will find it useful to
+create a file called something like <em class="emphasis">~/.perl_dirs</em>
+(where <em class="emphasis">~</em> is <em class="emphasis">/home/stas</em> in
+our example), containing:</p>
+
+<blockquote><pre class="code">PREFIX=/home/stas \
+INSTALLPRIVLIB=/home/stas/lib/perl5 \
+INSTALLSCRIPT=/home/stas/bin \
+INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+INSTALLBIN=/home/stas/bin \
+INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+INSTALLMAN3DIR=/home/stas/lib/perl5/man3</pre></blockquote>
+
+<p>From now on, any time you want to install Perl modules locally,
+simply execute:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL `cat ~/.perl_dirs`
+panic% make
+panic% make test
+panic% make install</pre></blockquote>
+
+<p>Using this technique, you can easily maintain several Perl module
+repositories. For example, you could have one for production and
+another for development:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL `cat ~/.perl_dirs.production`</pre></blockquote>
+
+<p>or:</p>
+
+<a name="pmodperl-CHP-3-ITERM-3728" /><a name="pmodperl-CHP-3-ITERM-3729" /><a name="pmodperl-CHP-3-ITERM-3730" /><a name="pmodperl-CHP-3-ITERM-3731" /><blockquote><pre class="code">panic% perl Makefile.PL `cat ~/.perl_dirs.develop`</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-9.2" /><div class="sect2">
+<h3 class="sect2">3.9.2. Finding Modules Installed in Nonstandard Directories</h3>
+
+<p>Installing Perl
+<a name="pmodperl-CHP-3-ITERM-3732" /><a name="pmodperl-CHP-3-ITERM-3733" /><a name="pmodperl-CHP-3-ITERM-3734" /><a name="pmodperl-CHP-3-ITERM-3735" />modules into
+nonstandard directories is only half the battle. We also have to let
+Perl know what these directories are.</p>
+
+<p>Perl modules are generally placed in four main directories. To find
+these directories, execute:</p>
+
+<blockquote><pre class="code">panic% perl -V</pre></blockquote>
+
+<p>The output contains important information about your Perl
+installation. At the end you will see:</p>
+
+<blockquote><pre class="code">Characteristics of this binary (from libperl):
+Built under linux
+Compiled at Oct 14 2001 17:59:15
+@INC:
+  /usr/lib/perl5/5.6.1/i386-linux
+  /usr/lib/perl5/5.6.1
+  /usr/lib/perl5/site_perl/5.6.1/i386-linux
+  /usr/lib/perl5/site_perl/5.6.1
+  /usr/lib/perl5/site_perl
+  .</pre></blockquote>
+
+<p>This shows us the content of the Perl special variable
+<tt class="literal">@INC</tt>, which is used by Perl to look for its
+modules. It is equivalent to the <tt class="literal">PATH</tt> environment
+variable, used to find executable programs in Unix shells.</p>
+
+<p>Notice that Perl looks for modules in the . directory too, which
+stands for the current directory. It's the last
+entry in the above output.</p>
+
+<p>This example is from Perl Version 5.6.1, installed on our x86
+architecture PC running Linux. That's why you see
+<em class="emphasis">i386-linux</em> and <em class="emphasis">5.6.1</em>. If
+your system runs a different version of Perl, or a different
+operating system, processor, or chipset architecture, then some of
+the directories will have different names.</p>
+
+<p>All the platform-specific files (such as compiled C files glued to
+Perl with <tt class="literal">XS</tt>, or some <em class="emphasis">.h</em>
+header files) are supposed to go into the
+<em class="emphasis">i386-linux</em>-like directories. Pure Perl modules
+are stored in the non-platform-specific directories.</p>
+
+<p>As mentioned earlier, you find the exact directories used by your
+version of Perl by executing <em class="emphasis">perl -V</em> and
+replacing the global Perl installation's base
+directory with your home directory. Assuming that we use Perl 5.6.1,
+in our example the directories are:</p>
+
+<blockquote><pre class="code">/home/stas/lib/perl5/5.6.1/i386-linux
+/home/stas/lib/perl5/5.6.1
+/home/stas/lib/perl5/site_perl/5.6.1/i386-linux
+/home/stas/lib/perl5/site_perl/5.6.1
+/home/stas/lib/perl5/site_perl</pre></blockquote>
+
+<p>There are two ways to tell Perl about the new directories: you can
+either modify the <tt class="literal">@INC</tt> variable in your scripts or
+set the <tt class="literal">PERL5LIB</tt> environment variable.</p>
+
+<a name="pmodperl-CHP-3-SECT-9.2.1" /><div class="sect3">
+<h3 class="sect3">3.9.2.1. Modifying @INC</h3>
+
+<p>Modifying<a name="pmodperl-CHP-3-ITERM-3736" /><a name="pmodperl-CHP-3-ITERM-3737" /><a name="pmodperl-CHP-3-ITERM-3738" /><a name="pmodperl-CHP-3-ITERM-3739" /><a name="pmodperl-CHP-3-ITERM-3740" /><a name="pmodperl-CHP-3-ITERM-3741" />
+<tt class="literal">@INC</tt> is quite easy. The best approach is to use
+the <tt class="literal">lib</tt> module (pragma) by adding the following
+snippet at the top of any of your scripts that require the locally
+installed modules:</p>
+
+<blockquote><pre class="code">use lib qw(/home/stas/lib/perl5/5.6.1/
+           /home/stas/lib/perl5/site_perl/5.6.1
+           /home/stas/lib/perl5/site_perl
+);</pre></blockquote>
+
+<p>Another way is to write code to modify <tt class="literal">@INC</tt>
+explicitly:</p>
+
+<blockquote><pre class="code">BEGIN {
+    unshift @INC,
+        qw(/home/stas/lib/perl5/5.6.1/i386-linux
+           /home/stas/lib/perl5/5.6.1
+           /home/stas/lib/perl5/site_perl/5.6.1/i386-linux
+           /home/stas/lib/perl5/site_perl/5.6.1
+           /home/stas/lib/perl5/site_perl
+        );
+}</pre></blockquote>
+
+<p>Note that with the <tt class="literal">lib</tt> module, we
+don't have to list the corresponding
+architecture-specific directories&#8212;it adds them automatically if
+they exist (to be exact, when
+<em class="emphasis">$dir/$archname/auto</em> exists). It also takes care
+of removing any duplicated entries.</p>
+
+<p>Also, notice that both approaches <em class="emphasis">prepend</em> the
+directories to be searched to <tt class="literal">@INC</tt>. This allows
+you to install a more recent module into your local repository, which
+Perl will then use instead of the older one installed in the main
+system repository.</p>
+
+<p>Both approaches modify the value of <tt class="literal">@INC</tt> at
+compilation time. The <tt class="literal">lib</tt> module uses the
+<tt class="literal">BEGIN</tt> block internally.</p>
+
+</div>
+
+<a name="pmodperl-CHP-3-SECT-9.2.2" /><div class="sect3">
+<h3 class="sect3">3.9.2.2. Using the PERL5LIB environment variable</h3>
+
+<p>Now, let's <a name="pmodperl-CHP-3-ITERM-3742" /><a name="pmodperl-CHP-3-ITERM-3743" /><a name="pmodperl-CHP-3-ITERM-3744" /><a name="pmodperl-CHP-3-ITERM-3745" /><a name="pmodperl-CHP-3-ITERM-3746" /><a name="pmodperl-CHP-3-ITERM-3747" /><a name="pmodperl-CHP-3-ITERM-3748" />assume the following scenario. We
+have installed the <tt class="literal">LWP</tt> package in our local
+repository. Now we want to install another module (e.g., mod_perl),
+and it has <tt class="literal">LWP</tt> listed in its prerequisites list.
+We know that we have <tt class="literal">LWP</tt> installed, but when we
+run <em class="emphasis">perl Makefile.PL</em> for the module
+we're about to install, we're told
+that we don't have <tt class="literal">LWP</tt> installed.</p>
+
+<p>There is no way for Perl to know that we have some locally installed
+modules. All it does is search the directories listed in
+<tt class="literal">@INC</tt>, and because <tt class="literal">@INC</tt> contains
+only the default four directories (plus the . directory), it cannot
+find the locally installed <tt class="literal">LWP</tt> package. We cannot
+solve this problem by adding code to modify <tt class="literal">@INC</tt>,
+but changing the <tt class="literal">PERL5LIB</tt> environment variable
+will do the trick.</p>
+
+<p>How to define an environment variable varies according to which shell
+you use. Bourne-style shell users can split a long line using the
+backslash (<tt class="literal">\</tt>):</p>
+
+<blockquote><pre class="code">panic% export PERL5LIB=/home/stas/lib/perl5/5.6.1:\
+/home/stas/lib/perl5/site_perl/5.6.1:\
+/home/stas/lib/perl5/site_perl</pre></blockquote>
+
+<p>In the C-style shells, however, you'll have to make
+sure that the value of the <tt class="literal">PERL5LIB</tt> environment
+variable is specified as one continuous line with no newlines or
+spaces:</p>
+
+<blockquote><pre class="code">panic% setenv PERL5LIB /home/stas/lib/perl5/5.6.1:
+/home/stas/lib/perl5/site_perl/5.6.1:
+/home/stas/lib/perl5/site_perl</pre></blockquote>
+
+<p>(In this example, the lines were split to make them fit on the page.)</p>
+
+<p>As with <tt class="literal">use lib</tt>, Perl automatically prepends the
+architecture-specific directories to <tt class="literal">@INC</tt> if those
+exist.</p>
+
+<p>When you have done this, verify the value of the newly configured
+<tt class="literal">@INC</tt> by executing <em class="emphasis">perl -V</em> as
+before. You should see the modified value of <tt class="literal">@INC</tt>:</p>
+
+<blockquote><pre class="code">panic% perl -V
+
+Characteristics of this binary (from libperl): 
+Built under linux
+Compiled at Apr  6 1999 23:34:07
+%ENV:
+  PERL5LIB="/home/stas/lib/perl5/5.6.1:
+  /home/stas/lib/perl5/site_perl/5.6.1:
+  /home/stas/lib/perl5/site_perl"
+@INC:
+  /home/stas/lib/perl5/5.6.1/i386-linux
+  /home/stas/lib/perl5/5.6.1
+  /home/stas/lib/perl5/site_perl/5.6.1/i386-linux
+  /home/stas/lib/perl5/site_perl/5.6.1
+  /home/stas/lib/perl5/site_perl
+  /usr/lib/perl5/5.6.1/i386-linux
+  /usr/lib/perl5/5.6.1
+  /usr/lib/perl5/site_perl/5.6.1/i386-linux
+  /usr/lib/perl5/site_perl/5.6.1
+  /usr/lib/perl5/site_perl
+  .</pre></blockquote>
+
+<p>When everything works as you want it to, add these commands to your
+<em class="emphasis">.tcshrc</em>, <em class="emphasis">.bashrc</em>,
+<em class="emphasis">C:\autoexec.bat</em> or another equivalent
+file.<a href="#FOOTNOTE-21">[21]</a> The next time you start a
+shell, the environment will be ready for you to work with the new
+Perl directories.</p> <blockquote><a name="FOOTNOTE-21" /><p> [21]These files are run by the shell at startup and
+allow you to set environment variables that might be useful every
+time you use your shell.</p> </blockquote>
+
+<p>Note that if you have a <tt class="literal">PERL5LIB</tt>setting, you
+don't need to alter the <tt class="literal">@INC</tt>
+value in your scripts. But if someone else (who
+doesn't have this setting in the shell) tries to
+execute your scripts, Perl will fail to find your locally installed
+modules. This includes <em class="emphasis">cron</em> scripts, which
+<em class="emphasis">might</em> use a different shell environment (in
+which case the <tt class="literal">PERL5LIB</tt>setting
+won't be available).</p>
+
+<p>The best approach is to have both the <tt class="literal">PERL5LIB</tt>
+environment variable and the explicit <tt class="literal">@INC</tt>
+extension code at the beginning of the scripts, as described above.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-3-SECT-9.3" /><div class="sect2">
+<h3 class="sect2">3.9.3. Using the CPAN.pm Shell with Nonstandard Installation Directories</h3>
+
+<p>As we saw <a name="pmodperl-CHP-3-ITERM-3749" /><a name="pmodperl-CHP-3-ITERM-3750" /><a name="pmodperl-CHP-3-ITERM-3751" />previously in this chapter, using the
+<tt class="literal">CPAN.pm</tt>shell to install mod_perl saves a great
+deal of time. It does the job for us, even detecting the missing
+modules listed in prerequisites, fetching them, and installing them.
+So you might wonder whether you can use <tt class="literal">CPAN.pm</tt> to
+maintain your local repository as well.</p>
+
+<p>When you start the CPAN interactive shell, it searches first for the
+user's private configuration file and then for the
+system-wide one. For example, for a user <em class="emphasis">stas</em>
+and Perl Version 5.6.1, it will search for the following
+configuration files:</p>
+
+<blockquote><pre class="code">/home/stas/.cpan/CPAN/MyConfig.pm
+/usr/lib/perl5/5.6.1/CPAN/Config.pm</pre></blockquote>
+
+<p>If there is no CPAN shell configured on your system, when you start
+the shell for the first time it will ask you a dozen configuration
+questions and then create the <em class="emphasis">Config.pm</em> file for
+you.</p>
+
+<p>If the CPAN shell is already configured system-wide, you should
+already have a
+<em class="emphasis">/usr/lib/perl5/5.6.1/CPAN/Config.pm</em> file. (As
+always, if you have a different Perl version, the path will include a
+different version number.) Create the directory for the local
+configuration file as well:</p>
+
+<blockquote><pre class="code">panic% mkdir -p /home/stas/.cpan/CPAN</pre></blockquote>
+
+<p>(On many systems, <em class="emphasis">mkdir -p</em> creates the whole
+path at once.)</p>
+
+<p>Now copy the system-wide configuration file to your local one:</p>
+
+<blockquote><pre class="code">panic% cp /usr/lib/perl5/5.6.1/CPAN/Config.pm /home/stas/.cpan/CPAN/MyConfig.pm</pre></blockquote>
+
+<p>The only thing left is to change the base directory of
+<em class="emphasis">.cpan</em> in your local file to the one under your
+home directory. On our machine, we replace
+<em class="emphasis">/root/.cpan</em> (which is where our
+system's <em class="emphasis">.cpan</em> directory
+resides) with <em class="emphasis">/home/stas</em>. Of course, we use Perl
+to edit the file:</p>
+
+<blockquote><pre class="code">panic% perl -pi -e 's|/root|/home/stas|' \
+    /home/stas/.cpan/CPAN/MyConfig.pm</pre></blockquote>
+
+<p>Now that you have the local configuration file ready, you have to
+tell it what special parameters you need to pass when executing
+<em class="emphasis">perl Makefile.PL</em>. Open the file in your favorite
+editor and replace the following line:</p>
+
+<blockquote><pre class="code">'makepl_arg' =&gt; q[  ],</pre></blockquote>
+
+<p>with:</p>
+
+<blockquote><pre class="code">'makepl_arg' =&gt; q[PREFIX=/home/stas],</pre></blockquote>
+
+<p>Now you've finished the configuration. Assuming that
+you are logged in with the same username used for the local
+installation (<em class="emphasis">stas</em> in our example), start it
+like this:</p>
+
+<blockquote><pre class="code">panic% perl -MCPAN -e shell</pre></blockquote>
+
+<p>From now on, any module you try to install will be installed locally.
+If you need to install some system modules, just become the superuser
+and install them in the same way. When you are logged in as the
+superuser, the system-wide configuration file will be used instead of
+your local one.</p>
+
+<p>If you have used more than just the <tt class="literal">PREFIX</tt>
+variable, modify <em class="emphasis">MyConfig.pm</em> to use the other
+variables. For example, if you have used these variables during the
+creation of the <em class="emphasis">Makefile</em>:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PREFIX=/home/stas \
+    INSTALLPRIVLIB=/home/stas/lib/perl5 \
+    INSTALLSCRIPT=/home/stas/bin \
+    INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+    INSTALLBIN=/home/stas/bin \
+    INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+    INSTALLMAN3DIR=/home/stas/lib/perl5/man3</pre></blockquote>
+
+<p>replace <tt class="literal">PREFIX=/home/stas</tt> in the line:</p>
+
+<blockquote><pre class="code">'makepl_arg' =&gt; q[PREFIX=/home/stas],</pre></blockquote>
+
+<p>with all the variables from above, so that the line becomes:</p>
+
+<blockquote><pre class="code">'makepl_arg' =&gt; q[PREFIX=/home/stas \
+    INSTALLPRIVLIB=/home/stas/lib/perl5 \
+    INSTALLSCRIPT=/home/stas/bin \
+    INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+    INSTALLBIN=/home/stas/bin \
+    INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+    INSTALLMAN3DIR=/home/stas/lib/perl5/man3
+],</pre></blockquote>
+
+<p>If you arrange all the above parameters in one line, you can remove
+the <a name="pmodperl-CHP-3-ITERM-3752" /><a name="pmodperl-CHP-3-ITERM-3753" /><a name="pmodperl-CHP-3-ITERM-3754" />backslashes (<tt class="literal">\</tt>).</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-9.4" /><div class="sect2">
+<h3 class="sect2">3.9.4. Making a Local Apache Installation</h3>
+
+<p>Just as
+<a name="pmodperl-CHP-3-ITERM-3755" /><a name="pmodperl-CHP-3-ITERM-3756" /><a name="pmodperl-CHP-3-ITERM-3757" />with Perl modules, if you
+don't have the permissions required to install
+Apache into the system area, you have to install them locally under
+your home directory. It's almost the same as a plain
+installation, but you have to run the server listening to a port
+number greater than 1024 (only <em class="emphasis">root</em> processes
+can listen to lower-numbered ports).</p>
+
+<p>Another important issue you have to resolve is how to add startup and
+shutdown scripts to the directories used by the rest of the system
+services. Without <em class="emphasis">root</em> access, you
+won't be able to do this yourself;
+you'll have to ask your system administrator to
+assist you.</p>
+
+<p>To install Apache locally, all you have to do is to tell
+<em class="emphasis">./configure</em> in the Apache source directory what
+target directories to use. If you are following the convention that
+we use, which makes your home directory look like the
+<em class="emphasis">/</em> (base) directory, the invocation parameters
+will be:</p>
+
+<blockquote><pre class="code">panic% ./configure --prefix=/home/stas</pre></blockquote>
+
+<p>Apache will use the prefix for the rest of its target directories,
+instead of the default <em class="emphasis">/usr/local/apache</em>. If you
+want to see what they are, add the
+<em class="emphasis">&#8212;show-layout</em><a name="pmodperl-CHP-3-ITERM-3758" /> option before you proceed:</p>
+
+<blockquote><pre class="code">panic% ./configure --prefix=/home/stas --show-layout</pre></blockquote>
+
+<p>You might want to put all the Apache files under
+<em class="emphasis">/home/stas/apache</em>, following
+Apache's convention:</p>
+
+<blockquote><pre class="code">panic% ./configure --prefix=/home/stas/apache</pre></blockquote>
+
+<p>If you want to modify some or all of the names of
+the<a name="pmodperl-CHP-3-ITERM-3759" /> automatically
+created directories, use the<a name="pmodperl-CHP-3-ITERM-3760" /> <em class="emphasis">&#8212;sbindir</em>,
+<em class="emphasis">&#8212;sysconfdir</em><a name="pmodperl-CHP-3-ITERM-3761" />, and
+<em class="emphasis">&#8212;logfiledir</em><a name="pmodperl-CHP-3-ITERM-3762" /> options:</p>
+
+<blockquote><pre class="code">panic% ./configure --prefix=/home/stas/apache \
+    --sbindir=/home/stas/apache/sbin          \
+    --sysconfdir=/home/stas/apache/conf       \
+    --logfiledir=/home/stas/apache/logs</pre></blockquote>
+
+<p>Refer to the output of <em class="emphasis">./configure
+&#8212;help</em><a name="pmodperl-CHP-3-ITERM-3763" /><a name="pmodperl-CHP-3-ITERM-3764" /><a name="pmodperl-CHP-3-ITERM-3765" />
+for all available options.</p>
+
+<p>Also remember that you can start the script only under a user and
+group to which you belong, so you must set the
+<tt class="literal">User</tt> and <tt class="literal">Group</tt> directives in
+<em class="emphasis">httpd.conf</em> to appropriate values.</p>
+
+<p>Furthermore, as we said before, the <tt class="literal">Port</tt> directive
+in <em class="emphasis">httpd.conf</em> must be adjusted to use an unused
+port above 1024, such as 8080. This means that when users need to
+access the locally installed server, their URLs need to specify the
+port number (e.g.,
+<em class="emphasis">http://www.example.com:8080/</em>). Otherwise,
+browsers will access the server running on port 80, which
+isn't the one you installed locally.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-9.5" /><div class="sect2">
+<h3 class="sect2">3.9.5. Nonstandard mod_perl-Enabled Apache Installation</h3>
+
+<p>Now that
+<a name="pmodperl-CHP-3-ITERM-3766" /><a name="pmodperl-CHP-3-ITERM-3767" />we
+know how to install local Apache and Perl modules separately,
+let's see how to install mod_perl-enabled Apache in
+our home directory. It's almost as simple as doing
+each one separately, but there is one wrinkle. We'll
+talk about it at the end of this section.</p>
+
+<p>Let's say you have unpacked the Apache and mod_perl
+sources under <em class="emphasis">/home/stas/src</em> and they look like
+this:</p>
+
+<blockquote><pre class="code">panic% ls /home/stas/src
+/home/stas/src/apache_1.3.xx
+/home/stas/src/mod_perl-1.xx</pre></blockquote>
+
+<p>where <em class="emphasis">x.xx</em> are replaced by the real version
+numbers, as usual. You want the Perl modules from the mod_perl
+package to be installed under
+<em class="emphasis">/home/stas/lib/perl5</em> and the Apache files to go
+under <em class="emphasis">/home/stas/apache</em>. The following commands
+will do that for you:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL \
+    PREFIX=/home/stas \
+    APACHE_PREFIX=/home/stas/apache \
+    APACHE_SRC=../apache_1.3.xx/src \
+    DO_HTTPD=1 \
+    USE_APACI=1 \
+    EVERYTHING=1
+panic% make &amp;&amp; make test &amp;&amp; make install 
+panic% cd ../apache_1.3.xx
+panic% make install</pre></blockquote>
+
+<p>If you need some parameters to be passed to the
+<em class="emphasis">./configure</em> script, as we saw in the previous
+section, use <tt class="literal">APACI_ARGS</tt>. For example:</p>
+
+<blockquote><pre class="code">APACI_ARGS='--sbindir=/home/stas/apache/sbin  \
+    --sysconfdir=/home/stas/apache/conf       \
+    --logfiledir=/home/stas/apache/logs'</pre></blockquote>
+
+<p>Note that the above multiline splitting will work only with
+Bourne-style shells. C-style shell users will have to list all the
+parameters on a single line.</p>
+
+<p>Basically, the installation is complete. The only remaining problem
+is the <tt class="literal">@INC</tt><a name="pmodperl-CHP-3-ITERM-3768" /><a name="pmodperl-CHP-3-ITERM-3769" /> variable. This
+won't be correctly set if you rely on the
+<tt class="literal">PERL5LIB</tt> environment variable unless you set it
+explicitly in a startup file that is required before loading any
+other module that resides in your local repository. A much nicer
+approach is to use the <tt class="literal">lib</tt> pragma, as we saw
+before, but in a slightly different way&#8212;we use it in the
+startup file and it affects all the code that will be executed under
+mod_perl handlers. For example:</p>
+
+<blockquote><pre class="code">PerlRequire /home/stas/apache/perl/startup.pl</pre></blockquote>
+
+<p>where <em class="emphasis">startup.pl</em> starts with:</p>
+
+<blockquote><pre class="code">use lib qw(/home/stas/lib/perl5/5.6.1/
+           /home/stas/lib/perl5/site_perl/5.6.1
+           /home/stas/lib/perl5/site_perl
+);</pre></blockquote>
+
+<p>Note that you can still use the hardcoded <tt class="literal">@INC</tt>
+modifications in the scripts themselves, but be aware that scripts
+modify <tt class="literal">@INC</tt> in <tt class="literal">BEGIN</tt> blocks and
+mod_perl executes the <tt class="literal">BEGIN</tt> blocks only when it
+performs script compilation. As a result, <tt class="literal">@INC</tt>
+will be reset to its original value after the scripts are compiled,
+and the hardcoded settings will be forgotten.</p>
+
+<p>The only time you can alter the
+"original" value is during the
+server configuration stage, either in the startup file or by putting
+the following line in <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlSetEnv Perl5LIB \
+/home/stas/lib/perl5/5.6.1/:/home/stas/lib/perl5/site_perl/5.6.1</pre></blockquote>
+
+<p>But the latter setting will be ignored if you use the
+<tt class="literal">PerlTaintcheck</tt>setting, and we hope you do use it.
+See the <em class="emphasis">perlrun</em> manpage for more information.</p>
+
+<p>The rest of the mod_perl configuration can be done just as if you
+were installing mod_perl as <em class="emphasis">root</em>.</p>
+
+<a name="pmodperl-CHP-3-SIDEBAR-7" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Resource Usage</h4>
+
+<p>Another important
+<a name="pmodperl-CHP-3-ITERM-3770" /><a name="pmodperl-CHP-3-ITERM-3771" /><a name="pmodperl-CHP-3-ITERM-3772" />thing to keep in mind is the
+consumption of system resources. mod_perl is memory-hungry. If you
+run a lot of mod_perl processes on a public, multiuser machine, most
+likely the system administrator of this machine will ask you to use
+fewer resources and may even shut down your mod_perl server and ask
+you to find another home for it. You have a few options:</p>
+
+<ul><li>
+<p>Reduce resource usage as explained in <a href="ch21_01.html">Chapter 21</a>.</p>
+</li>
+<li>
+<p>Ask your ISP's system administrator whether she can
+set up a dedicated machine for you, so that you will be able to
+install as much memory as you need. If you get a dedicated machine,
+chances are that you will want to have <em class="emphasis">root</em>
+access, so you may be able to manage the administration yourself. You
+should also make sure the system administrator is responsible for a
+reliable electricity supply and a reliable network link. The system
+administrator should also make sure that the important security
+patches get applied and the machine is configured to be secure (not
+to mention having the machine physically protected, so no one will
+turn off the power or break it).</p>
+</li>
+<li>
+<p>The best solution might be to look for another ISP with lots of
+resources or one that supports mod_perl. You can find a list of these
+ISPs at <a href="http://perl.apache.org/">http://perl.apache.org/</a>.</p>
+</li></ul></td></tr></table><p></blockquote>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-9.6" /><div class="sect2">
+<h3 class="sect2">3.9.6. Nonstandard mod_perl-Enabled Apache Installation with CPAN.pm</h3>
+
+<p>Again, CPAN <a name="pmodperl-CHP-3-ITERM-3773" /><a name="pmodperl-CHP-3-ITERM-3774" /><a name="pmodperl-CHP-3-ITERM-3775" />makes installation and upgrades
+simpler. You have seen how to install a mod_perl-enabled server using
+<tt class="literal">CPAN.pm</tt>'s interactive shell. You
+have seen how to install Perl modules and Apache locally. Now all you
+have to do is to merge these techniques.</p>
+
+<p>Assuming that you have configured <tt class="literal">CPAN.pm</tt> to
+install Perl modules locally, the installation is very simple. Start
+the CPAN shell, set the arguments to be passed to <em class="emphasis">perl
+Makefile.PL</em> (modify the example setting to suit your
+needs), and tell <tt class="literal">CPAN.pm</tt> to do the rest for you:</p>
+
+<blockquote><pre class="code">panic% perl -MCPAN -eshell
+cpan&gt; o conf makepl_arg 'DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+      PREFIX=/home/stas APACHE_PREFIX=/home/stas/apache'
+cpan&gt; install mod_perl</pre></blockquote>
+
+<p>When you use <tt class="literal">CPAN.pm</tt> for local installation, you
+need to make sure that the value of <tt class="literal">makepl_arg</tt> is
+restored to its original value after the mod_perl installation is
+complete, because if you install other Perl modules you probably
+don't want to pass mod_perl flags to them. The
+simplest way to do this is to quit the interactive shell and then
+re-enter it. There is another way to do it without quitting, but
+it's very cumbersome&#8212;if you want to learn
+about the other option, refer to the <tt class="literal">CPAN.pm</tt>
+manpage.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch03_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">3.8. Installing mod_perl on Multiple Machines</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">3.10. How Can I Tell if mod_perl Is Running?</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

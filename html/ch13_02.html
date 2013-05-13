@@ -1,0 +1,251 @@
+<html><head><title>Apache::args Versus Apache::Request::param Versus CGI::param (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch13_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">13.2. Apache::args Versus Apache::Request::param Versus CGI::param</h2>
+
+<p><tt class="literal">Apache::args</tt>, <a name="pmodperl-CHP-13-ITERM-5086" /><a name="pmodperl-CHP-13-ITERM-5087" /><tt class="literal">Apache::Request::param</tt><a name="pmodperl-CHP-13-ITERM-5088" />, and
+<tt class="literal">CGI::param</tt> are the three most common ways to
+process input
+<a name="pmodperl-CHP-13-ITERM-5089" />arguments
+in mod_perl <a name="pmodperl-CHP-13-ITERM-5090" />handlers and
+<a name="pmodperl-CHP-13-ITERM-5091" />scripts. Let's
+write three <tt class="literal">Apache::Registry</tt>scripts that use
+<tt class="literal">Apache::args</tt>,
+<tt class="literal">Apache::Request::param</tt>, and
+<tt class="literal">CGI::param</tt> to process a form's
+input and print it out. Notice that <tt class="literal">Apache::args</tt>
+is considered identical to <tt class="literal">Apache::Request::param</tt>
+only when you have single-valued keys. In the case of multi-valued
+keys (e.g., when using checkbox groups), you will have to write some
+extra code. If you do a simple:</p>
+
+<blockquote><pre class="code">my %params = $r-&gt;args;</pre></blockquote>
+
+<p>only the last value will be stored and the rest will collapse,
+because that's what happens when you turn a list
+into a hash. Assuming that you have the following list:</p>
+
+<blockquote><pre class="code">(rules =&gt; 'Apache', rules =&gt; 'Perl', rules =&gt; 'mod_perl')</pre></blockquote>
+
+<p>and assign it to a hash, the following happens:</p>
+
+<blockquote><pre class="code">$hash{rules} = 'Apache';
+$hash{rules} = 'Perl';
+$hash{rules} = 'mod_perl';</pre></blockquote>
+
+<p>So at the end only the following pair will get stored:</p>
+
+<blockquote><pre class="code">rules =&gt; 'mod_perl'</pre></blockquote>
+
+<p>With <tt class="literal">CGI.pm</tt> or <tt class="literal">Apache::Request</tt>,
+you can solve this by extracting the whole list by its key:</p>
+
+<blockquote><pre class="code">my @values = $q-&gt;param('rules');</pre></blockquote>
+
+<p>In addition, <tt class="literal">Apache::Request</tt> and
+<tt class="literal">CGI.pm</tt> have many more functions that ease input
+processing, such as handling file uploads. However,
+<tt class="literal">Apache::Request</tt> is theoretically much faster,
+since its guts are implemented in C, glued to Perl using XS code.</p>
+
+<p>Assuming that the only functionality you need is the parsing of
+<a name="pmodperl-CHP-13-ITERM-5092" /><a name="pmodperl-CHP-13-ITERM-5093" />key-value pairs, and assuming
+that every key has a single value, we will compare the almost
+identical scripts in Examples 13-3, 13-4, and 13-5 by trying to pass
+various query strings.</p>
+
+<a name="pmodperl-CHP-13-EX-3" /><div class="example">
+<h4 class="objtitle">Example 13-3. processing_with_apache_args.pl</h4>
+<blockquote><pre class="code">use strict;
+my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+my %args = $r-&gt;args;
+print join "\n", map {"$_ =&gt; $args{$_}" } keys %args;</pre></blockquote>
+</div>
+
+<a name="pmodperl-CHP-13-EX-4" /><div class="example">
+<h4 class="objtitle">Example 13-4. processing_with_apache_request.pl</h4>
+<blockquote><pre class="code">use strict;
+use Apache::Request ( );
+my $r = shift;
+my $q = Apache::Request-&gt;new($r);
+$r-&gt;send_http_header('text/plain');
+
+my %args = map {$_ =&gt; $q-&gt;param($_) } $q-&gt;param;
+print join "\n", map {"$_ =&gt; $args{$_}" } keys %args;</pre></blockquote>
+</div>
+
+<a name="pmodperl-CHP-13-EX-5" /><div class="example">
+<h4 class="objtitle">Example 13-5. processing_with_cgi_pm.pl</h4>
+<blockquote><pre class="code">use strict;
+use CGI;
+my $r = shift;
+my $q = new CGI;
+$r-&gt;send_http_header('text/plain');
+
+my %args = map {$_ =&gt; $q-&gt;param($_) } $q-&gt;param;
+print join "\n", map {"$_ =&gt; $args{$_}" } keys %args;</pre></blockquote>
+</div>
+
+<p>All three scripts and the modules they use are preloaded at server
+startup in
+<em class="emphasis">startup.pl</em><a name="pmodperl-CHP-13-ITERM-5094" />:</p>
+
+<blockquote><pre class="code">use Apache::RegistryLoader ( );
+use CGI ( );
+CGI-&gt;compile('param');
+use Apache::Request ( );
+
+# Preload registry scripts
+Apache::RegistryLoader-&gt;new-&gt;handler(
+                          "/perl/processing_with_cgi_pm.pl",
+               "/home/httpd/perl/processing_with_cgi_pm.pl"
+                  );
+Apache::RegistryLoader-&gt;new-&gt;handler(
+                          "/perl/processing_with_apache_request.pl",
+               "/home/httpd/perl/processing_with_apache_request.pl"
+                  );
+Apache::RegistryLoader-&gt;new-&gt;handler(
+                          "/perl/processing_with_apache_args.pl",
+               "/home/httpd/perl/processing_with_apache_args.pl"
+                  );
+1;</pre></blockquote>
+
+<p>We use four different query strings, generated by:</p>
+
+<blockquote><pre class="code">my @queries = (
+    join("&amp;", map {"$_=" . 'e' x 10}  ('a'..'b')),
+    join("&amp;", map {"$_=" . 'e' x 50}  ('a'..'b')),
+    join("&amp;", map {"$_=" . 'e' x 5 }  ('a'..'z')),
+    join("&amp;", map {"$_=" . 'e' x 10}  ('a'..'z')),
+);</pre></blockquote>
+
+<p>The first string is:</p>
+
+<blockquote><pre class="code">a=eeeeeeeeee&amp;b=eeeeeeeeee</pre></blockquote>
+
+<p>which is 25 characters in length and consists of two key/value pairs.
+The second string is also made of two key/value pairs, but the values
+are 50 characters long (a total of 105 characters). The third and
+fourth strings are each made from 26 key/value pairs, with value
+lengths of 5 and 10 characters respectively and total lengths of 207
+and 337 characters respectively. The <tt class="literal">query_len</tt>
+column in the report table is one of these four total lengths.</p>
+
+<p>We conduct the
+<a name="pmodperl-CHP-13-ITERM-5095" />benchmark with a
+concurrency level of 50 and generate 5,000 requests for each test.
+The results are:</p>
+
+<blockquote><pre class="code">---------------------------------------------
+name   val_len pairs query_len |  avtime  rps
+---------------------------------------------
+apreq     10      2       25   |    51    945
+apreq     50      2      105   |    53    907
+r_args    50      2      105   |    53    906
+r_args    10      2       25   |    53    899
+apreq      5     26      207   |    64    754
+apreq     10     26      337   |    65    742
+r_args     5     26      207   |    73    665
+r_args    10     26      337   |    74    657
+cgi_pm    50      2      105   |    85    573
+cgi_pm    10      2       25   |    87    559
+cgi_pm     5     26      207   |   188    263
+cgi_pm    10     26      337   |   188    262
+---------------------------------------------</pre></blockquote>
+
+<p>where <tt class="literal">apreq</tt>stands for
+<tt class="literal">Apache::Request::param( )</tt>,
+<tt class="literal">r_args</tt>stands for <tt class="literal">Apache::args(
+)</tt> or <tt class="literal">$r-&gt;args( )</tt>, and
+<tt class="literal">cgi_pm</tt>stands for <tt class="literal">CGI::param(
+)</tt>.</p>
+
+<p>You can see that <tt class="literal">Apache::Request::param</tt> and
+<tt class="literal">Apache::args</tt> have similar performance with a few
+key/value pairs, but the former is faster with many key/value pairs.
+<tt class="literal">CGI::param</tt> is significantly slower than the other
+two methods.</p>
+
+<p>These results also suggest that the processing gets progressively
+slower as the number of key/value pairs grows, but longer lengths of
+the key/value pairs have less of a slowdown impact. To verify that,
+let's use the
+<tt class="literal">Apache::Request::param</tt> method and first test
+several query strings made of five key/value pairs with value lengths
+growing from 10 characters to 60 in steps of 10:</p>
+
+<blockquote><pre class="code">my @strings = map {'e' x (10*$_)} 1..6;
+my @ae = ('a'..'e');
+my @queries = ( );
+for my $string (@strings) {
+    push @queries, join "&amp;", map {"$_=$string"} @ae;
+}</pre></blockquote>
+
+<p>The results are:</p>
+
+<blockquote><pre class="code">-----------------------------------
+val_len query_len    |  avtime  rps
+-----------------------------------
+  10       77        |    55    877
+  20      197        |    55    867
+  30      257        |    56    859
+  40      137        |    56    858
+  50      317        |    56    857
+  60      377        |    58    828
+-----------------------------------</pre></blockquote>
+
+<p>Indeed, the length of the value influences the speed very little, as
+we can see that the average processing time almost
+doesn't change as the length of the value grows.</p>
+
+<p>Now let's use a fixed value length of 10 characters
+and test with a varying number of key/value pairs, from 2 to 26 in
+steps of 5:</p>
+
+<blockquote><pre class="code">my @az = ('a'..'z');
+my @queries = map { join("&amp;", map {"$_=" . 'e' x 10 } @az[0..$_]) } 
+    (1, 5, 10, 15, 20, 25);</pre></blockquote>
+
+<p>The results are:</p>
+
+<blockquote><pre class="code">-------------------------------
+pairs  query_len |  avtime  rps
+-------------------------------
+  2       25     |    53    906
+  6       77     |    55    869
+ 12      142     |    57    838
+ 16      207     |    61    785
+ 21      272     |    64    754
+ 26      337     |    66    726
+-------------------------------</pre></blockquote>
+
+<p>Now by looking at the average processing time column, we can see that
+the number of key/value pairs makes a significant impact on
+processing <a name="pmodperl-CHP-13-ITERM-5096" /><a name="pmodperl-CHP-13-ITERM-5097" /><a name="pmodperl-CHP-13-ITERM-5098" />speed.</p>
+
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch13_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch13_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">13. TMTOWTDI: Convenience and Habit Versus Performance</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">13.3. Buffered Printing and Better print( ) Techniques</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

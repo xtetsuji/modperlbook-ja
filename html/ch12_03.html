@@ -1,0 +1,390 @@
+<html><head><title>One Plain and One mod_perl-Enabled Apache Server (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch12_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">12.3. One Plain and One mod_perl-Enabled Apache Server</h2>
+
+<p>As mentioned<a name="pmodperl-CHP-12-ITERM-4928" /><a name="pmodperl-CHP-12-ITERM-4929" /><a name="pmodperl-CHP-12-ITERM-4930" /><a name="pmodperl-CHP-12-ITERM-4931" /> earlier, when running scripts
+under mod_perl you will notice that the <em class="emphasis">httpd</em>
+processes consume a huge amount of virtual memory&#8212;from 5 MB-15
+MB, and sometimes even more. That is the price you pay for the
+enormous speed improvements under mod_perl, mainly because the code
+is compiled once and needs to be cached for later reuse. But in fact
+less memory is used if memory sharing takes place. <a href="ch14_01.html">Chapter 14</a> covers this issue extensively.</p>
+
+<p>Using these large processes to serve <a name="pmodperl-CHP-12-ITERM-4932" />static objects such as images
+and HTML documents is overkill. A better approach is to run two
+servers: a very light, plain Apache server to serve static objects
+and a heavier, mod_perl-enabled Apache server to serve requests for
+dynamically generated objects. From here on, we will refer to these
+two servers as <em class="emphasis">httpd_docs</em> (vanilla Apache) and
+<em class="emphasis">httpd_perl</em> (mod_perl-enabled Apache). This
+approach is depicted in <a href="ch12_03.html#pmodperl-CHP-12-FIG-2">Figure 12-2</a>.</p>
+
+<a name="pmodperl-CHP-12-FIG-2" /><div class="figure"><img src="figs/pmp_1202.gif" alt="Figure 12-2" width="389" /></div><h4 class="objtitle">Figure 12-2. Standalone and mod_perl-enabled Apache servers</h4>
+
+<p>The advantages of this setup are:</p>
+
+<ul><li>
+<p>The heavy mod_perl processes serve only dynamic requests, so fewer of
+these large servers are deployed.</p>
+</li><li>
+<p><tt class="literal">MaxClients</tt>,
+<tt class="literal">MaxRequestsPerChild</tt>, and related parameters can
+now be optimally tuned for both the <em class="emphasis">httpd_docs</em>
+and <em class="emphasis">httpd_perl</em> servers (something we could not
+do before). This allows us to fine-tune the memory usage and get
+better server performance.</p>
+
+<p>Now we can run many lightweight <em class="emphasis">httpd_docs</em>
+servers and just a few heavy <em class="emphasis">httpd_perl</em> servers.</p>
+</li></ul>
+<p>The disadvantages are:</p>
+
+<ul><li>
+<p>The need for two configuration files, two sets of controlling scripts
+(startup/shutdown), and watchdogs.</p>
+</li><li>
+<p>If you are processing log files, you will probably have to merge the
+two separate log files into one before processing them.</p>
+</li><li>
+<p>Just as in the one-server approach, we still have the problem of a
+mod_perl process spending its precious time serving slow clients when
+the processing portion of the request was completed a long time ago.
+(Deploying a proxy, covered in the next section, solves this
+problem.)</p>
+
+<p>As with the single-server approach, this is not a major disadvantage
+if you are on a fast network (i.e., an Intranet). It is likely that
+you do not want a buffering server in this case.</p>
+</li></ul>
+<p>Note that when a user browses static pages and the base URL in the
+browser's location window points to the static
+server (for example
+<em class="emphasis">http://www.example.com/index.html</em>), all relative
+URLs (e.g., <tt class="literal">&lt;a href="/main/download.html"&gt;</tt>)
+are being served by the plain Apache server. But this is not the case
+with dynamically generated pages. For example, when the base URL in
+the location window points to the dynamic server (e.g.,
+<em class="emphasis">http://www.example.com:8000/perl/index.pl</em>), all
+relative URLs in the dynamically generated HTML will be served by
+heavy mod_perl processes.</p>
+
+<p>You must use <a name="pmodperl-CHP-12-ITERM-4933" /><a name="pmodperl-CHP-12-ITERM-4934" />fully qualified URLs, not relative
+ones. <em class="emphasis">http://www.example.com/icons/arrow.gif</em> is
+a full URL, while <em class="emphasis">/icons/arrow.gif</em> is a relative
+one. Using <tt class="literal">&lt;base</tt>
+<tt class="literal">href="http://www.example.com/"&gt;</tt> in the
+generated HTML is another way to handle this problem. Also, the
+<em class="emphasis">httpd_perl</em> server could rewrite the requests
+back to <em class="emphasis">httpd_docs</em> (much slower) and you still
+need the attention of the heavy servers.</p>
+
+<p>This is not an issue if you hide the internal port implementations,
+so the client sees only one server running on port 80, as explained
+later in this chapter.</p>
+
+<a name="pmodperl-CHP-12-SECT-3.1" /><div class="sect2">
+<h3 class="sect2">12.3.1. Choosing the Target Installation Directories Layout</h3>
+
+<p>If you're going
+<a name="pmodperl-CHP-12-ITERM-4935" /><a name="pmodperl-CHP-12-ITERM-4936" /><a name="pmodperl-CHP-12-ITERM-4937" />to run two Apache servers,
+you'll need two complete (and different) sets of
+configuration, log, and other files. In this scenario
+we'll use a dedicated root directory for each
+server, which is a personal choice. You can choose to have both
+servers living under the same root, but this may cause problems since
+it requires a slightly more complicated configuration. This decision
+would allow you to share some directories, such as
+<em class="emphasis">include</em> (which contains Apache headers), but
+this can become a problem later, if you decide to upgrade one server
+but not the other. You will have to solve the problem then, so why
+not avoid it in the first place?</p>
+
+<p>First let's prepare the sources. We will assume that
+all the sources go into the <em class="emphasis">/home/stas/src</em>
+directory. Since you will probably want to tune each copy of Apache
+separately, it is better to use two separate copies of the Apache
+source for this configuration. For example, you might want only the
+<em class="emphasis">httpd_docs</em> server to be built with the
+mod_rewrite module.</p>
+
+<p>Having two independent source trees will prove helpful unless you use
+dynamically shared objects (covered later in this chapter).</p>
+
+<p>Make two subdirectories:</p>
+
+<blockquote><pre class="code">panic% mkdir /home/stas/src/httpd_docs
+panic% mkdir /home/stas/src/httpd_perl</pre></blockquote>
+
+<p>Next, put the Apache source into the
+<em class="emphasis">/home/stas/src/httpd_docs</em> directory (replace
+<em class="emphasis">1.3.x</em> with the version of Apache that you have
+downloaded):</p>
+
+<blockquote><pre class="code">panic% cd /home/stas/src/httpd_docs
+panic% tar xvzf ~/src/apache_1.3.x.tar.gz</pre></blockquote>
+
+<p>Now prepare the <em class="emphasis">httpd_perl</em> server sources:</p>
+
+<blockquote><pre class="code">panic% cd /home/stas/src/httpd_perl
+panic% tar xvzf ~/src/apache_1.3.x.tar.gz
+panic% tar xvzf ~/src/modperl-1.xx.tar.gz
+
+panic% ls -l
+drwxr-xr-x  8 stas  stas 2048 Apr 29 17:38 apache_1.3.x/
+drwxr-xr-x  8 stas  stas 2048 Apr 29 17:38 modperl-1.xx/</pre></blockquote>
+
+<p>We are going to use a default Apache directory layout and place each
+server directory under its dedicated directory. The two directories
+are:</p>
+
+<blockquote><pre class="code">/home/httpd/httpd_perl/
+/home/httpd/httpd_docs/</pre></blockquote>
+
+<p>We are using the user <em class="emphasis">httpd</em>, belonging to the
+group <em class="emphasis">httpd</em>, for the web server. If you
+don't have this user and group created yet, add them
+and make sure you have the correct permissions to be able to work in
+the <em class="emphasis">/home/httpd</em> directory.</p>
+
+</div>
+<a name="pmodperl-CHP-12-SECT-3.2" /><div class="sect2">
+<h3 class="sect2">12.3.2. Configuration and Compilation of the Sources</h3>
+
+<p>Now we<a name="pmodperl-CHP-12-ITERM-4938" /><a name="pmodperl-CHP-12-ITERM-4939" /><a name="pmodperl-CHP-12-ITERM-4940" />
+proceed to configure and compile the sources using the directory
+layout we have just described.</p>
+
+<a name="pmodperl-CHP-12-SECT-3.2.1" /><div class="sect3">
+<h3 class="sect3">12.3.2.1. Building the httpd_docs server</h3>
+
+<p>The first <a name="pmodperl-CHP-12-ITERM-4941" /><a name="pmodperl-CHP-12-ITERM-4942" />step
+is to configure the source:</p>
+
+<blockquote><pre class="code">panic% cd /home/stas/src/httpd_docs/apache_1.3.x
+panic%  ./configure --prefix=/home/httpd/httpd_docs \
+    --enable-module=rewrite --enable-module=proxy</pre></blockquote>
+
+<p>We need the mod_rewrite and mod_proxy modules, as we will see later,
+so we tell <em class="emphasis">./configure</em> to build them in.</p>
+
+<p>You might also want to add <em class="emphasis">&#8212;layout</em>, to see
+the resulting directories' layout without actually
+running the configuration process.</p>
+
+<p>Next, compile and install the source:</p>
+
+<blockquote><pre class="code">panic% make
+panic# make install</pre></blockquote>
+
+<p>Rename <em class="emphasis">httpd</em> to <em class="emphasis">httpd_docs</em>:</p>
+
+<blockquote><pre class="code">panic% mv /home/httpd/httpd_docs/bin/httpd \
+    /home/httpd/httpd_docs/bin/httpd_docs</pre></blockquote>
+
+<p>Now modify the <em class="emphasis">apachectl</em> utility to point to the
+renamed <em class="emphasis">httpd</em> via your favorite text editor or
+by using Perl:</p>
+
+<blockquote><pre class="code">panic% perl -pi -e 's|bin/httpd|bin/httpd_docs|' \
+    /home/httpd/httpd_docs/bin/apachectl</pre></blockquote>
+
+<p>Another approach would be to use the
+<em class="emphasis">&#8212;target</em> option while configuring the
+source, which makes the last two commands unnecessary.</p>
+
+<blockquote><pre class="code">panic% ./configure --prefix=/home/httpd/httpd_docs \
+    --target=httpd_docs \
+    --enable-module=rewrite --enable-module=proxy
+panic% make
+panic# make install</pre></blockquote>
+
+<p>Since we told <em class="emphasis">./configure</em> that we want the
+executable to be called <em class="emphasis">httpd_docs</em> (via
+<em class="emphasis">&#8212;target=httpd_docs</em>), it performs all the
+naming adjustments for us.</p>
+
+<p>The only thing that you might find unusual is that
+<em class="emphasis">apachectl</em> will now be called
+<em class="emphasis">httpd_docsctl</em> and the configuration file
+<em class="emphasis">httpd.conf</em> will now be called
+<em class="emphasis">httpd_docs.conf</em>.</p>
+
+<p>We will leave the decision making about the preferred configuration
+and installation method to the reader. In the rest of this guide we
+will continue using the regular names that result from using the
+standard configuration and the manual executable name adjustment, as
+described at the beginning of this section.</p>
+
+</div>
+
+<a name="pmodperl-CHP-12-SECT-3.2.2" /><div class="sect3">
+<h3 class="sect3">12.3.2.2. Building the httpd_perl server</h3>
+
+<p>Now we<a name="pmodperl-CHP-12-ITERM-4943" /><a name="pmodperl-CHP-12-ITERM-4944" />
+proceed with the source configuration and installation of the
+<em class="emphasis">httpd_perl</em> server.</p>
+
+<blockquote><pre class="code">panic% cd /home/stas/src/httpd_perl/mod_perl-1.xx
+
+panic% perl Makefile.PL \
+    APACHE_SRC=../apache_1.3.x/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+    APACHE_PREFIX=/home/httpd/httpd_perl \
+    APACI_ARGS='--prefix=/home/httpd/httpd_perl'</pre></blockquote>
+
+<p>If you need to pass any other configuration options to
+Apache's <em class="emphasis">./configure</em>, add them
+after the <em class="emphasis">&#8212;prefix</em> option. For example:</p>
+
+<blockquote><pre class="code">APACI_ARGS='--prefix=/home/httpd/httpd_perl \
+            --enable-module=status'</pre></blockquote>
+
+<p>Notice that just like in the <em class="emphasis">httpd_docs</em>
+configuration, you can use
+<em class="emphasis">&#8212;target=httpd_perl</em>. Note that this option
+has to be the very last argument in <tt class="literal">APACI_ARGS</tt>;
+otherwise <em class="emphasis">make test</em> tries to run
+<em class="emphasis">httpd_perl</em>, which fails.</p>
+
+<p>Now build, test, and install <em class="emphasis">httpd_perl</em>.</p>
+
+<blockquote><pre class="code">panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+<p>Upon installation, Apache puts a stripped version of
+<em class="emphasis">httpd</em> at
+<em class="emphasis">/home/httpd/httpd_perl/bin/httpd</em>. The original
+version, which includes debugging symbols (if you need to run a
+debugger on this executable), is located at
+<em class="emphasis">/home/stas/src/httpd_perl/apache_1.3.x/src/httpd</em>.</p>
+
+<p>Now rename <em class="emphasis">httpd</em> to
+<em class="emphasis">httpd_perl</em>:</p>
+
+<blockquote><pre class="code">panic% mv /home/httpd/httpd_perl/bin/httpd \
+    /home/httpd/httpd_perl/bin/httpd_perl</pre></blockquote>
+
+<p>and update the <em class="emphasis">apachectl</em> utility to drive the
+renamed <em class="emphasis">httpd</em>:</p>
+
+<blockquote><pre class="code">panic% perl -p -i -e 's|bin/httpd|bin/httpd_perl|' \
+    /home/httpd/httpd_perl/bin/apachectl</pre></blockquote>
+
+</div>
+</div>
+<a name="pmodperl-CHP-12-SECT-3.3" /><div class="sect2">
+<h3 class="sect2">12.3.3. Configuration of the Servers</h3>
+
+<p>When we<a name="pmodperl-CHP-12-ITERM-4945" /><a name="pmodperl-CHP-12-ITERM-4946" />
+have completed the build process, the last stage before running the
+servers is to configure them.</p>
+
+<a name="pmodperl-CHP-12-SECT-3.3.1" /><div class="sect3">
+<h3 class="sect3">12.3.3.1. Basic httpd_docs server configuration</h3>
+
+<p>Configuring <a name="pmodperl-CHP-12-ITERM-4947" /><a name="pmodperl-CHP-12-ITERM-4948" />the
+<em class="emphasis">httpd_docs</em> server is a very easy task. Open
+<em class="emphasis">/home/httpd/httpd_docs/conf/httpd.conf</em> in your
+favorite text editor and configure it as you usually would.</p>
+
+<p>Now you can start the server with:</p>
+
+<blockquote><pre class="code">/home/httpd/httpd_docs/bin/apachectl start</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-12-SECT-3.3.2" /><div class="sect3">
+<h3 class="sect3">12.3.3.2. Basic httpd_perl server configuration</h3>
+
+<p>Now we<a name="pmodperl-CHP-12-ITERM-4949" /><a name="pmodperl-CHP-12-ITERM-4950" />
+edit the <em class="emphasis">/home/httpd/httpd_perl/conf/httpd.conf</em>
+file. The first thing to do is to set a <tt class="literal">Port</tt>
+directive&#8212;it should be different from that used by the plain
+Apache server (<tt class="literal">Port 80</tt>), since we cannot bind two
+servers to the same port number on the same IP address. Here we will
+use 8000. Some developers use port 81, but you can bind to ports
+below 1024 only if the server has <em class="emphasis">root</em>
+permissions. Also, if you are running on a multiuser machine, there
+is a chance that someone already uses that port, or will start using
+it in the future, which could cause problems. If you are the only
+user on your machine, you can pick any unused port number, but be
+aware that many organizations use firewalls that may block some of
+the ports, so port number choice can be a controversial topic.
+Popular port numbers include 80, 81, 8000, and 8080. In a two-server
+scenario, you can hide the nonstandard port number from firewalls and
+users by using either mod_proxy's
+<tt class="literal">ProxyPass</tt> directive or a proxy server such as
+Squid.</p>
+
+<p>Now we proceed to the mod_perl-specific directives.
+It's a good idea to add them all at the end of
+<em class="emphasis">httpd.conf</em>, since you are going to fiddle with
+them a lot in the early stages.</p>
+
+<p>First, you need to specify where all the mod_perl scripts will be
+located. Add the following configuration directive:</p>
+
+<blockquote><pre class="code"># mod_perl scripts will be called from
+Alias /perl /home/httpd/httpd_perl/perl</pre></blockquote>
+
+<p>From now on, all requests for URIs starting with
+<em class="emphasis">/perl</em> will be executed under mod_perl and will
+be mapped to the files in the directory
+<em class="emphasis">/home/httpd/httpd_perl/perl</em>.</p>
+
+<p>Now configure the <em class="emphasis">/perl</em> location:</p>
+
+<blockquote><pre class="code">PerlModule Apache::Registry
+
+&lt;Location /perl&gt;
+    #AllowOverride None
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options ExecCGI
+    PerlSendHeader On
+    Allow from all
+&lt;/Location&gt;</pre></blockquote>
+
+<p>This configuration causes any script that is called with a path
+prefixed with <em class="emphasis">/perl</em> to be executed under the
+<tt class="literal">Apache::Registry</tt> module and as a CGI script (hence
+the <tt class="literal">ExecCGI</tt>&#8212;if you omit this option, the
+script will be printed to the user's browser as
+plain text or will possibly trigger a "Save
+As" window).</p>
+
+<p>This is only a very basic configuration. <a href="ch04_01.html">Chapter 4</a>
+covers the rest of the details.</p>
+
+<p>Once the configuration is complete, it's a time to
+start the server with:</p>
+
+<blockquote><pre class="code">/home/httpd/httpd_perl/bin/apachectl start</pre></blockquote>
+
+</div>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch12_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch12_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">12.2. Standalone mod_perl-Enabled Apache Server</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">12.4. One Light Non-Apache and One mod_perl-Enabled Apache Server</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

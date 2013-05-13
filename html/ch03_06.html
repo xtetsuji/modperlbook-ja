@@ -1,0 +1,455 @@
+<html><head><title>Building mod_perl with Other Components (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch03_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">3.6. Building mod_perl with Other Components</h2>
+
+<p>mod_perl is often used with other components that plug into Apache,
+such as PHP and SSL. In this section, we'll show you
+a build combining mod_perl with PHP. We'll also show
+how to build a secure version of Apache with mod_perl support using
+each of the SSL options available for Apache today (mod_ssl,
+Apache-SSL, Stronghold, and Covalent).</p>
+
+<p>Since you now understand how the build process works,
+we'll present these scenarios without much
+explanation (unless they involve something we
+haven't discussed yet).</p>
+
+<p>All these scenarios were tested on a Linux platform. You might need
+to refer to the specific component's documentation
+if something doesn't work for you as described here.
+The intention of this section is not to show you how to install other
+non-mod_perl components alone, but how to do this in a bundle with
+mod_perl.</p>
+
+<p>Also, notice that the links we've used are very
+likely to have changed by the time you read this document.
+That's why we have used the
+<em class="emphasis">x.xx</em> convention instead of using hardcoded
+version numbers. Remember to replace the <em class="emphasis">x.xx</em>
+placeholders with the version numbers of the distributions you are
+going to use. To find out the latest stable version number, visit the
+components' sites&#8212;e.g., if we say
+<em class="emphasis">http://perl.apache.org/dist/mod_perl-1.xx.tar.gz</em>,
+go to <a href="http://perl.apache.org/download/">http://perl.apache.org/download/</a> to learn the
+version number of the latest stable release of mod_perl 1, and
+download the appropriate file.</p>
+
+<p>Unless otherwise noted, all the components install themselves into a
+default location. When you run <em class="emphasis">make install</em>, the
+installation program tells you where it's going to
+install the files.</p>
+
+<a name="pmodperl-CHP-3-SECT-6.1" /><div class="sect2">
+<h3 class="sect2">3.6.1. Installing mod_perl with PHP</h3>
+
+<p>The
+following<a name="pmodperl-CHP-3-ITERM-3682" /><a name="pmodperl-CHP-3-ITERM-3683" /><a name="pmodperl-CHP-3-ITERM-3684" /> is a simple installation
+scenario of a combination mod_perl and PHP build for the Apache
+server. We aren't going to use a custom installation
+directory, so Apache will use the default
+<em class="emphasis">/usr/local/apache</em> directory.</p>
+
+<ol><li>
+<p>Download the latest stable source releases:</p>
+
+<blockquote><pre class="code">Apache:   http://www.apache.org/dist/httpd/
+mod_perl: http://perl.apache.org/download/
+PHP:      http://www.php.net/downloads.php</pre></blockquote>
+
+</li><li>
+<p>Unpack them:</p>
+
+<blockquote><pre class="code">panic% tar xvzf mod_perl-1.xx
+panic% tar xvzf apache_1.3.xx.tar.gz
+panic% tar xvzf php-x.x.xx.tar.gz</pre></blockquote>
+
+</li><li>
+<p>Configure Apache:</p>
+
+<blockquote><pre class="code">panic% cd apache_1.3.xx
+panic% ./configure</pre></blockquote>
+
+</li><li>
+<p>Build mod_perl:</p>
+
+<blockquote><pre class="code">panic% cd ../mod_perl-1.xx
+panic% perl Makefile.PL APACHE_SRC=../apache_1.3.xx/src NO_HTTPD=1 \
+    USE_APACI=1 PREP_HTTPD=1 EVERYTHING=1
+panic% make</pre></blockquote>
+
+</li><li>
+<p>Build
+<a name="pmodperl-CHP-3-ITERM-3685" /><a name="pmodperl-CHP-3-ITERM-3686" />mod_php:</p>
+
+<blockquote><pre class="code">panic% cd ../php-x.x.xx
+panic% ./configure --with-apache=../apache_1.3.xx \
+    --with-mysql --enable-track-vars
+panic% make
+panic# make install</pre></blockquote>
+
+<p>(mod_php doesn't come with a <em class="emphasis">make
+test</em> suite, so we don't need to run one.)</p>
+</li><li>
+<p>Reconfigure Apache to use mod_perl and PHP, and then build it:</p>
+
+<blockquote><pre class="code">panic% cd ../apache_1.3.xx
+panic% ./configure \
+    --activate-module=src/modules/perl/libperl.a \
+    --activate-module=src/modules/php4/libphp4.a
+panic% make</pre></blockquote>
+
+<p>Note that if you are building PHP3, you should use
+<em class="emphasis">php3/libphp3.a</em>. Also remember that
+<em class="emphasis">libperl.a</em> and <em class="emphasis">libphp4.a</em> do
+not exist at this time. They will be generated during compilation.</p>
+</li><li>
+<p>Test and install mod_perl:</p>
+
+<blockquote><pre class="code">panic% cd ../mod_perl-1.xx
+panic% make test
+panic# make install</pre></blockquote>
+
+</li><li>
+<p>Complete the Apache installation:</p>
+
+<blockquote><pre class="code">panic# cd ../apache_1.3.xx
+panic# make install</pre></blockquote>
+</li>
+</ol>
+
+<p>Now when you start the server:</p>
+
+<blockquote><pre class="code">panic# /usr/local/apache/bin/apachectl start</pre></blockquote>
+
+<p>you should see something like this in
+<em class="emphasis">/usr/local/apache/logs/error_log</em>:</p>
+
+<blockquote><pre class="code">[Sat May 18 11:10:31 2002] [notice]
+Apache/1.3.24 (Unix) PHP/4.2.0 mod_perl/1.26
+configured -- resuming normal operations</pre></blockquote>
+
+<p>If you need to build mod_ssl as well, make sure that you add the
+mod_ssl component first (see the next section).</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-6.2" /><div class="sect2">
+<h3 class="sect2">3.6.2. Installing mod_perl with mod_ssl (+openssl)</h3>
+
+<p>mod_ssl provides
+<a name="pmodperl-CHP-3-ITERM-3687" /><a name="pmodperl-CHP-3-ITERM-3688" /><a name="pmodperl-CHP-3-ITERM-3689" />strong
+cryptography for the Apache 1.3 web server via the Secure Sockets
+Layer (SSL v2/v3) and Transport Layer Security (TLS v1) protocols.
+mod_ssl uses the open source SSL/TLS toolkit OpenSSL, which is based
+on SSLeay, by Eric A. Young and Tim J. Hudson. As in the previous
+installation scenario, the default installation directory is used in
+this example.</p>
+
+<ol><li>
+<p>Download the latest stable source releases. For mod_ssl, make sure
+that the version matches your version of Apache (e.g., get
+<em class="emphasis">mod_ssl-2.8.8-1.3.24.tar.gz</em> if you have Apache
+1.3.24).</p>
+
+<blockquote><pre class="code">Apache:   http://www.apache.org/dist/httpd/
+mod_perl: http://perl.apache.org/download/
+mod_ssl:  http://www.modssl.org/source/
+openssl:  http://www.openssl.org/source/</pre></blockquote>
+</li>
+<li>
+<p>Unpack the sources:</p>
+
+<blockquote><pre class="code">panic% tar xvzf mod_perl-1.xx.tar.gz
+panic% tar xvzf apache_1.3.xx.tar.gz
+panic% tar xvzf mod_ssl-x.x.x-1.3.xx.tar.gz
+panic% tar xvzf openssl-x.x.x.tar.gz</pre></blockquote>
+</li>
+<li>
+<p>Configure, build, test, and
+install<a name="pmodperl-CHP-3-ITERM-3690" /><a name="pmodperl-CHP-3-ITERM-3691" /><a name="pmodperl-CHP-3-ITERM-3692" /><a name="pmodperl-CHP-3-ITERM-3693" />
+<em class="emphasis">openssl</em> if it isn't already
+installed:</p>
+
+<blockquote><pre class="code">panic% cd openssl-x.x.x
+panic% ./config
+panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+<p>(If you already have the <em class="emphasis">openssl</em> development
+environment installed, you can skip this stage.)</p>
+</li><li>
+<p>Configure <tt class="literal">mod_ssl</tt>:</p>
+
+<blockquote><pre class="code">panic% cd mod_ssl-x.x.x-1.3.xx
+panic% ./configure --with-apache=../apache_1.3.xx</pre></blockquote>
+
+</li><li>
+<p>Configure, build, test, and install mod_perl:</p>
+
+<blockquote><pre class="code">panic% cd ../mod_perl-1.xx
+panic% perl Makefile.PL USE_APACI=1 EVERYTHING=1 \
+    DO_HTTPD=1 SSL_BASE=/usr/local/ssl \
+    APACHE_SRC=../apache_1.3.xx/src \
+    APACI_ARGS='--enable-module=ssl'
+panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+</li><li>
+<p>Create an SSL certificate and install Apache and certificate files:</p>
+
+<blockquote><pre class="code">panic% cd ../apache_1.3.xx
+panic% make certificate
+panic# make install</pre></blockquote>
+
+</li><li>
+<p>Now proceed with the mod_ssl and mod_perl parts of the server
+configuration in <em class="emphasis">httpd.conf</em>. The next chapter
+provides in-depth information about mod_perl configuration. For
+mod_ssl configuration, please refer to the mod_ssl documentation
+available from <a href="http://www.modssl.org/">http://www.modssl.org/</a>.</p>
+</li></ol>
+<p>Now when you start the server:</p>
+
+<blockquote><pre class="code">panic# /usr/local/apache/bin/apachectl startssl</pre></blockquote>
+
+<p>you should see something like this in
+<em class="emphasis">/usr/local/apache/logs/error_log</em>:</p>
+
+<blockquote><pre class="code">[Fri May 18 11:10:31 2001] [notice]
+Apache/1.3.24 (Unix) mod_perl/1.26 mod_ssl/2.8.8
+OpenSSL/0.9.6c configured -- resuming normal operations</pre></blockquote>
+
+<p>If you used the default configuration, the SSL part
+won't be loaded if you use <em class="emphasis">apachectl
+start</em> and not <em class="emphasis">apachectl startssl</em>.</p>
+
+<p>This scenario also demonstrates the fact that some third-party Apache
+modules can be added to Apache by just enabling them (as with
+mod_ssl), while others need to be separately configured and built (as
+with mod_perl and PHP).</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-6.3" /><div class="sect2">
+<h3 class="sect2">3.6.3. Installing mod_perl with Apache-SSL (+openssl)</h3>
+
+<p>Apache-SSL is
+<a name="pmodperl-CHP-3-ITERM-3694" /><a name="pmodperl-CHP-3-ITERM-3695" /><a name="pmodperl-CHP-3-ITERM-3696" />a secure
+web server based on Apache and SSLeay/OpenSSL. It is licensed under a
+BSD-style license, which means that you are free to use it for
+commercial or non-commercial purposes as long as you retain the
+copyright notices.</p>
+
+<p>Apache-SSL provides similar functionality to mod_ssl. mod_ssl is what
+is known as a <em class="emphasis">split</em>&#8212;i.e., it was
+originally derived from Apache-SSL but has been extensively
+redeveloped so the code now bears little relation to the original. We
+cannot advise you to use one over another&#8212;both work fine with
+mod_perl, so choose whichever you want. People argue about which one
+to use all the time, so if you are interested in the finer points,
+you may want to check the mailing list archives of the two projects
+(<a href="http://www.apache-ssl.org/#Mailing_List">http://www.apache-ssl.org/#Mailing_List</a> and
+<a href="http://www.modssl.org/support/">http://www.modssl.org/support/</a>).</p>
+
+<p>To install mod_perl with Apache-SSL:</p>
+
+<ol><li>
+<p>Download the sources. You'll need to have matching
+Apache-SSL and Apache versions.</p>
+
+<blockquote><pre class="code">Apache:     http://www.apache.org/dist/httpd/
+mod_perl:   http://perl.apache.org/download/
+openssl:    http://www.openssl.org/source/
+Apache-SSL: http://www.apache-ssl.org/#Download</pre></blockquote>
+
+</li><li>
+<p>Unpack the sources:</p>
+
+<blockquote><pre class="code">panic% tar xvzf mod_perl-1.xx
+panic% tar xvzf apache_1.3.xx.tar.gz
+panic% tar xvzf openssl-x.x.x.tar.gz</pre></blockquote>
+
+</li><li>
+<p>Configure and install <em class="emphasis">openssl</em>, if necessary:</p>
+
+<blockquote><pre class="code">panic% cd openssl-x.x.x
+panic% ./config
+panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+<p>If you already have the <em class="emphasis">openssl</em> development
+environment installed, you can skip this stage.</p>
+</li><li>
+<p>Apache-SSL comes as a patch to Apache sources. First unpack the
+Apache-SSL sources inside the Apache source tree and make sure that
+the Apache source is clean (in case you've used this
+source to build Apache before). Then run
+<em class="emphasis">./FixPatch</em> and answer <tt class="literal">y</tt> to
+proceed with the patching of Apache sources:</p>
+
+<blockquote><pre class="code">panic% cd apache_1.3.xx
+panic% make clean
+panic% tar xzvf ../apache_1.3.xx+ssl_x.xx.tar.gz
+panic% ./FixPatch
+Do you want me to apply the fixed-up Apache-SSL patch for you? [n] y</pre></blockquote>
+
+</li><li>
+<p>Proceed with mod_perl configuration. The notable addition to the
+usual configuration parameters is that we use the
+<tt class="literal">SSL_BASE</tt> parameter to point to the directory in
+which <em class="emphasis">openssl</em> is installed:</p>
+
+<blockquote><pre class="code">panic% cd ../mod_perl-1.xx
+panic% perl Makefile.PL USE_APACI=1 EVERYTHING=1 \
+    DO_HTTPD=1 SSL_BASE=/usr/local/ssl \
+    APACHE_SRC=../apache_1.3.xx/src</pre></blockquote>
+
+</li><li>
+<p>Build, test, and install mod_perl:</p>
+
+<blockquote><pre class="code">panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+</li><li>
+<p>Create an SSL certificate
+<a name="pmodperl-CHP-3-ITERM-3697" /><a name="pmodperl-CHP-3-ITERM-3698" />and install Apache
+and the certificate files:</p>
+
+<blockquote><pre class="code">panic# cd ../apache_1.3.xx
+panic# make certificate
+panic# make install</pre></blockquote>
+
+</li><li>
+<p>Now proceed with the configuration of the Apache-SSL and mod_perl
+parts of the server configuration files before starting the server.
+Refer to the Apache-SSL documentation to learn how to configure the
+SSL section of <em class="emphasis">httpd.conf</em>.</p>
+</li></ol>
+<p>Now start the server:</p>
+
+<blockquote><pre class="code">panic# /usr/local/apache/bin/httpsdctl start</pre></blockquote>
+
+<p>Note that by default, Apache-SSL uses <em class="emphasis">httpsdctl</em>
+instead of <em class="emphasis">apachectl</em>.</p>
+
+<p>You should see something like this in
+<em class="emphasis">/usr/local/apache/logs/httpsd_error_log</em>:</p>
+
+<blockquote><pre class="code">[Sat May 18 14:14:12 2002] [notice]
+Apache/1.3.24 (Unix) mod_perl/1.26 Ben-SSL/1.48 (Unix)
+configured -- resuming normal operations</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-6.4" /><div class="sect2">
+<h3 class="sect2">3.6.4. Installing mod_perl with Stronghold</h3>
+
+<p>Stronghold
+<a name="pmodperl-CHP-3-ITERM-3699" /><a name="pmodperl-CHP-3-ITERM-3700" /><a name="pmodperl-CHP-3-ITERM-3701" />is a
+secure<a name="pmodperl-CHP-3-ITERM-3702" /><a name="pmodperl-CHP-3-ITERM-3703" /> SSL web server for Unix that
+allows you to give your web site full-strength, 128-bit encryption.
+It's a commercial product provided by Red Hat. See
+<a href="http://www.redhat.com/software/apache/stronghold/">http://www.redhat.com/software/apache/stronghold/</a>
+for more information.</p>
+
+<p>To install Stronghold:</p>
+
+<ol><li>
+<p>First, build and install Stronghold without mod_perl, following
+Stronghold's installation procedure.</p>
+</li><li>
+<p>Having done that, download the mod_perl sources:</p>
+
+<blockquote><pre class="code">panic% lwp-download http://perl.apache.org/dist/mod_perl-1.xx.tar.gz</pre></blockquote>
+
+</li><li>
+<p>Unpack mod_perl:</p>
+
+<blockquote><pre class="code">panic% tar xvzf mod_perl-1.xx.tar.gz</pre></blockquote>
+
+</li><li>
+<p>Configure mod_perl with Stronghold (assuming that you have the
+Stronghold sources extracted to
+<em class="emphasis">/usr/local/stronghold</em>):</p>
+
+<blockquote><pre class="code">panic% cd mod_perl-1.xx
+panic% perl Makefile.PL APACHE_SRC=/usr/local/stronghold/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1</pre></blockquote>
+
+</li><li>
+<p>Build mod_perl:</p>
+
+<blockquote><pre class="code">panic% make</pre></blockquote>
+
+</li><li>
+<p>Before running <em class="emphasis">make test</em>, add your
+<em class="emphasis">StrongholdKey</em> to
+<em class="emphasis">t/conf/httpd.conf</em>. If you are configuring by
+hand, be sure to edit <em class="emphasis">src/modules/perl/Makefile</em>
+and uncomment the <tt class="literal">#APACHE_SSL</tt> directive.</p>
+</li><li>
+<p>Test and install mod_perl:</p>
+
+<blockquote><pre class="code">panic% make test
+panic# make install</pre></blockquote>
+
+</li><li>
+<p>Install Stronghold:</p>
+
+<blockquote><pre class="code">panic# cd /usr/local/stronghold
+panic# make install</pre></blockquote>
+</li></ol>
+<a name="pmodperl-CHP-3-SIDEBAR-5" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Note for Solaris 2.5 Users</h4>
+
+<p>There has been
+<a name="pmodperl-CHP-3-ITERM-3704" /><a name="pmodperl-CHP-3-ITERM-3705" /><a name="pmodperl-CHP-3-ITERM-3706" />a
+report that after building Apache with mod_perl, the the
+<tt class="literal">REGEX</tt> library that comes with Stronghold produces
+core dumps. To work around this problem, change the following line in
+<em class="emphasis">$STRONGHOLD/src/Configuration</em>:</p>
+
+<blockquote><pre class="code">Rule WANTHSREGEX=default</pre></blockquote>
+
+<p>to:</p>
+
+<blockquote><pre class="code">Rule WANTHSREGEX=no</pre></blockquote>
+</td></tr></table><p></blockquote>
+
+<p>Now start the server:</p>
+
+<blockquote><pre class="code">panic# /usr/local/stronghold/bin/start-server</pre></blockquote>
+
+<p>It's possible that the start script will have a
+different name on your platform.</p>
+
+<p>You should see something like this in
+<em class="emphasis">/usr/local/stronghold/logs/error_log</em>:</p>
+
+<blockquote><pre class="code">[Sun May 19 11:54:39 2002] [notice]
+StrongHold/3.0 Apache/1.3.24 (Unix) mod_perl/1.26
+configured -- resuming normal operations</pre></blockquote>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch03_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">3.5. Installation Scenarios for Standalone mod_perl</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">3.7. Installing mod_perl with the CPAN.pm Interactive Shell</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

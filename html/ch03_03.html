@@ -1,0 +1,248 @@
+<html><head><title>Testing the Server (make test) (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch03_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">3.3. Testing the Server (make test)</h2>
+
+<p>After building the
+<a name="pmodperl-CHP-3-ITERM-3628" /><a name="pmodperl-CHP-3-ITERM-3629" /><a name="pmodperl-CHP-3-ITERM-3630" />server, it's a
+good idea to test it throughly by calling:</p>
+
+<blockquote><pre class="code">panic% make test</pre></blockquote>
+
+<p>Fortunately, mod_perl comes with a big collection of tests, which
+attempt to exercise all the features you asked for at the
+configuration stage. If any of the tests fails, the <em class="emphasis">make
+test</em> step will fail.</p>
+
+<p>Running <em class="emphasis">make test</em> will start the freshly built
+<em class="emphasis">httpd</em> on port 8529 (an unprivileged port),
+running under the UID (user ID) and GID (group ID) of the
+<em class="emphasis">perl Makefile.PL</em> process. The
+<em class="emphasis">httpd</em> will be terminated when the tests are
+finished.</p>
+
+<p>To change the default port (8529) used for the tests, do this:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PORT=xxxx</pre></blockquote>
+
+<p>Each file in the testing suite generally includes more than one test,
+but when you do the testing, the program will report only how many
+tests were passed and the total number of tests defined in the test
+file. To learn which ones failed, run the tests in verbose mode by
+using the
+<tt class="literal">TEST_VERBOSE</tt><a name="pmodperl-CHP-3-ITERM-3631" /> parameter:</p>
+
+<blockquote><pre class="code">panic% make test TEST_VERBOSE=1</pre></blockquote>
+
+<p>As of mod_perl v1.23, you can use the environment variables
+<tt class="literal">APACHE_USER</tt> and <tt class="literal">APACHE_GROUP</tt> to
+override the default <tt class="literal">User</tt> and
+<tt class="literal">Group</tt>settings in the
+<em class="emphasis">httpd.conf</em> file used for <em class="emphasis">make
+test</em>. These two variables should be set before the
+<em class="emphasis">Makefile</em> is created to take effect during the
+testing stage. For example, if you want to set them to
+<em class="emphasis">httpd</em>, you can do the following in the
+Bourne-style shell:</p>
+
+<blockquote><pre class="code">panic% export APACHE_USER=httpd
+panic% export APACHE_GROUP=httpd
+panic% perl Makefile.PL ...</pre></blockquote>
+
+<a name="pmodperl-CHP-3-SECT-3.1" /><div class="sect2">
+<h3 class="sect2">3.3.1. Manual Testing</h3>
+
+<p>Tests
+are<a name="pmodperl-CHP-3-ITERM-3632" /><a name="pmodperl-CHP-3-ITERM-3633" /><a name="pmodperl-CHP-3-ITERM-3634" /><a name="pmodperl-CHP-3-ITERM-3635" />
+invoked by running the <em class="emphasis">./TEST</em> script located in
+the <em class="emphasis">./t</em> directory. Use the
+<em class="emphasis">-v</em> option for verbose tests. You might run an
+individual test like this:</p>
+
+<blockquote><pre class="code">panic% perl t/TEST -v modules/file.t</pre></blockquote>
+
+<p>or all tests in a test subdirectory:</p>
+
+<blockquote><pre class="code">panic% perl t/TEST modules</pre></blockquote>
+
+<p>The <em class="emphasis">TEST</em> script starts the server before the
+test is executed. If for some reason it fails to start, use
+<em class="emphasis">make start_httpd</em> to start it manually:</p>
+
+<blockquote><pre class="code">panic% make start_httpd</pre></blockquote>
+
+<p>To shut down Apache when the testing is complete, use <em class="emphasis">make
+kill_httpd</em>:</p>
+
+<blockquote><pre class="code">panic% make kill_httpd</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-3.2" /><div class="sect2">
+<h3 class="sect2">3.3.2. make test Troubleshooting</h3>
+
+<p>The following <a name="pmodperl-CHP-3-ITERM-3636" /><a name="pmodperl-CHP-3-ITERM-3637" /><a name="pmodperl-CHP-3-ITERM-3638" /><a name="pmodperl-CHP-3-ITERM-3639" />sections cover problems that you
+may encounter during the testing stage.</p>
+
+<a name="pmodperl-CHP-3-SECT-3.2.1" /><div class="sect3">
+<h3 class="sect3">3.3.2.1. make test fails</h3>
+
+<p><tt class="literal">make test</tt> requires Apache to be running already,
+so if you specified <tt class="literal">NO_HTTPD=1</tt> during the
+<em class="emphasis">perl Makefile.PL</em> stage, you'll
+have to build <em class="emphasis">httpd</em> independently before running
+<em class="emphasis">make test</em>. Go to the Apache source tree and run
+<em class="emphasis">make</em>, then return to the mod_perl source tree
+and continue with the server testing.</p>
+
+<p>If you get an error like this:</p>
+
+<blockquote><pre class="code">still waiting for server to warm up...............not ok</pre></blockquote>
+
+<p>you may want to examine the <em class="emphasis">t/logs/error_log</em>
+file, where all the <em class="emphasis">make test</em>-stage errors are
+logged. If you still cannot find the problem or this file is
+completely empty, you may want to run the test with
+<em class="emphasis">strace</em> (or <em class="emphasis">truss</em>) in the
+following way (assumming that you are located in the root directory
+of the mod_perl source tree):</p>
+
+<blockquote><pre class="code">panic% make start_httpd
+panic% strace -f -s1024 -o strace.out -p `cat t/logs/httpd.pid` &amp;
+panic% make run_tests
+panic% make kill_httpd</pre></blockquote>
+
+<p>where the <em class="emphasis">strace</em> <em class="emphasis">-f</em> option
+tells <em class="emphasis">strace</em> to trace child processes as they
+are created, <em class="emphasis">-s1024</em> allows trace strings of a
+maximum of 1024 characters to be printed (it's 32 by
+default), <em class="emphasis">-o</em> gives the name of the file to which
+the output should be written, <em class="emphasis">-p</em> supplies the
+PID of the parent process, and <em class="emphasis">&amp;</em> puts the
+job in the background.</p>
+
+<p>When the tests are complete, you can examine the generated
+<em class="emphasis">strace.out</em> file and hopefully find the problem.
+We talk about creating and analyzing trace outputs in <a href="ch21_01.html">Chapter 21</a>.</p>
+
+</div>
+
+<a name="pmodperl-CHP-3-SECT-3.2.2" /><div class="sect3">
+<h3 class="sect3">3.3.2.2. mod_perl.c is incompatible with this version of Apache</h3>
+
+<p>If you had a
+<a name="pmodperl-CHP-3-ITERM-3640" />stale Apache header layout in one of
+the <em class="emphasis">include</em> paths during the build process, you
+will see the message "mod_perl.c is incompatible
+with this version of Apache" when you try to execute
+<em class="emphasis">httpd</em>. Find the file
+<em class="emphasis">ap_mmn.h</em> using <em class="emphasis">find</em>,
+<em class="emphasis">locate</em>, or another utility. Delete this file and
+rebuild Apache. The Red Hat Linux distribution usually installs it in
+<em class="emphasis">/usr/local/include</em>.</p>
+
+<p>Before installing mod_perl-enabled Apache from scratch,
+it's a good idea to remove all the pre-installed
+Apache modules, and thus save the trouble of looking for files that
+mess up the build process. For example, to remove the precompiled
+Apache installed as a Red Hat Package Manager (RPM) package, as
+<em class="emphasis">root</em> you should do:</p>
+
+<blockquote><pre class="code">panic# rpm -e apache</pre></blockquote>
+
+<p>There may be other RPM packages that depend on the Apache RPM
+package. You will be notified about any other dependent packages, and
+you can decide whether to delete them, too. You can always supply the
+<em class="emphasis">&#8212;nodeps</em> option to tell the RPM manager to
+ignore the dependencies.</p>
+
+<p><em class="emphasis">apt</em> users would do this instead:</p>
+
+<blockquote><pre class="code">panic# apt-get remove apache</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-3-SECT-3.2.3" /><div class="sect3">
+<h3 class="sect3">3.3.2.3. make test......skipping test on this platform</h3>
+
+<p><em class="emphasis">make test</em> may report
+<a name="pmodperl-CHP-3-ITERM-3641" />some tests as
+<em class="emphasis">skipped</em>. They are skipped because you are
+missing the modules that are needed for these tests to pass. You
+might want to peek at the contents of each test; you will find them
+all in the <em class="emphasis">./t</em> directory. It's
+possible that you don't need any of the missing
+modules to get your work done, in which case you
+shouldn't worry that the tests are skipped.</p>
+
+<p>If you want to make sure that all tests pass, you will need to figure
+out what modules are missing from your installation. For example, if
+you see:</p>
+
+<blockquote><pre class="code">modules/cookie......skipping test on this platform</pre></blockquote>
+
+<p>you may want to install the <tt class="literal">Apache::Cookie</tt> module.
+If you see:</p>
+
+<blockquote><pre class="code">modules/request.....skipping test on this platform</pre></blockquote>
+
+<p><tt class="literal">Apache::Request</tt> is missing.<a href="#FOOTNOTE-20">[20]</a> If you
+see:</p>
+<blockquote><a name="FOOTNOTE-20" /><p> [20]<tt class="literal">Apache::Cookie</tt> and
+<tt class="literal">Apache::Request</tt> are both part of the
+<em class="emphasis">libapreq</em> distribution.</p> </blockquote>
+
+<blockquote><pre class="code">modules/psections...skipping test on this platform</pre></blockquote>
+
+<p><tt class="literal">Devel::Symdump</tt> and <tt class="literal">Data::Dumper</tt>
+are needed.</p>
+
+<p>Chances are that all of these will be installed if you use
+<tt class="literal">CPAN.pm</tt> to install
+<tt class="literal">Bundle::Apache</tt>. We talk about CPAN installations
+later in this chapter.</p>
+
+</div>
+
+<a name="pmodperl-CHP-3-SECT-3.2.4" /><div class="sect3">
+<h3 class="sect3">3.3.2.4. make test fails due to misconfigured localhost entry</h3>
+
+<p>The <em class="emphasis">make test</em> <a name="pmodperl-CHP-3-ITERM-3642" />suite uses
+<em class="emphasis">localhost</em> to run the tests that require a
+network. Make sure you have this entry in
+<em class="emphasis">/etc/hosts</em>:</p>
+
+<blockquote><pre class="code">127.0.0.1       localhost.localdomain   localhost</pre></blockquote>
+
+<p>Also make sure you have the loopback device <em class="emphasis">lo</em>
+configured. If you aren't sure, run:</p>
+
+<blockquote><pre class="code">panic% /sbin/ifconfig lo</pre></blockquote>
+
+<p>This will tell you whether the loopback device is <a name="pmodperl-CHP-3-ITERM-3643" /><a name="pmodperl-CHP-3-ITERM-3644" /><a name="pmodperl-CHP-3-ITERM-3645" /><a name="pmodperl-CHP-3-ITERM-3646" />configured.</p>
+
+</div>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch03_04.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">3.2. Building mod_perl </td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">3.4. Installation </td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

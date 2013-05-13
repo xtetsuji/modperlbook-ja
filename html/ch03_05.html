@@ -1,0 +1,316 @@
+<html><head><title>Installation Scenarios for Standalone mod_perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch03_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">3.5. Installation Scenarios for Standalone mod_perl</h2>
+
+<p>When building <a name="pmodperl-CHP-3-ITERM-3656" /><a name="pmodperl-CHP-3-ITERM-3657" /><a name="pmodperl-CHP-3-ITERM-3658" />mod_perl, the mod_perl C source files
+that have to be compiled into the <em class="emphasis">httpd</em>
+executable usually are copied to the subdirectory
+<em class="emphasis">src/modules/perl/</em> in the Apache source tree. In
+the past, to integrate this subtree into the Apache build process, a
+lot of adjustments were done by mod_perl's
+<em class="emphasis">Makefile.PL</em>. <em class="emphasis">Makefile.PL</em>
+was also responsible for the Apache build process.</p>
+
+<p>This approach is problematic in several ways. It is very restrictive
+and not very clean, because it assumes that mod_perl is the only
+third-party module that has to be integrated into Apache.</p>
+
+<p>A new hybrid build environment was therefore created for the Apache
+side of mod_perl, to avoid these problems. It prepares only the
+<em class="emphasis">src/modules/perl/</em> subtree inside the Apache
+source tree, without adjusting or editing anything else. This way, no
+conflicts can occur. Instead, mod_perl is activated later (via APACI
+calls when the Apache source tree is configured), and then it
+configures itself.</p>
+
+<p>There are various ways to build Apache with the new hybrid build
+environment (using <tt class="literal">USE_APACI=1</tt>):</p>
+
+<ul><li>
+<p>Build Apache and mod_perl together, using the default configuration.</p>
+</li><li>
+<p>Build Apache and mod_perl separately, allowing you to plug in other
+third-party Apache modules as needed.</p>
+</li><li>
+<p>Build mod_perl as a DSO inside the Apache source tree using APACI.</p>
+</li><li>
+<p>Build mod_perl as a DSO outside the Apache source tree with APXS.</p>
+</li></ul>
+<a name="pmodperl-CHP-3-SECT-5.1" /><div class="sect2">
+<h3 class="sect2">3.5.1. The All-in-One Way</h3>
+
+<p>If your goal is just <a name="pmodperl-CHP-3-ITERM-3659" /><a name="pmodperl-CHP-3-ITERM-3660" />to build and install Apache with mod_perl
+out of their source trees, and you have no interest in further
+adjusting or enhancing Apache, proceed as we described in <a href="ch02_01.html">Chapter 2</a>:</p>
+
+<blockquote><pre class="code">panic% tar xzvf apache_1.3.xx.tar.gz
+panic% tar xzvf mod_perl-1.xx.tar.gz
+panic% cd mod_perl-1.xx
+panic% perl Makefile.PL APACHE_SRC=../apache_1.3.xx/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1
+panic% make &amp;&amp; make test
+panic# make install
+panic# cd ../apache_1.3.xx
+panic# make install</pre></blockquote>
+
+<p>This builds Apache statically with mod_perl, installs Apache under
+the default <em class="emphasis">/usr/local/apache</em> tree, and installs
+mod_perl into the <em class="emphasis">site_perl</em> hierarchy of your
+existing Perl installation.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-5.2" /><div class="sect2">
+<h3 class="sect2">3.5.2. Building mod_perl and Apache Separately</h3>
+
+<p>However, sometimes<a name="pmodperl-CHP-3-ITERM-3661" /><a name="pmodperl-CHP-3-ITERM-3662" /><a name="pmodperl-CHP-3-ITERM-3663" /> you might need
+more flexibility while building mod_perl. If you build mod_perl into
+the Apache binary (<em class="emphasis">httpd</em>) in separate steps,
+you'll also have the freedom to include other
+third-party Apache modules. Here are the steps:</p>
+
+<ol><li>
+<p>Prepare the Apache source tree.</p>
+
+<p>As before, first extract the distributions:</p>
+
+<blockquote><pre class="code">panic% tar xvzf apache_1.3.xx.tar.gz
+panic% tar xzvf mod_perl-1.xx.tar.gz</pre></blockquote>
+</li>
+<li>
+<p>Install <a name="pmodperl-CHP-3-ITERM-3664" />mod_perl's
+Perl side and prepare the Apache side.</p>
+
+<p>Next, install the Perl side of mod_perl into the Perl hierarchy and
+prepare the <em class="emphasis">src/modules/perl/</em> subdirectory
+inside the Apache source tree:</p>
+
+<blockquote><pre class="code">panic% cd mod_perl-1.xx
+panic% perl Makefile.PL \
+    APACHE_SRC=../apache_1.3.xx/src \
+    NO_HTTPD=1   \
+    USE_APACI=1  \
+    PREP_HTTPD=1 \
+    EVERYTHING=1 \
+    [...]
+panic% make
+panic# make install</pre></blockquote>
+
+<p>The <tt class="literal">APACHE_SRC</tt> option sets the path to your Apache
+source tree, the <tt class="literal">NO_HTTPD</tt> option forces this path
+and only this path to be used, the <tt class="literal">USE_APACI</tt>
+option triggers the new hybrid build environment, and the
+<tt class="literal">PREP_HTTPD</tt> option forces preparation of the
+<em class="emphasis">$APACHE_SRC/modules/perl/</em> tree but no automatic
+build.</p>
+
+<p>This tells the configuration process to prepare the Apache side of
+mod_perl in the Apache source tree, but doesn't
+touch anything else in it. It then just builds the Perl side of
+mod_perl and installs it into the Perl installation hierarchy.</p>
+
+<p>Note that if you use <tt class="literal">PREP_HTTPD</tt> as described
+above, to complete the build you must go into the Apache source
+directory and run <em class="emphasis">make</em> and <em class="emphasis">make
+install</em>.</p>
+</li><li>
+<p>Prepare other third-party modules.</p>
+
+<p>Now you have a chance to prepare any other third-party modules you
+might want to include in Apache. For instance, you can build PHP
+separately, as you did with mod_perl.</p>
+</li><li>
+<p>Build the Apache package.</p>
+
+<p>Now it's time to build Apache, including the Apache
+side of mod_perl and any other third-party modules
+you've prepared:</p>
+
+<blockquote><pre class="code">panic% cd apache_1.3.xx
+panic% ./configure \
+    --prefix=/path/to/install/of/apache \
+    --activate-module=src/modules/perl/libperl.a \
+    [...]
+panic% make
+panic# make install</pre></blockquote>
+
+<p>You must use the
+<em class="emphasis">&#8212;prefix</em><a name="pmodperl-CHP-3-ITERM-3665" /> option if you want to change the default
+target directory of the Apache
+<a name="pmodperl-CHP-3-ITERM-3666" /><a name="pmodperl-CHP-3-ITERM-3667" /><a name="pmodperl-CHP-3-ITERM-3668" />installation. The
+<em class="emphasis">&#8212;activate-module</em><a name="pmodperl-CHP-3-ITERM-3669" /> option activates mod_perl for the
+configuration process and thus also for the build process. If you
+choose <em class="emphasis">&#8212;prefix=/usr/share/apache</em>, the
+Apache directory tree will be installed in
+<em class="emphasis">/usr/share/apache</em>.</p>
+
+<p>If you add other third-party components, such as PHP, include a
+separate <em class="emphasis">&#8212;activate-module</em> option for each
+of them. (See the module's documentation for the
+actual path to which <em class="emphasis">&#8212;activate-module</em>
+should point.) For example, for mod_php4:</p>
+
+<blockquote><pre class="code">--activate-module=src/modules/php4/libphp4.a</pre></blockquote>
+
+<p>Note that the files activated by
+<em class="emphasis">&#8212;activate-module</em> do not exist at this
+time. They will be generated during compilation.</p>
+
+<p>You may also want to go back to the mod_perl source tree and run
+<em class="emphasis">make test</em> (to make sure that mod_perl is
+working) before running <em class="emphasis">make install</em> inside the
+Apache source tree.</p>
+
+<p>For more detailed examples on building mod_perl with other
+components, see <a href="ch03_06.html#pmodperl-CHP-3-SECT-6">Section 3.6</a>.</p>
+</li></ol>
+</div>
+<a name="pmodperl-CHP-3-SECT-5.3" /><div class="sect2">
+<h3 class="sect2">3.5.3. When DSOs Can Be Used</h3>
+
+<p>If you <a name="pmodperl-CHP-3-ITERM-3670" /><a name="pmodperl-CHP-3-ITERM-3671" /><a name="pmodperl-CHP-3-ITERM-3672" />want
+to build mod_perl as a DSO, you must make sure that Perl was built
+with the system's native <tt class="literal">malloc(
+)</tt>. If Perl was built with its own <tt class="literal">malloc(
+)</tt> and <em class="emphasis">-Dbincompat5005</em>, it pollutes the
+main <em class="emphasis">httpd</em> program with
+<em class="emphasis">free</em> and <em class="emphasis">malloc</em> symbols.
+When <em class="emphasis">httpd</em> starts or restarts, any references in
+the main program to <em class="emphasis">free</em> and
+<em class="emphasis">malloc</em> become invalid, causing memory leaks and
+segfaults.</p>
+
+<p>Notice that mod_perl's build system warns about this
+problem.</p>
+
+<p>With Perl 5.6.0+ this pollution can be prevented by using
+<em class="emphasis">-Ubincompat5005</em> or
+<em class="emphasis">-Uusemymalloc</em> for any version of Perl. However,
+there's a chance that
+<em class="emphasis">-Uusemymalloc</em> might hurt performance on your
+platform, so <em class="emphasis">-Ubincompat5005</em> is likely a better
+choice.</p>
+
+<p>If you get the following reports with Perl version 5.6.0+:</p>
+
+<blockquote><pre class="code">% perl -V:usemymalloc
+usemymalloc='y';
+% perl -V:bincompat5005
+bincompat5005='define';</pre></blockquote>
+
+<p>rebuild Perl with <em class="emphasis">-Ubincompat5005</em>.</p>
+
+<p>For pre-5.6.x Perl versions, if you get:</p>
+
+<blockquote><pre class="code">% perl -V:usemymalloc
+usemymalloc='y';</pre></blockquote>
+
+<p>rebuild Perl with <em class="emphasis">-Uusemymalloc</em>.</p>
+
+<p>Now rebuild mod_perl.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-5.4" /><div class="sect2">
+<h3 class="sect2">3.5.4. Building mod_perl as a DSO via APACI</h3>
+
+<p>We have <a name="pmodperl-CHP-3-ITERM-3673" /><a name="pmodperl-CHP-3-ITERM-3674" /><a name="pmodperl-CHP-3-ITERM-3675" />already mentioned that the new mod_perl
+build environment (with <tt class="literal">USE_APACI</tt>) is a hybrid.
+What does that mean? It means, for instance, that you can use the
+same <em class="emphasis">src/modules/perl/</em> configuration to build
+mod_perl as a DSO or not, without having to edit any files. To build
+<tt class="literal">libperl.so</tt>, just add a single option, depending on
+which method you used to build mod_perl.</p>
+
+<a name="pmodperl-CHP-3-SIDEBAR-4" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">libperl.so and libperl.a</h4>
+
+<p>The static mod_perl library is called
+<em class="emphasis">libperl.a</em><a name="pmodperl-CHP-3-ITERM-3676" />, and the shared mod_perl library is
+called <em class="emphasis">libperl.so</em><a name="pmodperl-CHP-3-ITERM-3677" /><a name="pmodperl-CHP-3-ITERM-3678" />.
+Of course, <em class="emphasis">libmodperl</em> would have been a better
+prefix, but <em class="emphasis">libperl</em> was used because of
+prehistoric Apache issues. Be careful that you don't
+confuse mod_perl's <em class="emphasis">libperl.a</em>
+and <em class="emphasis">libperl.so</em> files with the ones that are
+built with the standard Perl installation.</p>
+</td></tr></table><p></blockquote>
+
+<p>If you choose the "standard"
+all-in-one way of building mod_perl, add:</p>
+
+<blockquote><pre class="code">USE_DSO=1</pre></blockquote>
+
+<p>to the <em class="emphasis">perl Makefile.PL</em> options.</p>
+
+<p>If you choose to build mod_perl and Apache separately, add:</p>
+
+<blockquote><pre class="code">--enable-shared=perl</pre></blockquote>
+
+<p>to Apache's <em class="emphasis">configure</em> options
+when you build Apache.</p>
+
+<p>As you can see, whichever way you build mod_perl and Apache, only one
+additional option is needed to build mod_perl as a DSO. Everything
+else is done automatically: mod_so is automatically enabled, the
+<em class="emphasis">Makefile</em>s are adjusted, and the
+<em class="emphasis">install</em> target from APACI installs
+<em class="emphasis">libperl.so</em> into the Apache installation tree.
+Additionally, the <tt class="literal">LoadModule</tt> and
+<tt class="literal">AddModule</tt> directives (which dynamically load and
+insert mod_perl into <em class="emphasis">httpd</em>) are automatically
+added to <em class="emphasis">httpd.conf</em>.</p>
+
+</div>
+<a name="pmodperl-CHP-3-SECT-5.5" /><div class="sect2">
+<h3 class="sect2">3.5.5. Building mod_perl as a DSO via APXS</h3>
+
+<p>We've<a name="pmodperl-CHP-3-ITERM-3679" /><a name="pmodperl-CHP-3-ITERM-3680" /><a name="pmodperl-CHP-3-ITERM-3681" /> seen how to build mod_perl as a DSO
+<em class="emphasis">inside</em> the Apache source tree, but there is a
+nifty alternative: building mod_perl as a DSO
+<em class="emphasis">outside</em> the Apache source tree via the new
+Apache 1.3 support tool called <tt class="literal">APXS</tt>. The advantage
+is obvious: you can extend an already installed Apache with mod_perl
+even if you don't have the sources (for instance,
+you may have installed an Apache binary package from your vendor or
+favorite distribution).</p>
+
+<p>Here are the build steps:</p>
+
+<blockquote><pre class="code">panic% tar xzvf mod_perl-1.xx.tar.gz
+panic% cd mod_perl-1.xx
+panic% perl Makefile.PL \
+    USE_APXS=1 \
+    WITH_APXS=/path/to/bin/apxs \
+    EVERYTHING=1 \
+    [...]
+panic% make &amp;&amp; make test
+panic# make install</pre></blockquote>
+
+<p>This will build the DSO <em class="emphasis">libperl.so</em> outside the
+Apache source tree and install it into the existing Apache hierarchy.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch03_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch03_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">3.4. Installation </td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">3.6. Building mod_perl with Other Components</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

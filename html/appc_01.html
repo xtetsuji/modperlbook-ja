@@ -1,0 +1,137 @@
+<html><head><title>ISPs Providing mod_perl Services (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appb_18.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appc_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Appendix C. ISPs Providing mod_perl Services</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="appc_01.html#pmodperl-APP-C-SECT-1">Users Sharing a Single Web Server</a><br />
+<a href="appc_02.html">Users Sharing a Single Machine</a><br />
+<a href="appc_03.html">Giving Each User a Separate Machine (Colocation)</a><br />
+<a href="appc_04.html">Giving Each User a Virtual Machine</a><br /></p></div><p>This appendix proposes a few <a name="pmodperl-APP-C-ITERM-6441" /><a name="pmodperl-APP-C-ITERM-6442" />techniques for deploying mod_perl on
+ISP machines. Therefore, it's mostly relevant to ISP
+technical teams and ISP users who need to convince their providers to
+provide them with mod_perl services.</p><p>There are at least four different scenarios for deploying
+mod_perl-enabled Apache servers that ISPs may consider:</p><ul><li>
+<p>Users sharing a single web server</p>
+</li><li>
+<p>Users sharing a single machine</p>
+</li><li>
+<p>Giving each user a separate machine</p>
+</li><li>
+<p>Giving each user a virtual machine</p>
+</li></ul><p>This appendix covers each of those scenarios.</p><div class="sect1"><a name="pmodperl-APP-C-SECT-1" />
+<h2 class="sect1">C.1. Users Sharing a Single Web Server</h2>
+
+<p>An ISP cannot let users run their
+<a name="pmodperl-APP-C-ITERM-6443" /><a name="pmodperl-APP-C-ITERM-6444" />code under mod_perl on the main server.
+There are many reasons for this. Here are just a few to consider:</p>
+
+<dl>
+<dt><i>Memory usage</i></dt>
+<dd>
+One user may deprive other users of memory. A careless
+user's code might leak memory due to sloppy
+programming. A user may use a lot of memory simply by loading a lot
+of modules. If one user's service is very popular
+and gets a lot of traffic, there will be more Apache children running
+for that service, so it's possible for that user to
+unintentionally consume most of the available memory even if she has
+a very small, well-written code base with no memory leaks.</p>
+</dd>
+
+
+
+<dt><i>Other resources</i></dt>
+<dd>
+It's not only memory that is shared between all
+users. Other important resources, such as CPU, the number of open
+files, the total number of processes (currently there is no easy way
+to control the number of mod_perl processes dedicated to each user),
+and process priority are all shared as well. Intentionally or not,
+users may interfere with each other by consuming any or all of these
+resources.</p>
+</dd>
+
+
+
+<dt><i>File security</i></dt>
+<dd>
+All users run code on the server with the same permissions (i.e., the
+same UID and GID). Any user who can write code for execution by the
+web server can read any files that are readable by the web server, no
+matter which user owns them. Similarly, any user who can write code
+for the web server can write any files that are writable by the web
+server, no matter which user owns them. Currently, it is not possible
+to run the <tt class="literal">suEXEC</tt> and <tt class="literal">cgiwrap</tt>
+extensions under mod_perl, and as mod_perl processes
+don't normally quit after servicing a request they
+cannot modify their UIDs and GIDs from request to request.</p>
+</dd>
+
+
+
+<dt><i>Potential system compromise via user's code running on the web server</i></dt>
+<dd>
+One of the possible solutions here is to use the
+<em class="emphasis">chroot(1)</em> or <em class="emphasis">jail(8)</em>
+mechanisms, which allow you to run subsystems isolated from the main
+system. So if a subsystem gets compromised, the whole system is still
+safe.</p>
+</dd>
+
+
+
+<dt><i>Security of database connections</i></dt>
+<dd>
+It's possible to hijack other
+users' DBI connections, and since all users can read
+each other's code, database usernames and passwords
+are visible to every user.</p>
+</dd>
+
+</dl>
+
+<p>With all the problems described above, it's unwise
+to let users run their code under mod_perl on a shared server, unless
+they trust each other and follow strict guidelines to avoid
+interfering with each other's files and scripts
+(both of which are unlikely).</p>
+
+<p>Note that there is no reason for an ISP not to run mod_perl
+applications that they control themselves. The dangers are only when
+they allow users to write their own mod_perl code. For example, an
+ISP might provide its users with value-added services such as guest
+books, hit counters, etc., that run under mod_perl. If the ISP
+provides code and data, which are not directly accessible by the
+users, they can still benefit from the performance gains offered by
+mod_perl.</p>
+
+<p>mod_perl 2.0 improves the situation, since it allows a pool of Perl
+interpreters to be dedicated to a single virtual host. It is possible
+to set the UIDs and GIDs of these interpreters to be those of the
+user for which the virtual host is configured, so users can operate
+within their own protected spaces and are unable to interfere with
+other users.</p>
+
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appb_18.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appc_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">B.18. Other Miscellaneous Modules</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">C.2. Users Sharing a Single Machine</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

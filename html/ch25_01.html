@@ -1,0 +1,381 @@
+<html><head><title>Programming for mod_perl 2.0 (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch24_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch25_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 25. Programming for mod_perl 2.0</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch25_01.html#pmodperl-CHP-25-SECT-1">Migrating to and Programming with mod_perl 2.0</a><br />
+<a href="ch25_02.html">New Apache Phases and Corresponding Perl*Handlers</a><br />
+<a href="ch25_03.html">I/O Filtering</a><br /></p></div><p>In this chapter, we discuss how to migrate services from mod_perl 1.0
+to 2.0, and how to make the new services based on mod_perl 2.0
+backward compatible with mod_perl 1.0 (if possible). We also cover
+all the new <tt class="literal">Perl*Handlers</tt> in mod_perl 2.0.</p><div class="sect1"><a name="pmodperl-CHP-25-SECT-1" />
+<h2 class="sect1">25.1. Migrating to and Programming with mod_perl 2.0</h2>
+
+<p>In mod_perl<a name="pmodperl-CHP-25-ITERM-5942" /> 2.0, several configuration
+directives were renamed or removed. Several APIs also were changed,
+renamed, removed, or moved to new packages. Certain functions, while
+staying exactly the same as in mod_perl 1.0, now reside in different
+packages. Before using them, you need to find and load the new
+packages.</p>
+
+<p>Since mod_perl 2.0 hasn't yet been released as of
+this writing, it's possible that certain things will
+change after the book is published. If something
+doesn't work as explained here, please refer to the
+documentation in the mod_perl distribution or the online version at
+<a href="http://perl.apache.org/docs/2.0/">http://perl.apache.org/docs/2.0/</a>
+for the updated documentation.</p>
+
+<a name="pmodperl-CHP-25-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">25.1.1. The Shortest Migration Path</h3>
+
+<p>mod_perl 2.0
+provides<a name="pmodperl-CHP-25-ITERM-5943" /> two <a name="pmodperl-CHP-25-ITERM-5944" />backward-compatibility layers: one for
+the <a name="pmodperl-CHP-25-ITERM-5945" /><a name="pmodperl-CHP-25-ITERM-5946" />configuration files and the
+other for the code. If you are concerned about preserving backward
+compatibility with mod_perl 1.0, or are just experimenting with
+mod_perl 2.0 while continuing to run mod_perl 1.0 on your production
+server, simply enable the code-compatibility layer by adding:</p>
+
+<a name="pmodperl-CHP-25-ITERM-5947" /><blockquote><pre class="code">use Apache2;
+use Apache::compat;</pre></blockquote>
+
+<p>at the top of your startup file. Backward compatibility of the
+configuration is enabled by default.</p>
+
+</div>
+<a name="pmodperl-CHP-25-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">25.1.2. Migrating Configuration Files</h3>
+
+<p>To migrate the
+<a name="pmodperl-CHP-25-ITERM-5948" /><a name="pmodperl-CHP-25-ITERM-5949" />configuration files to mod_perl 2.0
+syntax, you may need to make certain adjustments. Several
+configuration directives are deprecated in 2.0 but are still
+available for backward compatibility with mod_perl 1.0. If you
+don't need backward compatibility, consider using
+the directives that have replaced them.</p>
+
+<a name="pmodperl-CHP-25-SECT-1.2.1" /><div class="sect3">
+<h3 class="sect3">25.1.2.1. PerlHandler</h3>
+
+<p><tt class="literal">PerlHandler</tt> has been replaced with
+<tt class="literal">PerlResponseHandler</tt><a name="pmodperl-CHP-25-ITERM-5950" /><a name="pmodperl-CHP-25-ITERM-5951" />.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-1.2.2" /><div class="sect3">
+<h3 class="sect3">25.1.2.2. PerlSendHeader</h3>
+
+<p><tt class="literal">PerlSendHeader</tt> has been replaced with the
+<tt class="literal">PerlOptions
++/-ParseHeaders</tt><a name="pmodperl-CHP-25-ITERM-5952" /> directive:</p>
+
+<blockquote><pre class="code">PerlSendHeader On  =&gt; PerlOptions +ParseHeaders
+PerlSendHeader Off =&gt; PerlOptions -ParseHeaders</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-1.2.3" /><div class="sect3">
+<h3 class="sect3">25.1.2.3. PerlSetupEnv</h3>
+
+<p><tt class="literal">PerlSetupEnv</tt> has been replaced with the
+<tt class="literal">PerlOptions
++/-SetupEnv</tt><a name="pmodperl-CHP-25-ITERM-5953" /> directive:</p>
+
+<blockquote><pre class="code">PerlSetupEnv On  =&gt; PerlOptions +SetupEnv
+PerlSetupEnv Off =&gt; PerlOptions -SetupEnv</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-1.2.4" /><div class="sect3">
+<h3 class="sect3">25.1.2.4. PerlTaintCheck</h3>
+
+<p>Taint mode<a name="pmodperl-CHP-25-ITERM-5954" /> can now be turned on with:</p>
+
+<blockquote><pre class="code">PerlSwitches -T</pre></blockquote>
+
+<p>As with standard Perl, taint mode is disabled by default. Once
+enabled, taint mode cannot be turned off.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-1.2.5" /><div class="sect3">
+<h3 class="sect3">25.1.2.5. PerlWarn</h3>
+
+<p>Warnings <a name="pmodperl-CHP-25-ITERM-5955" />now can be enabled globally with:</p>
+
+<blockquote><pre class="code">PerlSwitches -w</pre></blockquote>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-1.2.6" /><div class="sect3">
+<h3 class="sect3">25.1.2.6. PerlFreshRestart</h3>
+
+<p><tt class="literal">PerlFreshRestart</tt><a name="pmodperl-CHP-25-ITERM-5956" /><a name="pmodperl-CHP-25-ITERM-5957" /> is a mod_perl 1.0 legacy option
+and doesn't exist in mod_perl 2.0. A full tear-down
+and startup of interpreters is done on restart.</p>
+
+<p>If you need to use the same <em class="emphasis">httpd.conf</em> file for
+1.0 and 2.0, use:</p>
+
+<blockquote><pre class="code">&lt;IfDefine !MODPERL2&gt;
+    PerlFreshRestart On
+&lt;/IfDefine&gt;</pre></blockquote>
+
+</div>
+</div>
+<a name="pmodperl-CHP-25-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">25.1.3. Code Porting</h3>
+
+<p>mod_perl
+2.0<a name="pmodperl-CHP-25-ITERM-5958" /><a name="pmodperl-CHP-25-ITERM-5959" /> is trying hard to be
+backward compatible with mod_perl 1.0. However, some things (mostly
+APIs) have changed. To gain complete compatibility with 1.0 while
+running under 2.0, you should load the compatibility module as early
+as possible:</p>
+
+<blockquote><pre class="code">use Apache::compat;</pre></blockquote>
+
+<p>at server startup. Unless there are forgotten things or bugs, your
+code should work without any changes under the 2.0 series.</p>
+
+<p>However, if you don't have a good reason to keep 1.0
+compatibility, you should try to remove the compatibility layer and
+adjust your code to work under 2.0 without it. This will
+improve<a name="pmodperl-CHP-25-ITERM-5960" /> performance. The
+online mod_perl documentation includes a document (<a href="http://perl.apache.org/docs/2.0/user/porting/compat.html">http://perl.apache.org/docs/2.0/user/porting/compat.html</a>)
+that explains what APIs have changed and what new APIs should be used
+instead.</p>
+
+<p>If you have mod_perl 1.0 and 2.0 installed on the same system and the
+two use the same Perl <a name="pmodperl-CHP-25-ITERM-5961" />libraries directory
+(e.g., <em class="emphasis">/usr/lib/perl5</em>), to use mod_perl 2.0 make
+sure to first load the <tt class="literal">Apache2</tt> module, which will
+perform the necessary adjustments to
+<tt class="literal">@INC</tt><a name="pmodperl-CHP-25-ITERM-5962" />:</p>
+
+<blockquote><pre class="code">use Apache2; # if you have 1.0 and 2.0 installed
+use Apache::compat;</pre></blockquote>
+
+<p>So if before loading <tt class="literal">Apache2.pm</tt> the
+<tt class="literal">@INC</tt> array consisted of:</p>
+
+<blockquote><pre class="code">/usr/lib/perl5/5.8.0/i686-linux-thread-multi
+/usr/lib/perl5/5.8.0
+/usr/lib/perl5/site_perl/5.8.0/i686-linux-thread-multi
+/usr/lib/perl5/site_perl/5.8.0
+/usr/lib/perl5/site_perl
+.</pre></blockquote>
+
+<p>it will now look like this:</p>
+
+<blockquote><pre class="code">/usr/lib/perl5/site_perl/5.8.0/i686-linux-thread-multi/Apache2
+/usr/lib/perl5/5.8.0/i686-linux-thread-multi
+/usr/lib/perl5/5.8.0
+/usr/lib/perl5/site_perl/5.8.0/i686-linux-thread-multi
+/usr/lib/perl5/site_perl/5.8.0
+/usr/lib/perl5/site_perl
+.</pre></blockquote>
+
+<p>Notice that a new directory was appended to the search path. If, for
+example, the code attempts to load <tt class="literal">Apache::Server</tt>
+and there are two versions of this module under
+<em class="emphasis">/usr/lib/perl5/site_perl/</em>:</p>
+
+<blockquote><pre class="code">5.8.0/i686-linux-thread-multi/Apache/Server.pm
+  5.8.0/i686-linux-thread-multi/Apache2/Apache/Server.pm</pre></blockquote>
+
+<p>the mod_perl 2.0
+version<a name="pmodperl-CHP-25-ITERM-5963" />
+will be loaded first, because the directory
+<em class="emphasis">5.8.0/i686-linux-thread-multi/Apache2</em> comes
+before the directory
+<em class="emphasis">5.8.0/i686-linux-thread-multi</em> in
+<tt class="literal">@INC</tt>.</p>
+
+<p>Finally, mod_perl 2.0 has all its methods spread across many modules.
+To use these methods, you first have to load the modules containing
+them. The
+<tt class="literal">ModPerl::MethodLookup</tt><a name="pmodperl-CHP-25-ITERM-5964" /><a name="pmodperl-CHP-25-ITERM-5965" /> module can be used to
+figure out what modules need to be loaded. For example, if you try to
+use:</p>
+
+<blockquote><pre class="code">$r-&gt;construct_url( );</pre></blockquote>
+
+<p>and mod_perl complains that it can't find the
+<tt class="literal">construct_url( )</tt> method, you can ask
+<tt class="literal">ModPerl::MethodLookup</tt>:</p>
+
+<blockquote><pre class="code">panic% perl -MApache2 -MModPerl::MethodLookup -e print_method construct_url</pre></blockquote>
+
+<p>This will print:</p>
+
+<blockquote><pre class="code">to use method 'construct_url' add:
+        use Apache::URI ( );</pre></blockquote>
+
+<p>Another useful feature provided by
+<tt class="literal">ModPerl::MethodLookup</tt> is the
+<tt class="literal">preload_all_modules( )</tt> function, which preloads
+all mod_perl 2.0 modules. This is useful when you start to port your
+mod_perl 1.0 code (though preferrably avoided in the production
+environment to save memory). You can simply add the following snippet
+to your <em class="emphasis">startup.pl</em> file:</p>
+
+<blockquote><pre class="code">use ModPerl::MethodLookup;
+ModPerl::MethodLookup::preload_all_modules( );</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-25-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">25.1.4. ModPerl::Registry Family</h3>
+
+<p>In mod_perl 2.0,
+<tt class="literal">Apache::Registry</tt><a name="pmodperl-CHP-25-ITERM-5966" /> and friends
+(<tt class="literal">Apache::PerlRun</tt>,
+<tt class="literal">Apache::RegistryNG</tt>, etc.) have migrated into the
+<tt class="literal">ModPerl:</tt>: namespace. The new family is based on
+the idea of <tt class="literal">Apache::RegistryNG</tt> from mod_perl 1.0,
+where you can customize pretty much all the functionality by
+providing your own hooks. The functionality of the
+<tt class="literal">Apache::Registry</tt>,
+<tt class="literal">Apache::RegistryBB</tt>, and
+<tt class="literal">Apache::PerlRun</tt> modules hasn't
+changed from the user's perspective, except for the
+namespace. All these modules are now derived from the
+<tt class="literal">ModPerl::RegistryCooker</tt> class. So if you want to
+change the functionality of any of the existing subclasses, or you
+want to "cook" your own registry
+module, it can be done easily. Refer to the
+<tt class="literal">ModPerl::RegistryCooker</tt><a name="pmodperl-CHP-25-ITERM-5967" /> manpage for more information.</p>
+
+<p>Here is a typical <a name="pmodperl-CHP-25-ITERM-5968" />registry section configuration in
+mod_perl 2.0:</p>
+
+<blockquote><pre class="code">Alias /perl/ /home/httpd/perl/
+&lt;Location /perl&gt;
+    SetHandler perl-script
+    PerlResponseHandler ModPerl::Registry
+    Options +ExecCGI
+    PerlOptions +ParseHeaders
+&lt;/Location&gt;</pre></blockquote>
+
+<p>As we explained earlier, the <tt class="literal">ParseHeaders</tt> option
+is needed if the headers are being sent via <tt class="literal">print(
+)</tt> (i.e., without using the mod_perl API) and comes as a
+replacement for the <tt class="literal">PerlSendHeader</tt> option in
+mod_perl 1.0.</p>
+
+<p><a href="ch25_01.html#pmodperl-CHP-25-EX-1">Example 25-1</a> shows a simple registry script that
+prints the environment variables.</p>
+
+<a name="pmodperl-CHP-25-EX-1" /><div class="example">
+<h4 class="objtitle">Example 25-1. print_env.pl</h4>
+<blockquote><pre class="code">print "Content-type: text/plain\n\n";
+for (sort keys %ENV){
+    print "$_ =&gt; $ENV{$_}\n";
+}</pre></blockquote>
+</div>
+
+<p>Save the file in <em class="emphasis">/home/httpd/perl/print_env.pl</em>
+and make it executable:</p>
+
+<blockquote><pre class="code">panic% chmod 0700 /home/stas/modperl/mod_perl_rules1.pl</pre></blockquote>
+
+<p>Now issue a request to
+<em class="emphasis">http://localhost/perl/print_env.pl</em>, and you
+should see all the environment variables printed out.</p>
+
+<p>One currently outstanding issue with the registry family is the issue
+with <tt class="literal">chdir( )</tt>. mod_perl 1.0 registry modules
+always performed <tt class="literal">cdhir( )</tt>s to the directory of the
+script, so scripts could require modules relative to the directory of
+the script. Since mod_perl 2.0 may run in a threaded environment, the
+registry scripts can no longer call <tt class="literal">chdir(
+)</tt><a name="pmodperl-CHP-25-ITERM-5969" />, because when one thread performs a
+<tt class="literal">chdir( )</tt> it affects the whole process&#8212;all
+other threads will see that new directory when calling
+<tt class="literal">Cwd::cwd( )</tt>, which will wreak havoc. As of this
+writing, the registry modules can't handle this
+problem (they simply don't <tt class="literal">chdir(
+)</tt> to the script's directory); however, a
+satisfying solution will be provided by the time mod_perl 2.0 is
+released.</p>
+
+</div>
+<a name="pmodperl-CHP-25-SECT-1.5" /><div class="sect2">
+<h3 class="sect2">25.1.5. Method Handlers</h3>
+
+<p>In mod_perl 1.0, method <a name="pmodperl-CHP-25-ITERM-5970" /><a name="pmodperl-CHP-25-ITERM-5971" />handlers
+had to be specified by using the
+<tt class="literal">($$)</tt><a name="pmodperl-CHP-25-ITERM-5972" /> prototype:</p>
+
+<blockquote><pre class="code">package Eagle;
+@ISA = qw(Bird);
+
+sub handler ($$) {
+    my($class, $r) = @_;
+    ...;
+}</pre></blockquote>
+
+<p>Starting with Perl Version 5.6, you can use subroutine attributes,
+and that's what mod_perl 2.0 does instead of
+conventional prototypes:</p>
+
+<blockquote><pre class="code">package Eagle;
+@ISA = qw(Bird);
+
+sub handler : method {
+    my($class, $r) = @_;
+    ...;
+}</pre></blockquote>
+
+<p>See the <em class="emphasis">attributes</em> manpage.</p>
+
+<p>mod_perl 2.0 doesn't support the
+<tt class="literal">($$)</tt> prototypes, mainly because several callbacks
+in 2.0 have more arguments than <tt class="literal">$r</tt>, so the
+<tt class="literal">($$)</tt> prototype doesn't make sense
+any more. Therefore, if you want your code to work with both mod_perl
+generations, you should use the subroutine attributes.</p>
+
+</div>
+<a name="pmodperl-CHP-25-SECT-1.6" /><div class="sect2">
+<h3 class="sect2">25.1.6. Apache::StatINC Replacement</h3>
+
+<p><tt class="literal">Apache::StatINC</tt> has been replaced by
+<tt class="literal">Apache::Reload</tt><a name="pmodperl-CHP-25-ITERM-5973" />, which works for both mod_perl
+generations. To migrate to <tt class="literal">Apache::Reload</tt>, simply
+replace:</p>
+
+<blockquote><pre class="code">PerlInitHandler Apache::StatINC</pre></blockquote>
+
+<p>with:</p>
+
+<blockquote><pre class="code">PerlInitHandler Apache::Reload</pre></blockquote>
+
+<p><tt class="literal">Apache::Reload</tt> also provides some extra
+functionality, covered in the module's manpage.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch24_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch25_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">24.6. Resources</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">25.2. New Apache Phases and Corresponding Perl*Handlers</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

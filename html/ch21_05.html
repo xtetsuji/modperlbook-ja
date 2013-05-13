@@ -1,0 +1,1822 @@
+<html><head><title>Debugging Perl Code (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch21_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">21.5. Debugging Perl Code</h2>
+
+<p>It's a<a name="pmodperl-CHP-21-ITERM-5533" /><a name="pmodperl-CHP-21-ITERM-5534" /> known fact
+that programmers spend a lot of time debugging their code. Sometimes
+we spend more time debugging code than writing it. The
+lion's share of the time spent on debugging is spent
+on finding the cause of the bug and trying to reproduce the bug at
+will. Usually it takes little time to fix the problem once
+it's understood.</p>
+
+<p>A typical Perl program relies on many other modules written by other
+developers. Hence, no matter how good your code is, often you have to
+deal with bugs in the code written by someone else. No matter how
+hard you try to avoid learning to debug, you will have to do it at
+some point. And the earlier you acquire the skills, the better.</p>
+
+<p>There are several levels of
+debugging<a name="pmodperl-CHP-21-ITERM-5535" /> complexity. The basic level is
+when Perl terminates the program during the compilation phase, before
+it tries to run the resulting byte code. This usually happens because
+there are syntax errors in the code, or perhaps because a used module
+is missing. Sometimes it takes quite an effort to solve these
+problems, since code that uses Apache core modules generally
+won't compile when executed from the shell. Later we
+will learn how to solve syntax problems in mod_perl code quite
+easily.</p>
+
+<p>Once the program compiles and starts to run, various runtime errors
+may happen, usually when Perl tries to interact with external
+resources (e.g., trying to open a file or to open a connection to a
+database). If the code validates whether such external resource calls
+succeed and aborts the program with <tt class="literal">die( )</tt> if they
+do not (including a useful error message, as we explained at the
+beginning of the chapter), there is nothing to debug here, because
+the error message gives us all the needed information. These are not
+bugs in our code, and it's expected that they may
+happen. However, if the error message is incomplete (e.g., if you
+didn't include <tt class="literal">$!</tt> in the error
+message when attempting to open a file), or the program continues to
+run, ignoring the failed call, then you have to figure out where the
+badly written code is and correct it to abort on the failure,
+properly reporting the problem.</p>
+
+<p>Of course, there are cases where a failure to do something is not
+fatal. For example, consider a program that tries to open a
+connection to a database, and it's known that the
+database is being stopped every so often for maintenance. Here, the
+program may choose to try again and again until the database becomes
+available and aborts itself only after a certain timeout period. In
+such cases we hope that the logic is properly implemented, so it
+won't lead to mysterious, hard-to-detect bugs.</p>
+
+<p>If the running program is properly handling external resource calls,
+it may still be prone to internal logical errors&#8212;i.e., when the
+program doesn't do what you thought you had
+programmed it to do. These are somewhat harder to solve than simple
+syntax errors, especially when there is a lot of code to be inspected
+and reviewed, but it's just a matter of time. Perl
+can help a lot; typos can often be found simply by enabling warnings.
+For example, if you wanted to compare two numbers, but you omitted
+the second <tt class="literal">=</tt> character so that you had something
+like <tt class="literal">if ($yes = 1)</tt> instead of <tt class="literal">if
+($yes</tt> <tt class="literal">= = 1)</tt>, with warnings enabled,
+Perl will warn you that you may have meant <tt class="literal">= =</tt>.</p>
+
+<p>The next level is when the program does what it's
+expected to do most of the time, but occasionally misbehaves. Often
+you'll find that <tt class="literal">print( )</tt>
+statements or the Perl debugger can help, but inspection of the code
+generally doesn't. Sometimes it's
+easy to debug with <tt class="literal">print( )</tt>, dumping your data
+structures to a log file at some point, but typing the debug messages
+can become very tedious. That's where the Perl
+debugger comes into its own.</p>
+
+<p>While <tt class="literal">print( )</tt>statements always work, running the
+Perl debugger for CGI-style scripts might be quite a challenge. But
+with the right knowledge and tools handy, the debugging process
+becomes much easier. Unfortunately, there is no one easy way to debug
+your programs, as the debugging depends entirely on your code. It can
+be a nightmare to debug really complex and obscure code, but as your
+style matures you can learn ways to write simpler code that is easier
+to debug. You will probably find that when you write simpler, clearer
+code it does not need so much debugging in the first place.</p>
+
+<p>One of the most difficult cases to debug is when the process just
+terminates in the middle of processing a request and aborts with a
+"Segmentation fault" error
+(possibly dumping core, by creating a file called
+<em class="emphasis">core</em> in the current directory of the process
+that was running). Often this happens when the program tries to
+access a memory area that doesn't belong to it. This
+is something that you rarely see with plain Perl scripts, but it can
+easily happen if you use modules whose guts are written in C or C++
+and something goes wrong with them. Occasionally you will come across
+a bug in mod_perl itself (mod_perl is written in C and makes
+extensive use of XS macros).</p>
+
+<p>In the following sections we will cover a selection of problems in
+detail, thoroughly discussing them and presenting a few techniques to
+solve<a name="pmodperl-CHP-21-ITERM-5536" /><a name="pmodperl-CHP-21-ITERM-5537" /> them.</p>
+
+<a name="pmodperl-CHP-21-SECT-5.1" /><div class="sect2">
+<h3 class="sect2">21.5.1. Locating and Correcting Syntax Errors</h3>
+
+<p>While <a name="pmodperl-CHP-21-ITERM-5538" /><a name="pmodperl-CHP-21-ITERM-5539" /><a name="pmodperl-CHP-21-ITERM-5540" /><a name="pmodperl-CHP-21-ITERM-5541" />developing code, we sometimes make
+syntax errors, such as forgetting to put a comma in a list or a
+semicolon at the end of a statement.</p>
+
+<a name="pmodperl-CHP-21-SIDEBAR-1" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Don't Skimp on the Semicolons</h4>
+
+<p>Even at <a name="pmodperl-CHP-21-ITERM-5542" /><a name="pmodperl-CHP-21-ITERM-5543" /><a name="pmodperl-CHP-21-ITERM-5544" />the end of a <tt class="literal">{ }</tt> block,
+where a semicolon is not required at the end of the last statement,
+it may be better to put one in: there is a chance that you will add
+more code later, and when you do you might forget to add the
+now-required semicolon. Similarly, more items might be added later to
+a list; unlike many other languages, Perl has no problem when you end
+a list with a redundant comma.</p>
+</td></tr></table><p></blockquote>
+
+<p>One approach to locating syntactically
+<a name="pmodperl-CHP-21-ITERM-5545" />incorrect code is to execute the
+script from the shell with the <em class="emphasis">-c</em> flag:</p>
+
+<blockquote><pre class="code">panic% perl -c test.pl</pre></blockquote>
+
+<p>This tells Perl to check the syntax but not to run the code
+(actually, it will execute <tt class="literal">BEGIN</tt> blocks,
+<tt class="literal">END</tt> blocks, and <tt class="literal">use( )</tt> calls,
+because these are considered as occurring outside the execution of
+your program, and they can affect whether your program compiles
+correctly or not).<a href="#FOOTNOTE-50">[50]</a></p> <blockquote><a name="FOOTNOTE-50" /><p> [50]Perl 5.6.0 has introduced a new
+special variable, <tt class="literal">$^C</tt>, which is set to true when
+Perl is run with the <em class="emphasis">-c</em> flag; this provides an
+opportunity to have some further control over
+<tt class="literal">BEGIN</tt> and <tt class="literal">END</tt> blocks during
+syntax checking.</p> </blockquote>
+
+<p>When checking syntax in this way it's also a good
+idea to add the <em class="emphasis">-w</em> switch to enable warnings:</p>
+
+<blockquote><pre class="code">panic% perl -cw test.pl</pre></blockquote>
+
+<p>If there are errors in the code, Perl will report the errors and tell
+you at which line numbers in your script the errors were found. For
+example, if we create a file <em class="emphasis">test.pl</em> with the
+contents:</p>
+
+<blockquote><pre class="code">@list = ('foo' 'bar');</pre></blockquote>
+
+<p>and do syntax validation from the command line:</p>
+
+<blockquote><pre class="code">panic% perl -cw test.pl
+String found where operator expected at 
+      test.pl line 1, near "'foo' 'bar'"
+  (Missing operator before  'bar'?)
+syntax error at test.pl line 1, near "'foo' 'bar'"
+test.pl had compilation errors.</pre></blockquote>
+
+<p>we can learn from the error message that we are missing an operator
+before the '<tt class="literal">bar</tt>' string, which is of course a
+comma in this case. If we place the missing comma between the two
+strings:</p>
+
+<blockquote><pre class="code">@list = ('foo', 'bar');</pre></blockquote>
+
+<p>and run the test again:</p>
+
+<blockquote><pre class="code">panic% perl -cw test.pl
+Name "main::list" used only once: possible typo at test.pl line 1.
+test.pl syntax OK</pre></blockquote>
+
+<p>we can see that the syntax is correct now. But Perl still warns us
+that we have some variable that is defined but not used. Is this a
+bug? Yes and no&#8212;it's what we really meant in
+this example, but our example doesn't actually do
+anything, so Perl is probably right to complain.</p>
+
+<p>The next step is to execute the script, since in addition to syntax
+errors there may be runtime errors. These are usually the errors that
+cause the "Internal Server Error"
+response when a page is requested by a client's
+browser. With plain CGI scripts (running under mod_cgi)
+it's the same as running plain Perl
+scripts&#8212;just execute them and see if they work.</p>
+
+<p>The whole thing is quite different with scripts that use
+<tt class="literal">Apache::*</tt> modules. These can be used only from
+within the mod_perl server environment. Such scripts rely on other
+code, and an environment that isn't available if you
+attempt to execute the script from the shell. There is no Apache
+request object available to the code when it is executed from the
+shell.</p>
+
+<p>If you have a problem when using <tt class="literal">Apache::*</tt>
+modules, you can make a request to the script from a browser and
+watch the errors and warnings as they are logged to the
+<em class="emphasis">error_log</em> file. Alternatively, you can use the
+<tt class="literal">Apache::FakeRequest</tt> module, which tries to emulate
+a request and makes it possible to debug some scripts outside the
+mod_perl environment, as we will see in the next<a name="pmodperl-CHP-21-ITERM-5546" /><a name="pmodperl-CHP-21-ITERM-5547" /><a name="pmodperl-CHP-21-ITERM-5548" /><a name="pmodperl-CHP-21-ITERM-5549" /> section.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.2" /><div class="sect2">
+<h3 class="sect2">21.5.2. Using Apache::FakeRequest to Debug Apache Perl Modules</h3>
+
+<p><tt class="literal">Apache::FakeRequest</tt><a name="pmodperl-CHP-21-ITERM-5550" /><a name="pmodperl-CHP-21-ITERM-5551" /> is
+used to set up an empty Apache request object that can be used for
+debugging. The <tt class="literal">Apache::FakeRequest</tt> methods just
+set internal variables with the same names as the methods and returns
+the values of the internal variables. Initial values for methods can
+be specified when the object is created. The <tt class="literal">print( )</tt>
+method prints to <tt class="literal">STDOUT</tt>.</p>
+
+<p>Subroutines for Apache constants are also defined so that you can use
+<tt class="literal">Apache::Constants</tt> while debugging, although the
+values of the constants are hardcoded rather than extracted from the
+Apache source code.</p>
+
+<p><a href="ch21_05.html#pmodperl-CHP-21-EX-2">Example 21-2</a> is a very simple module that prints a
+brief message to the client's browser.</p>
+
+<a name="pmodperl-CHP-21-EX-2" /><div class="example">
+<h4 class="objtitle">Example 21-2. Book/Example.pm</h4>
+<blockquote><pre class="code">package Book::Example;
+use Apache::Constants qw(OK);
+
+sub handler {
+    my $r = shift;
+    $r-&gt;send_http_header('text/plain');
+    print "You are OK ", $r-&gt;get_remote_host, "\n";
+    return OK;
+}
+
+1;</pre></blockquote>
+</div>
+
+<p>You cannot debug this module unless you configure the server to run
+it, by calling its handler from somewhere. So, for example, you could
+put in <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">&lt;Location /ex&gt;
+    SetHandler perl-script
+    PerlHandler Book::Example
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Then, after restarting the server, you could start a browser, request
+the location <em class="emphasis">http://localhost/ex</em>, and examine
+the output. Tedious, no?</p>
+
+<p>With the help of <tt class="literal">Apache::FakeRequest</tt>, you can
+write a little
+<a name="pmodperl-CHP-21-ITERM-5552" />script that will emulate
+a request and return the output (see <a href="ch21_05.html#pmodperl-CHP-21-EX-3">Example 21-3</a>).</p>
+
+<a name="pmodperl-CHP-21-EX-3" /><div class="example">
+<h4 class="objtitle">Example 21-3. fake.pl</h4>
+<blockquote><pre class="code">#!/usr/bin/perl
+
+use Apache::FakeRequest ( );
+use Book::Example ( );
+
+my $r = Apache::FakeRequest-&gt;new('get_remote_host'=&gt;'www.example.com');
+Book::Example::handler($r);</pre></blockquote>
+</div>
+
+<p>When you execute the script from the command line, you will see the
+following output as the body of the response:</p>
+
+<blockquote><pre class="code">You are OK www.example.com</pre></blockquote>
+
+<p>As you can see, when <tt class="literal">Apache::FakeRequest</tt> was
+initialized, we hardcoded the Apache method <tt class="literal">get_remote_host(
+)</tt> with a static value.</p>
+
+<p>At the time of this writing, <tt class="literal">Apache::FakeRequest</tt>
+is far from being complete, but you may still find it useful.</p>
+
+<p>If while developing your code you have to switch back and forth
+between the normal and fake modes, you may want to start your code in
+this way:</p>
+
+<blockquote><pre class="code">use constant MOD_PERL =&gt; $ENV{MOD_PERL};
+
+my $r;
+
+if (MOD_PERL) {
+    $r = Apache-&gt;request;
+} else {
+    require Apache::FakeRequest;
+    $r = Apache::FakeRequest-&gt;new;
+}</pre></blockquote>
+
+<p>When you run from the command line, the fake request will be used;
+otherwise, the usual method will be used.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.3" /><div class="sect2">
+<h3 class="sect2">21.5.3. Using print( ) for Debugging</h3>
+
+<p>The universal <a name="pmodperl-CHP-21-ITERM-5553" /><a name="pmodperl-CHP-21-ITERM-5554" />debugging tool across nearly
+all platforms and programming languages is <tt class="literal">printf(
+)</tt> (or equivalent output functions). This function can send
+data to the console, a file, an application window, and so on. In
+Perl we generally use the <tt class="literal">print( )</tt> function. With
+an idea of where and when the bug is triggered, a developer can
+insert <tt class="literal">print( )</tt>statements into the source code to
+examine the value of data at certain stages of execution.</p>
+
+<p>However, it is rather difficult to anticipate all the possible
+directions a program might take and what data might cause trouble. In
+addition, inline debugging code tends to add bloat and degrade the
+performance of an application and can also make the code harder to
+read and maintain. Furthermore, you have to comment out or remove the
+debugging <tt class="literal">print( )</tt> calls when you think that you
+have solved the problem, and if later you discover that you need to
+debug the same code again, you need at best to uncomment the
+debugging code lines or, at worst, to write them again from scratch.</p>
+
+<p>The <tt class="literal">constant</tt><a name="pmodperl-CHP-21-ITERM-5555" /><a name="pmodperl-CHP-21-ITERM-5556" /> pragma helps
+here. You can leave some debug printings in production code, without
+adding extra processing overhead, by using constants. For example,
+while developing the code, you can define a constant
+<tt class="literal">DEBUG</tt> whose value is <tt class="literal">1</tt>:</p>
+
+<blockquote><pre class="code">package Foo;
+use constant DEBUG =&gt; 1;
+...
+warn "entering foo" if DEBUG;
+...</pre></blockquote>
+
+<p>The warning will be printed, since <tt class="literal">DEBUG</tt> returns
+true. In production you just have to turn off the constant:</p>
+
+<blockquote><pre class="code">use constant DEBUG =&gt; 0;</pre></blockquote>
+
+<p>When the code is compiled with a false <tt class="literal">DEBUG</tt>
+value, all those statements that are to be executed if
+<tt class="literal">DEBUG</tt> has a true value will be removed on the fly
+<em class="emphasis">at compile time</em>, as if they never existed. This
+allows you to keep some of the important debug statements in the code
+without any adverse impact on performance.</p>
+
+<p>But what if you have many different debug categories and you want to
+be able to turn them on and off as you need them? In this case, you
+need to define a constant for each category. For example:</p>
+
+<blockquote><pre class="code">use constant DEBUG_TEMPLATE =&gt; 1;
+use constant DEBUG_SESSION  =&gt; 0;
+use constant DEBUG_REQUEST  =&gt; 0;</pre></blockquote>
+
+<p>Now if in your code you have these three debug statements:</p>
+
+<blockquote><pre class="code">warn "template" if DEBUG_TEMPLATE;
+warn "session"  if DEBUG_SESSION;
+warn "request"  if DEBUG_REQUEST;</pre></blockquote>
+
+<p>only the first one will be executed, as it's the
+only one that has a condition that evaluates to true.</p>
+
+<p>Let's look at a few examples where we use
+<tt class="literal">print( )</tt> to debug some problem.</p>
+
+<p>In one of our applications, we wrote a function that returns a date
+from one week ago. This function (including the code that calls it)
+is shown in <a href="ch21_05.html#pmodperl-CHP-21-EX-4">Example 21-4</a>.</p>
+
+<a name="pmodperl-CHP-21-EX-4" /><div class="example">
+<h4 class="objtitle">Example 21-4. date_week_ago.pl</h4>
+<blockquote><pre class="code">print "Content-type: text/plain\n\n";
+print "A week ago the date was ",date_a_week_ago( ),"\n";
+
+# return a date one week ago as a string in format: MM/DD/YYYY
+sub date_a_week_ago {
+
+    my @month_len = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+    my($day, $month, $year) = (localtime)[3..5];
+
+    for (my $j = 0; $j &lt; 7; $j++) {
+
+        $day--;
+        if ($day =  = 0) {
+
+            $month--;
+            if ($month =  = 0) {
+                $year--;
+                $month = 12;
+            }
+
+            # there are 29 days in February in a leap year
+            $month_len[1] =  
+                ($year % 400 =  = 0 or ($year % 4 =  = 0 and $year % 100))
+                    ? 29 : 28;
+
+            # set $day to be the last day of the previous month 
+            $day = $month_len[$month - 1]; 
+        }
+    }
+
+    return sprintf "%02d/%02d/%04d", $month, $day, $year+1900;
+}</pre></blockquote>
+</div>
+
+<p>This code is pretty straightforward. We get today's
+date and subtract 1 from the value of the day we get, updating the
+month and the year on the way if boundaries are being crossed (end of
+month, end of year). If we do it seven times in a loop, at the end we
+should get a date from a week ago.</p>
+
+<p>Note that since <tt class="literal">localtime( )</tt> returns the year as a
+value of <tt class="literal">current_year-1900</tt> (which means that we
+don't have a century boundary to worry about), if we
+are in the middle of the first week of the year 2000, the value of
+$year returned by <tt class="literal">localtime( )</tt> will be
+<tt class="literal">100</tt> and not <tt class="literal">0</tt>, as one might
+mistakenly assume. So when the code does <tt class="literal">$year--</tt>
+it becomes <tt class="literal">99</tt>, not <tt class="literal">-1</tt>. At the
+end, we add 1900 to get back the correct four-digit year format. (If
+you plan to work with years before 1900, add 1900 to
+<tt class="literal">$year</tt> before the <tt class="literal">for</tt> loop.)</p>
+
+<p>Also note that we have to account for leap years, where there are 29
+days in February. For the other months, we have prepared an array
+containing the month lengths. A specific year is a leap year if it is
+either evenly divisible by 400 or evenly divisible by 4 and not
+evenly divisible by 100. For example, the year 1900 was not a leap
+year, but the year 2000 was a leap year. Logically written:</p>
+
+<blockquote><pre class="code">print ($year % 400 =  = 0 or ($year % 4 =  = 0 and $year % 100)) 
+      ? 'Leap' : 'Not Leap';</pre></blockquote>
+
+<p>Now when we run the script and check the result, we see that
+something is wrong. For example, if today is 10/23/1999, we expect
+the above code to print <tt class="literal">10/16/1999</tt>. In fact, it
+prints <tt class="literal">09/16/1999</tt>, which means that we have lost a
+month. The above code is buggy!</p>
+
+<p>Let's put a few debug <tt class="literal">print( )</tt>
+statements in the code, near the <tt class="literal">$month</tt> variable:</p>
+
+<blockquote><pre class="code">sub date_a_week_ago {
+
+    my @month_len = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+    my($day, $month, $year) = (localtime)[3..5];
+    print "[set] month : $month\n"; # DEBUG
+
+    for (my $j = 0; $j &lt; 7; $j++) {
+
+        $day--;
+        if ($day =  = 0) {
+
+            $month--;
+            if ($month =  = 0) {
+                $year--;
+                $month = 12;
+            }
+            print "[loop $i] month : $month\n"; # DEBUG
+
+            # there are 29 days in February in a leap year
+            $month_len[1] =  
+                ($year % 400 =  = 0 or ($year % 4 =  = 0 and $year % 100))
+                    ? 29 : 28;
+
+        # set $day to be the last day of the previous month 
+            $day = $month_len[$month - 1]; 
+        }
+    }
+
+    return sprintf "%02d/%02d/%04d", $month, $day, $year+1900;
+}</pre></blockquote>
+
+<p>When we run it we see:</p>
+
+<blockquote><pre class="code">[set] month : 9</pre></blockquote>
+
+<p>This is supposed to be the number of the current month
+(<tt class="literal">10</tt>). We have spotted a bug, since the only code
+that sets the <tt class="literal">$month</tt> variable consists of a call
+to <tt class="literal">localtime( )</tt>. So did we find a bug in Perl?
+Let's look at the manpage of the <tt class="literal">localtime(
+)</tt> function:</p>
+
+<blockquote><pre class="code">panic% perldoc -f localtime
+
+Converts a time as returned by the time function to a 9-element array with the time 
+analyzed for the local time zone.  Typically used as follows:
+
+  #  0    1    2     3     4    5     6     7     8
+  ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+
+All array elements are numeric, and come straight out of a struct tm.  In particular 
+this means that $mon has the range 0..11 and $wday has the range 0..6 with Sunday as 
+day 0.  Also, $year is the number of years since 1900, that is, $year is 123 in year 
+2023, and <em class="replaceable"><tt>not</tt></em> simply the last two digits of the year.  If you assume it is, then you 
+create non-Y2K-compliant programs--and you wouldn't want to do that, would you?
+[more info snipped]</pre></blockquote>
+
+<p>This reveals that if we want to count months from 1 to 12 and not 0
+to 11 we are supposed to increment the value of
+<tt class="literal">$month</tt>. Among other interesting facts about
+<tt class="literal">localtime( )</tt>, we also see an explanation of
+<tt class="literal">$year</tt>, which, as we've mentioned
+before, is set to the number of years since 1900.</p>
+
+<p>We have found the bug in our code and learned new things about
+<tt class="literal">localtime( )</tt>. To correct the above code, we just
+increment the month after we call <tt class="literal">localtime( )</tt>:</p>
+
+<blockquote><pre class="code">my($day, $month, $year) = (localtime)[3..5];
+$month++;</pre></blockquote>
+
+<p>Other places where programmers often make mistakes are conditionals
+and loop statements. For example, will the block in this loop:</p>
+
+<blockquote><pre class="code">my $c = 0;
+for (my $i=0; $i &lt;= 3; $i++) {
+    $c += $i;
+}</pre></blockquote>
+
+<p>be executed three or four times?</p>
+
+<p>If we plant the <tt class="literal">print( )</tt> debug statement:</p>
+
+<blockquote><pre class="code">my $c = 0;
+for (my $i=0; $i &lt;= 3; $i++) {
+    $c += $i;
+    print $i+1,"\n";
+}</pre></blockquote>
+
+<p>and execute it:</p>
+
+<blockquote><pre class="code">1
+2
+3
+4</pre></blockquote>
+
+<p>we see that it gets executed four times. We could have figured this
+out by inspecting the code, but what happens if instead of
+<tt class="literal">3</tt>, there is a variable whose value is known only
+at runtime? Using debugging <tt class="literal">print( )</tt>statements
+helps to determine whether to use <tt class="literal">&lt;</tt> or
+<tt class="literal">&lt;=</tt> to get the boundary condition right.</p>
+
+<p>Using idiomatic Perl makes things much easier:</p>
+
+<blockquote><pre class="code">panic% perl -le 'my $c=0; $c += $_, print $_+1 for 0..3;'</pre></blockquote>
+
+<p>Here you can plainly see that the loop is executed four times.</p>
+
+<p>The same goes for conditional statements. For example, assuming that
+<tt class="literal">$a</tt> and <tt class="literal">$b</tt> are integers, what is
+the value of this statement?</p>
+
+<blockquote><pre class="code">$c = $a &gt; $b and $a &lt; $b ? 1 : 0;</pre></blockquote>
+
+<p>One might think that <tt class="literal">$c</tt> is always set to zero,
+since:</p>
+
+<blockquote><pre class="code">$a &gt; $b and $a &lt; $b</pre></blockquote>
+
+<p>is a false statement no matter what the values of
+<tt class="literal">$a</tt> and <tt class="literal">$b</tt> are. But
+<tt class="literal">C$</tt> is not set to zero&#8212;it's
+set to <tt class="literal">1</tt> (a true value) if <tt class="literal">$a &gt;
+$b</tt>; otherwise, it's set to
+<tt class="literal">undef</tt> (a false value). The reason for this
+behavior lies in operator precedence. The operator
+<tt class="literal">and</tt> (AND) has lower precedence than the operator
+<tt class="literal">=</tt> (ASSIGN); therefore, Perl sees the statement
+like this:</p>
+
+<blockquote><pre class="code">($c = ($a &gt; $b) ) and ( $a &lt; $b ? 1 : 0 );</pre></blockquote>
+
+<p>which is the same as:</p>
+
+<blockquote><pre class="code">if ($c = $a &gt; $b) {
+    $a &lt; $b ? 1 : 0;
+}</pre></blockquote>
+
+<p>So the value assigned to <tt class="literal">$c</tt> is the result of the
+logical expression:</p>
+
+<blockquote><pre class="code">$a &gt; $b</pre></blockquote>
+
+<p>Adding some debug printing will reveal this problem. The solutions
+are, of course, either to use parentheses to explicitly express what
+we want:</p>
+
+<blockquote><pre class="code">$c = ($a &gt; $b and $a &lt; $b) ? 1 : 0;</pre></blockquote>
+
+<p>or to use a higher-precedence AND operator:</p>
+
+<blockquote><pre class="code">$c = $a &gt; $b &amp;&amp; $a &lt; $b ? 1 : 0;</pre></blockquote>
+
+<p>Now <tt class="literal">$c</tt> is always set to <tt class="literal">0</tt> (as
+presumably we<a name="pmodperl-CHP-21-ITERM-5557" /><a name="pmodperl-CHP-21-ITERM-5558" /> intended).<a href="#FOOTNOTE-51">[51]</a></p> <blockquote><a name="FOOTNOTE-51" /><p> [51]For more
+traps, refer to the <em class="emphasis">perltrap</em> manpage.</p>
+</blockquote>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.4" /><div class="sect2">
+<h3 class="sect2">21.5.4. Using print( ) and Data::Dumper for Debugging</h3>
+
+<p>Sometimes <a name="pmodperl-CHP-21-ITERM-5559" /><a name="pmodperl-CHP-21-ITERM-5560" /><a name="pmodperl-CHP-21-ITERM-5561" />we need to peek into complex data
+structures, and trying to print them out can be tricky.
+That's where <tt class="literal">Data::Dumper</tt> comes
+to the rescue. For example, if we create this complex data structure:</p>
+
+<blockquote><pre class="code">$data = {
+    array =&gt; [qw(apple banana clementine damson)],
+    hash  =&gt; {
+        food =&gt; "vegetables",
+        drink =&gt; "juice",
+    },
+};</pre></blockquote>
+
+<p>how do we print it out? Very easily:</p>
+
+<blockquote><pre class="code">use Data::Dumper;
+print Dumper $data;</pre></blockquote>
+
+<p>What we get is a pretty-printed <tt class="literal">$data</tt>:</p>
+
+<blockquote><pre class="code">$VAR1 = {
+          'hash' =&gt; {
+                      'food' =&gt; 'vegetables',
+                      'drink' =&gt; 'juice'
+                    },
+          'array' =&gt; [
+                      'apple',
+                      'banana',
+                      'clementine',
+                      'damson'
+                     ]
+        };</pre></blockquote>
+
+<p>Suppose while writing this example we made a mistake and wrote:</p>
+
+<blockquote><pre class="code">array =&gt; qw(apple banana clementine damson),</pre></blockquote>
+
+<p>instead of:</p>
+
+<blockquote><pre class="code">array =&gt; [qw(apple banana clementine damson)],</pre></blockquote>
+
+<p>When we pretty-printed the contents of <tt class="literal">$data</tt> we
+would immediately see our mistake:</p>
+
+<blockquote><pre class="code">$VAR1 = {
+          'banana' =&gt; 'clementine',
+          'damson' =&gt; 'hash',
+          'HASH(0x80cd79c)' =&gt; undef,
+          'array' =&gt; 'apple'
+        };</pre></blockquote>
+
+<p>That's not what we want&#8212;we have spotted the
+bug and can easily correct it.</p>
+
+<p>You can use:</p>
+
+<blockquote><pre class="code">print STDERR Dumper $data;</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">warn Dumper $data;</pre></blockquote>
+
+<p>instead of printing to STDOUT, to have all the debug messages in the
+<em class="emphasis">error_log</em> file. This makes it even easier to
+debug your code, since the real output (which should normally go to
+the browser) is not mixed up with the debug output when the code is
+executed under mod_perl.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.5" /><div class="sect2">
+<h3 class="sect2">21.5.5. The Importance of a Good, Concise Coding Style</h3>
+
+<p>Don't strive for<a name="pmodperl-CHP-21-ITERM-5562" /><a name="pmodperl-CHP-21-ITERM-5563" /><a name="pmodperl-CHP-21-ITERM-5564" /> elegant, <a name="pmodperl-CHP-21-ITERM-5565" />clever code. Try
+to develop a good coding style by writing code that is concise, yet
+easy to understand. It's much easier to find bugs in
+concise, simple code, and such code tends to have fewer bugs.</p>
+
+<p>The "one week ago" example from the
+previous section is not concise. There is a lot of redundancy in it,
+and as a result it is harder to debug than it needs to be. Here is a
+condensed version of the main loop:</p>
+
+<blockquote><pre class="code">for (0..6) {
+    next if --$day;
+    $year--, $month=12 unless --$month;
+    $day = $month != 2
+        ? $month_len[$month-1] 
+        : ($year % 400 =  = 0 or ($year % 4 =  = 0 and $year % 100))
+            ? 29
+            : 28;
+}</pre></blockquote>
+
+<p>This version may seem quite difficult to understand and even harder
+to maintain, but for those who are used to reading idiomatic Perl,
+part of this code is easier to understand.</p>
+
+<p>Larry Wall, the author of Perl, is a linguist. He tried to define the
+syntax of Perl in a way that makes working in Perl much like working
+in English. So it's a good idea to learn
+Perl's coding idioms&#8212;some of them might seem
+odd at first, but once you get used to them, you will find it
+difficult to understand how you could have lived without them.
+We'll present just a few of the more common Perl
+coding idioms here.</p>
+
+<p>You should try to write code that is readable and avoids redundancy.
+For example, it's better to write:</p>
+
+<blockquote><pre class="code">unless ($i) {...}</pre></blockquote>
+
+<p>than:</p>
+
+<blockquote><pre class="code">if ($i =  = 0) {...}</pre></blockquote>
+
+<p>if you want to just test for truth.</p>
+
+<p>Use a concise, Perlish style:</p>
+
+<blockquote><pre class="code">for my $j (0..6) {...}</pre></blockquote>
+
+<p>instead of the syntax used in some other languages:</p>
+
+<blockquote><pre class="code">for (my $j=0; $j&lt;=6; $j++) {...}</pre></blockquote>
+
+<p>It's much simpler to write and comprehend code like
+this:</p>
+
+<blockquote><pre class="code">print "something" if $debug;</pre></blockquote>
+
+<p>than this:</p>
+
+<blockquote><pre class="code">if ($debug) {
+    print "something";
+}</pre></blockquote>
+
+<p>A good style that improves understanding and readability and reduces
+the chances of having a bug is shown below, in the form of yet
+another rewrite of our "one week
+ago" code:</p>
+
+<blockquote><pre class="code">for (0..6) {
+    $day--;
+    next if $day;
+
+    $month--;
+    unless ($month){
+        $year--;
+        $month=12
+    }
+
+    if($month =  = 2){ # February
+        $day = ($year % 400 =  = 0 or ($year % 4 =  = 0 and $year % 100)) 
+             ? 29 : 28;
+    } else {
+        $day = $month_len[$month-1];
+    }
+}</pre></blockquote>
+
+<p>This is a happy medium between the excessively verbose style of the
+first version and the very obscure second version.</p>
+
+<p>After debugging this obscure code for a while, we came up with a much
+simpler two-liner, which is much faster and easier to understand:</p>
+
+<blockquote><pre class="code">sub date_a_week_ago {
+    my($day, $month, $year) = (localtime(time-7*24*60*60))[3..5];
+    return sprintf "%02d/%02d/%04d", $month+1, $day, $year+1900;
+}</pre></blockquote>
+
+<p>Just take the current date in seconds since
+<em class="emphasis">epoch</em> as <tt class="literal">time( )</tt> returns,
+subtract a week in seconds (7661 &#xD7; 24 &#xD7; 60
+&#xD7; 60),<a href="#FOOTNOTE-52">[52]</a> and feed the result to <tt class="literal">localtime(
+)</tt>. Voil&#xE0;&#8212;we have the date of one week ago!</p> <blockquote><a name="FOOTNOTE-52" /><p> [52]Perl folds the constants at compile
+time.</p> </blockquote>
+
+<p>Why is the last version important, when the first one works just
+fine? Not because of performance issues (although this last one is
+twice as fast as the first), but because there are more chances to
+have a bug in the first version than there are in the last one.</p>
+
+<p>Of course, instead of inventing the <tt class="literal">date_a_week_ago(
+)</tt> function and spending all this time debugging it, we
+could have just used a standard module from CPAN to provide the same
+functionality (with zero debugging time). In this case,
+<tt class="literal">Date::Calc</tt> comes to the rescue,<a href="#FOOTNOTE-53">[53]</a> and we will write
+the code as:</p>
+<blockquote><a name="FOOTNOTE-53" /><p> [53]See also <tt class="literal">Class::Date</tt> and
+<tt class="literal">Date::Manip</tt>.</p> </blockquote>
+
+<blockquote><pre class="code">use Date::Calc;
+sub date_a_week_ago {
+    my($year,$month,$day) = 
+        Date::Calc::Add_Delta_Days(Date::Calc::Today, -7);
+    return sprintf "%02d/%02d/%04d", $month, $day, $year;
+}</pre></blockquote>
+
+<p>We simply use <tt class="literal">Date::Calc::Today( )</tt>, which returns
+a list of three values&#8212;year, month, and day&#8212;which are
+immediately fed into the function
+<tt class="literal">Date::Calc::Add_Delta_Days( )</tt>. This allows us to
+get the date <em class="emphasis">N</em> days from now in either
+direction. We use -7 to ask for a date from one week ago. Since we
+are relying on this standard CPAN module, there is not much to debug
+here; the function has no complicated logic where one can expect
+bugs. In contrast, our original implementation was really difficult
+to understand, and it was very easy to make mistakes.</p>
+
+<p>We will use this example once again to stress that
+it's better to use standard modules than to
+<a name="pmodperl-CHP-21-ITERM-5566" />reinvent<a name="pmodperl-CHP-21-ITERM-5567" /><a name="pmodperl-CHP-21-ITERM-5568" /><a name="pmodperl-CHP-21-ITERM-5569" /> them.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.6" /><div class="sect2">
+<h3 class="sect2">21.5.6. Introduction to the Perl Debugger</h3>
+
+<p>As we saw earlier, it's <em class="emphasis">almost</em>
+always possible to debug code with the help of <tt class="literal">print(
+)</tt>. However, it is impossible to anticipate all the possible
+paths of execution through a program, and difficult to know what code
+to suspect when trouble occurs. In addition, inline debugging code
+tends to add bloat and degrade the performance of an application,
+although most applications offer inline debugging as a compile-time
+option to avoid these performance hits. In any case, this information
+tends to be useful only to the programmer who added the
+<tt class="literal">print( )</tt>statements in the first place.</p>
+
+<p>Sometimes you must debug tens of thousands of lines of Perl in an
+application, and while you may be a very experienced Perl programmer
+who can understand Perl code quite well just by looking at it, no
+mere mortal can even begin to understand what will actually happen in
+such a large application until the code is running. So to begin with
+you just don't know where to add your trusty
+<tt class="literal">print( )</tt>statements to see what is happening
+inside.</p>
+
+<p>The most effective way to track down a bug is often to run the
+program inside an interactive debugger. Most programming languages
+have such tools available, allowing programmers to see what is
+happening inside an application while it is running. The basic
+features of any<a name="pmodperl-CHP-21-ITERM-5570" />
+interactive debugger allow you to:</p>
+
+<ul><li>
+<p>Stop at a certain point in the code, based on a routine name or
+source file and line number (this point is called a <em class="emphasis">break
+point</em>).</p>
+</li><li>
+<p>Stop at a certain point in the code, based on conditions such as the
+value of a given variable (this is called a <em class="emphasis">conditional
+break point</em>).</p>
+</li><li>
+<p>Perform an action without stopping, based on the criteria above.</p>
+</li><li>
+<p>View and modify the values of variables at any time.</p>
+</li><li>
+<p>Provide context information such as stack traces and source views.</p>
+</li></ul>
+<p>It takes practice to learn the most effective ways of using an
+interactive debugger, but the time and effort will be paid back many
+times in the long run.</p>
+
+<p>Perl comes with an interactive debugger
+called<a name="pmodperl-CHP-21-ITERM-5571" /><a name="pmodperl-CHP-21-ITERM-5572" />
+<em class="emphasis">perldb</em>. Giving control of your Perl program to
+the interactive debugger is simply a matter of specifying the
+<em class="emphasis">-d</em> command-line switch. When this switch is
+used, Perl inserts debugging hooks into the program syntax tree, but
+it leaves the job of debugging to a Perl module separate from the
+Perl binary itself.</p>
+
+<p>We will start by reviewing a few <a name="pmodperl-CHP-21-ITERM-5573" /><a name="pmodperl-CHP-21-ITERM-5574" />of the basic concepts and commands
+provided by Perl's interactive debugger. These
+examples are all run from the command line, independent of mod_perl,
+but they will still be relevant when we work within Apache.</p>
+
+<p>It might be useful to keep the <em class="emphasis">perldebug</em> manpage
+handy for reference while reading this section, and for future
+debugging sessions on your own.</p>
+
+<p>The interactive debugger will attach to the current terminal and
+present you with a prompt just before the first program statement is
+executed. For example:</p>
+
+<blockquote><pre class="code">panic% perl -d -le 'print "mod_perl rules the world"'
+
+Loading DB routines from perl5db.pl version 1.0402
+
+Emacs support available.
+
+Enter h or `h h' for help.
+
+main::(-e:1):   print "mod_perl rules the world"
+  DB&lt;1&gt;</pre></blockquote>
+
+<p>The source line shown is the line that Perl is
+<em class="emphasis">about</em> to execute.
+To<a name="pmodperl-CHP-21-ITERM-5575" /><a name="pmodperl-CHP-21-ITERM-5576" /><a name="pmodperl-CHP-21-ITERM-5577" /> <em class="emphasis">single
+step</em>&#8212;i.e., execute one line at a time&#8212;use the
+<em class="emphasis">next</em><a name="pmodperl-CHP-21-ITERM-5578" /> command (or just
+<em class="emphasis">n</em>). Each time you enter something in the
+debugger, you must finish by pressing the Return key. This will cause
+the line to be executed, after which execution will stop and the next
+line to be executed (if any) will be displayed:</p>
+
+<blockquote><pre class="code">main::(-e:1):   print "mod_perl rules the world"
+  DB&lt;1&gt; n
+mod_perl rules the world
+Debugged program terminated.  Use q to quit or R to restart,
+use O inhibit_exit to avoid stopping after program termination,
+h q, h R or h O to get additional info.
+DB&lt;1&gt;</pre></blockquote>
+
+<p>In this case, our example code is only one line long, so we have
+finished interacting after the first line of code is executed.
+Let's try again with a slightly longer example:</p>
+
+<blockquote><pre class="code">my $word = 'mod_perl';
+my @array = qw(rules the world);
+
+print "$word @array\n";</pre></blockquote>
+
+<p>Save the script in a file called <em class="emphasis">domination.pl</em>
+and run it with the <em class="emphasis">-d</em> switch:</p>
+
+<blockquote><pre class="code">panic% perl -d domination.pl
+
+main::(domination.pl:1):      my $word = 'mod_perl';
+  DB&lt;1&gt; n
+main::(domination.pl:2):      my @array = qw(rules the world);
+  DB&lt;1&gt;</pre></blockquote>
+
+<p>At this point, the first line of code has been executed and the
+variable <tt class="literal">$word</tt> has been assigned the value
+<tt class="literal">mod_perl</tt>. We can check this by using the
+<em class="emphasis">p</em> (<em class="emphasis">print</em>) command:</p>
+
+<blockquote><pre class="code">main::(domination.pl:2):      my @array = qw(rules the world);
+  DB&lt;1&gt; p $word
+mod_perl</pre></blockquote>
+
+<p>The <em class="emphasis">print</em><a name="pmodperl-CHP-21-ITERM-5579" /> command is similar to
+Perl's built-in <tt class="literal">print( )</tt>
+function, but it adds a trailing newline and outputs to the
+<tt class="literal">$DB::OUT</tt> file handle, which is normally opened on
+the terminal from which Perl was launched. Let's
+continue:</p>
+
+<blockquote><pre class="code">  DB&lt;2&gt; n
+main::(domination.pl:4):      print "$word @array\n";
+  DB&lt;2&gt; p @array
+rulestheworld
+  DB&lt;3&gt; n
+mod_perl rules the world
+Debugged program terminated.  Use q to quit or R to restart,
+use O inhibit_exit to avoid stopping after program termination,
+h q, h R or h O to get additional info.</pre></blockquote>
+
+<p>Unfortunately, <em class="emphasis">p @array</em> printed
+<tt class="literal">rulestheworld</tt> and not <tt class="literal">rules the
+world</tt>, as we would prefer, but that's
+absolutely correct. If you print an <a name="pmodperl-CHP-21-ITERM-5580" /><a name="pmodperl-CHP-21-ITERM-5581" />array
+without expanding it first into a string it will be printed without
+adding the content of the <tt class="literal">$</tt>"<a name="pmodperl-CHP-21-ITERM-5582" /><a name="pmodperl-CHP-21-ITERM-5583" />
+variable (otherwise known as <tt class="literal">$LIST_SEPARATOR</tt>, if
+the <tt class="literal">English</tt> pragma is being used) between the
+elements of the array.</p>
+
+<p>If you type:</p>
+
+<blockquote><pre class="code">print "@array";</pre></blockquote>
+
+<p>the output will be <tt class="literal">rules the world</tt>, since the
+default value of the <tt class="literal">$</tt>" variable is a single
+space.</p>
+
+<p>You should have noticed by now that there is some valuable
+information to the left of each executable statement:</p>
+
+<blockquote><pre class="code">main::(domination.pl:4):      print "$word @array\n";
+  DB&lt;2&gt;</pre></blockquote>
+
+<p>First is the current package name (in this case,
+<tt class="literal">main:</tt>:). Next is the current filename and
+statement line number (<em class="emphasis">domination.pl</em> and 4, in
+this example). The number presented at the prompt is the command
+number, which can be used to recall commands from the session
+history, using the <em class="emphasis">!</em> command followed by this
+number. For example, <em class="emphasis">!1</em> would repeat the first
+command:</p>
+
+<blockquote><pre class="code">panic% perl -d -e0
+
+main::(-e:1):   0
+  DB&lt;1&gt; p $]
+5.006001
+  DB&lt;2&gt; !1
+p $]5.006001
+  DB&lt;3&gt;</pre></blockquote>
+
+<p>where <tt class="literal">$]</tt> is Perl's version
+number. As you can see, <em class="emphasis">!1</em> prints the value of
+<tt class="literal">$]</tt>, prepended by the command that was executed.</p>
+
+<p>Notice that the code given to Perl to debug (with
+<em class="emphasis">-e</em>) was <tt class="literal">0</tt>&#8212;i.e., a
+statement that does nothing. To use Perl as a calculator, and to
+experiment with Perl expressions, it is common to enter
+<em class="emphasis">perl -de0</em>, and then type in expressions and
+<em class="emphasis">p</em> (<em class="emphasis">print</em>) their results.</p>
+
+<p>Things start to get more interesting as the code gets more
+interesting. In the script in <a href="ch21_05.html#pmodperl-CHP-21-EX-5">Example 21-5</a>,
+we've increased the number of source files and
+packages by including the standard <tt class="literal">Symbol</tt> module,
+along with an invocation of its <tt class="literal">gensym( )</tt>
+function.</p>
+
+<a name="pmodperl-CHP-21-EX-5" /><div class="example">
+<h4 class="objtitle">Example 21-5. test_sym.pl</h4>
+<blockquote><pre class="code">use Symbol ( );
+
+my $sym = Symbol::gensym( );
+
+print "$sym\n";</pre></blockquote>
+</div>
+
+<p>Now let's debug it:</p>
+
+<blockquote><pre class="code">panic% perl -d test_sym.pl
+
+main::(test_sym.pl:3):      my $sym = Symbol::gensym( );
+  DB&lt;1&gt; n
+main::(test_sym.pl:5):      print "$sym\n";
+  DB&lt;1&gt; n
+GLOB(0x80c7a44)</pre></blockquote>
+
+<p>Note that the debugger did not stop at the first line of the file.
+This is because <tt class="literal">use</tt> <tt class="literal">..</tt>. is a
+compile-time statement, not a runtime statement. Also notice there
+was more work going on than the debugger revealed.
+That's because the <em class="emphasis">next</em> command
+does not enter subroutine calls, it <em class="emphasis">steps over</em>.
+To <em class="emphasis">step into</em>
+<a name="pmodperl-CHP-21-ITERM-5584" /><a name="pmodperl-CHP-21-ITERM-5585" />subroutine code,
+use the <em class="emphasis">step</em><a name="pmodperl-CHP-21-ITERM-5586" /> command (or its abbreviated form,
+<em class="emphasis">s</em>):</p>
+
+<blockquote><pre class="code">panic% perl -d test_sym.pl
+
+main::(test_sym.pl:3):      my $sym = Symbol::gensym( );
+  DB&lt;1&gt; s
+Symbol::gensym(/usr/lib/perl5/5.6.1/Symbol.pm:86):
+86:         my $name = "GEN" . $genseq++;
+  DB&lt;1&gt;</pre></blockquote>
+
+<p>Notice the source line information has changed to the
+<tt class="literal">Symbol::gensym</tt> package and the
+<em class="emphasis">Symbol.pm</em> file. We can carry on by hitting the
+Return key at each prompt, which causes the debugger to repeat the
+last <em class="emphasis">step</em> or <em class="emphasis">next</em> command.
+It won't repeat a <em class="emphasis">print</em>
+command, though. The debugger will eventually return from the
+subroutine back to our main program:</p>
+
+<blockquote><pre class="code">  DB&lt;1&gt; 
+Symbol::gensym(/usr/lib/perl5/5.6.1/Symbol.pm:87):
+87:         my $ref = *{$genpkg . $name};
+  DB&lt;1&gt; 
+Symbol::gensym(/usr/lib/perl5/5.6.1/Symbol.pm:88):
+88:         delete $$genpkg{$name};
+  DB&lt;1&gt; 
+Symbol::gensym(/usr/lib/perl5/5.6.1/Symbol.pm:89):
+89:         $ref;
+  DB&lt;1&gt; 
+main::(test_sym.pl:5):      print "$sym\n";
+  DB&lt;1&gt; 
+GLOB(0x80c7a44)</pre></blockquote>
+
+<p>Our line-by-line debugging approach has served us well for this small
+program, but imagine the time it would take to step through a large
+application at the same pace. There are several ways to speed up a
+debugging session, one of which is known as <em class="emphasis">setting a
+breakpoint</em>.</p>
+
+<p>The <em class="emphasis">breakpoint</em> <a name="pmodperl-CHP-21-ITERM-5587" /><a name="pmodperl-CHP-21-ITERM-5588" /><a name="pmodperl-CHP-21-ITERM-5589" />command (<em class="emphasis">b</em>) is used
+to tell the debugger to stop at a named subroutine or at any line of
+any file. In this example session, at the first debugger prompt we
+will set a breakpoint at the <tt class="literal">Symbol::gensym</tt>
+subroutine, telling the debugger to stop at the first line of this
+routine when it is called. Rather than moving along with
+<em class="emphasis">next</em> or <em class="emphasis">step</em>, we give the
+<em class="emphasis">continue</em> command (<em class="emphasis">c</em>), which
+tells the debugger to execute the script without stopping until it
+reaches a breakpoint:</p>
+
+<blockquote><pre class="code">panic% perl -d test_sym.pl
+
+main::(test_sym.pl:3):      my $sym = Symbol::gensym( );
+  DB&lt;1&gt; b Symbol::gensym
+  DB&lt;2&gt; c
+Symbol::gensym(/usr/lib/perl5/5.6.1/Symbol.pm:86):
+86:         my $name = "GEN" . $genseq++;</pre></blockquote>
+
+<p>Now let's imagine we are debugging a large
+application where <tt class="literal">Symbol::gensym</tt> might be called
+from any one of several places. When the subroutine breakpoint is
+reached, by default the debugger does not reveal where it was called
+from. One way to find out this information is with the stack
+<em class="emphasis">Trace</em><a name="pmodperl-CHP-21-ITERM-5590" /> command (<em class="emphasis">T</em>):</p>
+
+<blockquote><pre class="code">  DB&lt;2&gt; T
+$ = Symbol::gensym( ) called from file `test_sym.pl' line 3</pre></blockquote>
+
+<p>In this example, the call stack is only one level deep, so only that
+call is printed. We'll look at an example with a
+deeper stack later. The leftmost character reveals the context in
+which the subroutine was called. <tt class="literal">$</tt> represents
+scalar context; in other examples you may see <tt class="literal">@</tt>,
+which represents list context, or ., which
+represents void context. In our case we called:</p>
+
+<blockquote><pre class="code">my $sym = Symbol::gensym( );</pre></blockquote>
+
+<p>which calls the <tt class="literal">Symbol::gensym( )</tt> in scalar
+context.</p>
+
+<p>Now let's make our <em class="emphasis">test_sym.pl</em>
+example a little more complex. First, we add a
+<tt class="literal">Book::World1</tt> package declaration at the top of the
+script, so we are no longer working in the <tt class="literal">main:</tt>:
+package. Next, we add a subroutine named <tt class="literal">do_work(
+)</tt>, which invokes the familiar
+<tt class="literal">Symbol::gensym</tt>, along with another function called
+<tt class="literal">Symbol::qualify</tt>, and then returns a hash reference
+of the results. The <tt class="literal">do_work( )</tt> routine is invoked
+inside a <tt class="literal">for</tt> loop, which will be run twice. The
+new version of the script is shown in <a href="ch21_05.html#pmodperl-CHP-21-EX-6">Example 21-6</a>.</p>
+
+<a name="pmodperl-CHP-21-EX-6" /><div class="example">
+<h4 class="objtitle">Example 21-6. test_sym2.pl</h4>
+<blockquote><pre class="code">package Book::World2;
+
+use Symbol ( );
+
+for (1, 2) {
+    do_work("now");
+}
+
+sub do_work {
+    my($var) = @_;
+
+    return undef unless $var;
+
+    my $sym  = Symbol::gensym( );
+    my $qvar = Symbol::qualify($var);
+
+    my $retval = {
+        sym =&gt; $sym,
+        var =&gt; $qvar,
+    };
+
+    return $retval;
+}
+1;</pre></blockquote>
+</div>
+
+<p>We'll start by setting a few breakpoints, then
+we'll use the
+<a name="pmodperl-CHP-21-ITERM-5591" /><a name="pmodperl-CHP-21-ITERM-5592" /><a name="pmodperl-CHP-21-ITERM-5593" /><em class="emphasis">List</em>
+command<a name="pmodperl-CHP-21-ITERM-5594" /><a name="pmodperl-CHP-21-ITERM-5595" /><a name="pmodperl-CHP-21-ITERM-5596" />
+(<em class="emphasis">L</em>) to display them:</p>
+
+<blockquote><pre class="code">panic% perl -d test_sym2.pl
+
+Book::World2::(test_sym2.pl:5):   for (1, 2) {
+  DB&lt;1&gt; b Symbol::qualify
+  DB&lt;2&gt; b Symbol::gensym
+  DB&lt;3&gt; L
+/usr/lib/perl5/5.6.1/Symbol.pm:
+ 86:        my $name = "GEN" . $genseq++;
+   break if (1)
+ 95:        my ($name) = @_;
+   break if (1)</pre></blockquote>
+
+<p>The filename and line number of the breakpoint are displayed just
+before the source line itself. Because both breakpoints are located
+in the same file, the filename is displayed only once. After the
+source line, we see the condition on which to stop. In this case, as
+the constant value <tt class="literal">1</tt> indicates, we will always
+stop at these breakpoints. Later on you'll see how
+to specify a condition.</p>
+
+<p>As we will see, when the
+<em class="emphasis">continue</em><a name="pmodperl-CHP-21-ITERM-5597" /> command is executed, the execution of
+the program stops at one of these breakpoints, at either line 86 or
+line 95 of the file
+<em class="emphasis">/usr/lib/perl5/5.6.1/Symbol.pm</em>, whichever is
+reached first. The displayed code lines are the first line of each of
+the two subroutines from <em class="emphasis">Symbol.pm</em>. Breakpoints
+may be applied only to lines of runtime-executable code&#8212;you
+cannot, for example, put breakpoints on empty lines or comments.</p>
+
+<p>In our example, the <em class="emphasis">List</em> command shows which
+lines the breakpoints were set on, but we cannot tell which
+<a name="pmodperl-CHP-21-ITERM-5598" />breakpoint
+belongs to which subroutine. There are two ways to find this out. One
+is to run the <em class="emphasis">continue</em> command and, when it
+stops, execute the <em class="emphasis">Trace</em> command we saw before:</p>
+
+<blockquote><pre class="code">  DB&lt;3&gt; c
+Symbol::gensym(/usr/lib/perl5/5.6.1/Symbol.pm:86):
+86:         my $name = "GEN" . $genseq++;
+  DB&lt;3&gt; T
+$ = Symbol::gensym( ) called from file `test_sym2.pl' line 14
+. = Book::World2::do_work('now') called from file `test_sym2.pl' line 6</pre></blockquote>
+
+<p>So we see that this breakpoint belongs to
+<tt class="literal">Symbol::gensym</tt>. The other way is to ask for a
+listing of a range of lines from the code. For example,
+let's check which subroutine line 86 is a part of.
+We use the <em class="emphasis">list</em> (lowercase!) command
+(<em class="emphasis">l</em>), which displays parts of the code. The
+<em class="emphasis">list</em><a name="pmodperl-CHP-21-ITERM-5599" /> command accepts various arguments; the
+one that we want to use here is a range of lines. Since the
+breakpoint is at line 86, let's print a few lines
+around that line number:</p>
+
+<blockquote><pre class="code">  DB&lt;3&gt; l 85-87
+85      sub gensym ( ) {
+86=  =&gt;b      my $name = "GEN" . $genseq++;
+87:         my $ref = *{$genpkg . $name};</pre></blockquote>
+
+<p>Now we know it's the <tt class="literal">gensym</tt>
+subroutine, and we also see the breakpoint highlighted with the
+<tt class="literal">= =&gt;b</tt> markup. We could also use the name of the
+subroutine to display its code:</p>
+
+<blockquote><pre class="code">  DB&lt;4&gt; l Symbol::gensym
+85      sub gensym ( ) {
+86=  =&gt;b      my $name = "GEN" . $genseq++;
+87:         my $ref = *{$genpkg . $name};
+88:         delete $$genpkg{$name};
+89:         $ref;
+90      }</pre></blockquote>
+
+<p>The <em class="emphasis">delete</em><a name="pmodperl-CHP-21-ITERM-5600" /> command (<em class="emphasis">d</em>) is
+used<a name="pmodperl-CHP-21-ITERM-5601" />
+<a name="pmodperl-CHP-21-ITERM-5602" /><a name="pmodperl-CHP-21-ITERM-5603" />to
+remove a breakpoint by specifying the line number of the breakpoint.
+Let's remove the first one we set:</p>
+
+<blockquote><pre class="code">DB&lt;5&gt; d 95</pre></blockquote>
+
+<p>The <em class="emphasis">Delete</em><a name="pmodperl-CHP-21-ITERM-5604" /> (with a capital D) command
+(<em class="emphasis">D</em>) removes all currently installed breakpoints.</p>
+
+<p>Now let's look again at the trace produced at the
+breakpoint:</p>
+
+<blockquote><pre class="code">  DB&lt;3&gt; c
+Symbol::gensym(/usr/lib/perl5/5.6.1/Symbol.pm:86):
+86:         my $name = "GEN" . $genseq++;
+  DB&lt;3&gt; T
+$ = Symbol::gensym( ) called from file `test_sym2.pl' line 14
+. = Book::World2::do_work('now') called from file `test_sym2.pl' line 6</pre></blockquote>
+
+<p>As you can see, the stack trace prints the values that are passed
+into the subroutine. Ah, and perhaps we've found our
+first bug: as we can see from the first character on the second line
+of output from the <em class="emphasis">Trace</em> command,
+<tt class="literal">do_work( )</tt> was called in void context, so the
+return value was discarded. Let's change the
+<tt class="literal">for</tt> loop to check the return value of
+<tt class="literal">do_work( )</tt>:</p>
+
+<blockquote><pre class="code">for (1, 2) {
+    my $stuff = do_work("now");
+    if ($stuff) {
+        print "work is done\n";
+    }
+}</pre></blockquote>
+
+<p>In this session we will set a breakpoint at line 7 of
+<em class="emphasis">test_sym2.pl</em>, where we check the return value of
+<tt class="literal">do_work( )</tt>:</p>
+
+<blockquote><pre class="code">panic% perl -d test_sym2.pl
+
+Book::World2::(test_sym2.pl:5):   for (1, 2) {
+  DB&lt;1&gt; b 7
+  DB&lt;2&gt; c
+Book::World2::(test_sym2.pl:7):       if ($stuff) {
+  DB&lt;2&gt;</pre></blockquote>
+
+<p>Our program is still small, but already it is getting more difficult
+to understand the context of just one line of code. The
+<em class="emphasis">window</em><a name="pmodperl-CHP-21-ITERM-5605" /> command
+(<em class="emphasis">w</em>)<a href="#FOOTNOTE-54">[54]</a> will list a
+<a name="pmodperl-CHP-21-ITERM-5606" /><a name="pmodperl-CHP-21-ITERM-5607" />few lines of code that surround the
+current line:</p> <blockquote><a name="FOOTNOTE-54" /><p> [54]In Perl 5.8.0 use
+<em class="emphasis">l</em> instead of <em class="emphasis">w</em>, which is
+used for watch-expressions.</p> </blockquote>
+
+<blockquote><pre class="code">  DB&lt;2&gt; w
+4         
+5:        for (1, 2) {
+6:          my $stuff = do_work("now");
+7=  =&gt;b       if ($stuff) {
+8:              print "work is done\n";
+9           }
+10        }
+11        
+12        sub do_work {
+13:         my($var) = @_;</pre></blockquote>
+
+<p>The arrow points to the line that is about to be executed and also
+contains a <tt class="literal">b</tt>, indicating that we have set a
+breakpoint at this line.<a href="#FOOTNOTE-55">[55]</a></p> <blockquote><a name="FOOTNOTE-55" /><p> [55]Note that breakable lines of
+code include a colon <tt class="literal">(:)</tt> immediately after the
+line number.</p> </blockquote>
+
+<p>Now, let's take a look at the value of the
+<tt class="literal">$stuff</tt> variable:</p>
+
+<blockquote><pre class="code">  DB&lt;2&gt; p $stuff
+HASH(0x82b89b4)</pre></blockquote>
+
+<p>That's not very useful information. Remember, the
+<em class="emphasis">print</em> command works just like the built-in
+<tt class="literal">print( )</tt> function. The debugger's
+<em class="emphasis">x</em><a name="pmodperl-CHP-21-ITERM-5608" /> command evaluates a given expression
+and pretty-prints the results:</p>
+
+<blockquote><pre class="code">  DB&lt;3&gt; x $stuff
+0  HASH(0x82b89b4)
+   'sym' =&gt; GLOB(0x826a944)
+      -&gt; *Symbol::GEN0
+   'var' =&gt; 'Book::World2::now'</pre></blockquote>
+
+<p>Things seem to be okay. Let's double check by
+calling <tt class="literal">do_work( )</tt> with a different value and
+print the results:</p>
+
+<blockquote><pre class="code">  DB&lt;4&gt; x do_work('later')
+0  HASH(0x82bacc8)
+   'sym' =&gt; GLOB(0x818f16c)
+      -&gt; *Symbol::GEN1
+   'var' =&gt; 'Book::World2::later'</pre></blockquote>
+
+<p>We can see the symbol was incremented from <tt class="literal">GEN0</tt> to
+<tt class="literal">GEN1</tt> and the variable later was qualified, as
+expected.<a href="#FOOTNOTE-56">[56]</a></p> <blockquote><a name="FOOTNOTE-56" /><p> [56]You won't see the symbol
+printout with Perl 5.6.1, but it works fine with 5.005_03 or
+5.8.0</p> </blockquote>
+
+<p>Now let's change the test program a little to
+iterate over a list of arguments held in <tt class="literal">@args</tt> and
+print a slightly different message (see <a href="ch21_05.html#pmodperl-CHP-21-EX-7">Example 21-7</a>).</p>
+
+<a name="pmodperl-CHP-21-EX-7" /><div class="example">
+<h4 class="objtitle">Example 21-7. test_sym3.pl</h4>
+<blockquote><pre class="code">package Book::World3;
+
+use Symbol ( );
+
+my @args = qw(now later);
+for my $arg (@args) {
+    my $stuff = do_work($arg);
+    if ($stuff) {
+        print "do your work $arg\n";
+    }
+}
+
+sub do_work {
+    my($var) = @_;
+
+    return undef unless $var;
+
+    my $sym = Symbol::gensym( );
+    my $qvar = Symbol::qualify($var);
+
+    my $retval = {
+        sym =&gt; $sym,
+        var =&gt; $qvar,
+    };
+
+    return $retval;
+}
+1;</pre></blockquote>
+</div>
+
+<p>There are only two arguments in the list, so stopping to look at each
+one isn't too time-consuming, but consider the
+debugging pace if we had a large list of 100 or so entries.
+Fortunately, it is possible to customize breakpoints by specifying a
+condition. Each time a breakpoint is reached, the condition is
+evaluated, stopping only if the condition is true. In the session
+below, the <em class="emphasis">window</em> command shows breakable lines.
+The <tt class="literal">= =&gt;</tt>symbol shows us the line of code
+that's about to be executed.</p>
+
+<blockquote><pre class="code">panic% perl -d test_sym3.pl
+
+Book::World3::(test_sym3.pl:5): my @args = qw(now later);
+  DB&lt;1&gt; w
+5=  =&gt;    my @args = qw(now later);
+6:      for my $arg (@args) {
+7:          my $stuff = do_work($arg);
+8:          if ($stuff) {
+9:              print "do your work $arg\n";
+10          }
+11      }
+12         
+13         sub do_work {
+14:            my($var) = @_;</pre></blockquote>
+
+<p>We set a breakpoint at line 7 with the condition <tt class="literal">$arg eq
+'later</tt>'. As we continue, the breakpoint is skipped when
+<tt class="literal">$arg</tt> has the value of <tt class="literal">now</tt> but
+not when it has the value of <tt class="literal">later</tt>:</p>
+
+<blockquote><pre class="code">  DB&lt;1&gt; b 7 $arg eq 'later'
+  DB&lt;2&gt; c
+do your work now
+Book::World3::(test_sym3.pl:7):     my $stuff = do_work($arg);
+  DB&lt;2&gt; n
+Book::World3::(test_sym3.pl:8):     if ($stuff) {
+  DB&lt;2&gt; x $stuff
+0  HASH(0x82b90e4)
+   'sym' =&gt; GLOB(0x82b9138)
+      -&gt; *Symbol::GEN1
+   'var' =&gt; 'Book::World3::later'
+  DB&lt;5&gt; c
+do your work later
+Debugged program terminated.  Use q to quit or R to restart,</pre></blockquote>
+
+<p>You<a name="pmodperl-CHP-21-ITERM-5609" /><a name="pmodperl-CHP-21-ITERM-5610" /><a name="pmodperl-CHP-21-ITERM-5611" /> should now understand enough about
+the debugger to try many other features on your own, with the
+<em class="emphasis">perldebug</em> manpage by your side. Quick online
+help from inside the debugger is
+<a name="pmodperl-CHP-21-ITERM-5612" />available
+by typing the <em class="emphasis">h</em> command, which will display a
+list of the most useful commands and a short explanation of what they
+do.</p>
+
+<p>Some installations of Perl include a readline module that allows you
+to work more interactively with the debugger&#8212;for example, by
+pressing the up arrow to see previous commands, which can then be
+repeated by pressing the Return key.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.7" /><div class="sect2">
+<h3 class="sect2">21.5.7. Interactive Perl Debugging Under mod_cgi</h3>
+
+<p><tt class="literal">Devel::ptkdb</tt>
+<a name="pmodperl-CHP-21-ITERM-5613" /><a name="pmodperl-CHP-21-ITERM-5614" />is
+a visual Perl debugger that uses <a name="pmodperl-CHP-21-ITERM-5615" />Perl/Tk for the user interface and
+requires a windows system like X Windows or Windows to run.</p>
+
+<p>To debug a plain Perl script with <tt class="literal">Devel::ptkdb</tt>,
+invoke it as:</p>
+
+<blockquote><pre class="code">panic% perl -d:ptkdb myscript.pl</pre></blockquote>
+
+<p>The Tk application will be loaded. Now you can do most of the
+debugging you did with the command-line Perl debugger, but using a
+simple GUI to set/remove breakpoints, browse the code, step through
+it, and more.</p>
+
+<p>With the help of <tt class="literal">Devel::ptkdb</tt>, you can debug your
+CGI scripts running under mod_cgi (we'll look at
+mod_perl debugging later). Be sure that the web
+server's Perl installation includes the Tk package.
+To enable the debugger, change your shebang line from:</p>
+
+<blockquote><pre class="code">#!/usr/bin/perl -Tw</pre></blockquote>
+
+<p>to:</p>
+
+<blockquote><pre class="code">#!/usr/bin/perl -Twd:ptkdb</pre></blockquote>
+
+<p>You can debug scripts remotely if you're using a
+Unix-based server and if the machine where you are writing the script
+has an X server. The X server can be another Unix workstation, or a
+Macintosh or Win32 platform with an appropriate X Windows package.
+You must insert the following <tt class="literal">BEGIN</tt>subroutine
+into your script:</p>
+
+<blockquote><pre class="code">BEGIN {
+    $ENV{'DISPLAY'} = "localhost:0.0" ;
+}</pre></blockquote>
+
+<p>You may need to replace the <em class="emphasis">localhost</em> value with
+a real DNS or IP address if you aren't working at
+the machine itself. You must be sure that your web server has
+permission to open windows on your X server (see the
+<em class="emphasis">xhost</em> manpage for more information).</p>
+
+<p>Access the web page with the browser and request the script as usual.
+The <tt class="literal">ptkdb</tt> window should appear on the monitor if
+you have correctly set the <tt class="literal">$ENV{'DISPLAY'}</tt>
+variable (see <a href="ch21_05.html#pmodperl-CHP-21-FIG-2">Figure 21-2</a>). At this point you can
+start debugging your script. Be aware that the browser may time out
+waiting for the script to run.</p>
+
+<a name="pmodperl-CHP-21-FIG-2" /><div class="figure"><img src="figs/pmp_2102.gif" alt="Figure 21-2" width="481" /></div><h4 class="objtitle">Figure 21-2. Devel::ptkdb Interactive Debugger</h4>
+
+<p>To expedite debugging you may want to set your breakpoints in advance
+with a <em class="emphasis">.ptkdbrc</em><a name="pmodperl-CHP-21-ITERM-5616" /> file and use the
+<tt class="literal">$DB::no_stop_at_start</tt> variable. For debugging web
+scripts, you may have to have the <em class="emphasis">.ptkdbrc</em> file
+installed in the server account's home directory
+(e.g., <em class="emphasis">~httpd</em>) or whatever username the web
+server is running under. Also try installing a
+<em class="emphasis">.ptkdbrc</em> file in the same directory as the
+target script.</p>
+
+<p><tt class="literal">ptkdb</tt> is available from CPAN: <a href="http://www.perl.com/CPAN/authors/id/A/AE/AEPAGE/">http://www.perl.com/CPAN/authors/id/A/AE/AEPAGE/</a>.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.8" /><div class="sect2">
+<h3 class="sect2">21.5.8. Noninteractive Perl Debugging Under mod_perl</h3>
+
+<p>To debug
+<a name="pmodperl-CHP-21-ITERM-5617" /><a name="pmodperl-CHP-21-ITERM-5618" />scripts running under mod_perl
+noninteractively (i.e., to print the Perl execution trace), simply
+set the usual environment variables that control debugging.</p>
+
+<p>The <tt class="literal">NonStop</tt><a name="pmodperl-CHP-21-ITERM-5619" /> debugger option enables you to get some
+decent debugging information when running under mod_perl. For
+example, before starting the server:</p>
+
+<blockquote><pre class="code">panic% setenv PERL5OPT -d
+panic% setenv PERLDB_OPTS \
+       "NonStop=1 LineInfo=/tmp/db.out AutoTrace=1 frame=2"</pre></blockquote>
+
+<p>Now watch <em class="emphasis">/tmp/db.out</em> for
+<em class="emphasis">line:filename</em> information. This is most useful
+for tracking those core dumps that normally leave us guessing, even
+with a stack trace from <tt class="literal">gdb</tt>, which
+we'll discuss later. <em class="emphasis">db.out</em>
+will show you what Perl code triggered the core dump. Refer to the
+<em class="emphasis">perldebug</em> manpage for more
+<tt class="literal">PERLDB_OPTS</tt> options.</p>
+
+<p>Say we execute a simple <tt class="literal">Apache::Registry</tt>script,
+<em class="emphasis">test.pl</em>:</p>
+
+<blockquote><pre class="code">use strict;
+my $r = shift;
+$r-&gt;send_http_header("text/plain");
+$r-&gt;print("Hello");</pre></blockquote>
+
+<p>The generated trace found in <em class="emphasis">/tmp/db.out</em> is too
+long to be printed here in its entirety. We will show only the part
+that actually executes the handler created on the fly by
+<tt class="literal">Apache::Registry</tt>:</p>
+
+<blockquote><pre class="code">entering Apache::ROOT::perl::test_2epl::handler
+ 2:  
+ 3:  
+ entering Apache::send_http_header
+ exited Apache::send_http_header
+ 4:  
+ entering Apache::print
+ exited Apache::print
+exited Apache::ROOT::perl::test_2epl::handler</pre></blockquote>
+
+<p>You can see how Perl executes this script&#8212;first the
+<tt class="literal">send_http_header( )</tt> function is executed, then the
+string "Hello" is printed.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-5.9" /><div class="sect2">
+<h3 class="sect2">21.5.9. Interactive mod_perl Debugging</h3>
+
+<p>Now we'll<a name="pmodperl-CHP-21-ITERM-5620" /><a name="pmodperl-CHP-21-ITERM-5621" /><a name="pmodperl-CHP-21-ITERM-5622" /><a name="pmodperl-CHP-21-ITERM-5623" /> look at how the
+interactive debugger is used in a mod_perl environment. The
+<tt class="literal">Apache::DB</tt> module available from
+<a name="pmodperl-CHP-21-ITERM-5624" />CPAN provides a wrapper around
+<tt class="literal">perldb</tt> for debugging Perl code running under
+mod_perl.</p>
+
+<p>The server must be run in non-forking (single-process) mode to use
+the interactive debugger; this mode is turned on by passing the
+<em class="emphasis">-X</em> flag to the
+<em class="emphasis">httpd</em><a name="pmodperl-CHP-21-ITERM-5625" /> executable. It is
+convenient to use an <tt class="literal">IfDefine</tt>section around the
+<tt class="literal">Apache::DB</tt> configuration; the example below does
+this using the name <tt class="literal">PERLDB</tt>. With this setup,
+debugging is turned on only when starting the server with the
+<em class="emphasis">httpd -X -DPERLDB</em> command.</p>
+
+<p>This configuration section should be placed before any other Perl
+code is pulled in, so that debugging symbols will be inserted into
+the syntax tree, triggered by the call to
+<tt class="literal">Apache::DB-&gt;init</tt>. The
+<tt class="literal">Apache::DB::handler</tt> can be configured using any of
+the <tt class="literal">Perl*Handler</tt> directives. In this case we use a
+<tt class="literal">PerlFixupHandler</tt><a name="pmodperl-CHP-21-ITERM-5626" /> so handlers in the response
+phase will bring up the debugger prompt:</p>
+
+<blockquote><pre class="code">&lt;IfDefine PERLDB&gt;
+
+    &lt;Perl&gt;
+        use Apache::DB ( );
+        Apache::DB-&gt;init;
+    &lt;/Perl&gt;
+
+    &lt;Location /&gt;
+        PerlFixupHandler Apache::DB
+    &lt;/Location&gt;
+
+&lt;/IfDefine&gt;</pre></blockquote>
+
+<p>Since we have used
+"<tt class="literal">/</tt>" as the
+argument to the <tt class="literal">Location</tt> directive, the debugger
+will be invoked for any kind of request, but of course it will
+immediately quit unless there is some Perl module registered to
+handle these requests.</p>
+
+<p>In our first example, we will debug the standard
+<tt class="literal">Apache::Status</tt> module, which is configured like
+this:</p>
+
+<blockquote><pre class="code">PerlModule Apache::Status
+&lt;Location /perl-status&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Status
+&lt;/Location&gt;</pre></blockquote>
+
+<p>When the server is started with the debugging flag, a notice will be
+printed to the console:</p>
+
+<blockquote><pre class="code">panic% ./httpd -X -DPERLDB
+[notice] Apache::DB initialized in child 950</pre></blockquote>
+
+<p>The debugger prompt will not be available until the first request is
+made (in our case, to
+<em class="emphasis">http://localhost/perl-status</em>). Once we are at
+the prompt, all the standard debugging commands are available. First
+we run <em class="emphasis">window</em> to get some of the context for the
+code being debugged, then we move to the next statement after a value
+has been assigned to <tt class="literal">$r</tt>, and finally we print the
+request URI. If no breakpoints are set, the
+<em class="emphasis">continue</em> command will give control back to
+Apache and the request will finish with the
+<tt class="literal">Apache::Status</tt> main menu showing in the browser
+window:</p>
+
+<blockquote><pre class="code">Loading DB routines from perl5db.pl version 1.07
+Emacs support available.
+
+Enter h or `h h' for help.
+
+Apache::Status::handler(.../5.6.1/i386-linux/Apache/Status.pm:55): 
+55:         my($r) = @_;
+  DB&lt;1&gt; w
+52      }
+53
+54      sub handler {
+55=  =&gt;       my($r) = @_;
+56:         Apache-&gt;request($r); #for Apache::CGI
+57:         my $qs = $r-&gt;args || "";
+58:         my $sub = "status_$qs";
+59:         no strict 'refs';
+60
+61:         if($qs =~ s/^(noh_\w+).*/$1/) {
+  DB&lt;1&gt; n
+Apache::Status::handler(.../5.6.1/i386-linux/Apache/Status.pm:56):
+56:         Apache-&gt;request($r); #  for Apache::CGI
+  DB&lt;1&gt; p $r-&gt;uri
+/perl-status
+  DB&lt;2&gt; c</pre></blockquote>
+
+<p>All the techniques we saw while debugging plain Perl scripts can be
+applied to this debugging session.</p>
+
+<p>Debugging
+<tt class="literal">Apache::Registry</tt><a name="pmodperl-CHP-21-ITERM-5627" /><a name="pmodperl-CHP-21-ITERM-5628" /><a name="pmodperl-CHP-21-ITERM-5629" />
+scripts is somewhat different, because the handler routine does quite
+a bit of work before it reaches your script. In this example, we make
+a request for <em class="emphasis">/perl/test.pl</em>, which consists of
+the code shown in <a href="ch21_05.html#pmodperl-CHP-21-EX-8">Example 21-8</a>.</p>
+
+<a name="pmodperl-CHP-21-EX-8" /><div class="example">
+<h4 class="objtitle">Example 21-8. test.pl</h4>
+<blockquote><pre class="code">use strict;
+
+my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+print "mod_perl rules";</pre></blockquote>
+</div>
+
+<p>When a request is issued, the debugger stops at line 28 of
+<em class="emphasis">Apache/Registry.pm</em>. We set a breakpoint at line
+140, which is the line that actually calls the script wrapper
+subroutine. The <em class="emphasis">continue</em> command will bring us
+to that line, where we can step into the script handler:</p>
+
+<blockquote><pre class="code">Apache::Registry::handler(.../5.6.1/i386-linux/Apache/Registry.pm:28):
+28:       my $r = shift;
+  DB&lt;1&gt; b 140
+  DB&lt;2&gt; c
+Apache::Registry::handler(.../5.6.1/i386-linux/Apache/Registry.pm:140):
+140:            eval { &amp;{$cv}($r, @_) } if $r-&gt;seqno;
+  DB&lt;2&gt; s
+Apache::ROOT::perl::test_2epl::handler((eval 87):3):
+3:        my $r = shift;</pre></blockquote>
+
+<p>Notice the funny package name&#8212;it's generated
+from the URI of the request, for namespace protection. The filename
+is not displayed, since the code was compiled via <tt class="literal">eval(
+)</tt>, but the <tt class="literal">print</tt> command can be used to
+show you <tt class="literal">$r-&gt;filename</tt>:</p>
+
+<blockquote><pre class="code">  DB&lt;2&gt; n
+Apache::ROOT::perl::test_2epl::handler((eval 87):4):
+4:        $r-&gt;send_http_header('text/plain');
+  DB&lt;2&gt; p $r-&gt;filename
+/home/httpd/perl/test.pl</pre></blockquote>
+
+<p>The line number might seem off too, but the
+<em class="emphasis">window</em> command will give you a better idea of
+where you are:</p>
+
+<blockquote><pre class="code">  DB&lt;4&gt; w
+1:      package Apache::ROOT::perl::test_2epl;use Apache qw(exit);
+sub handler {  use strict;
+2 
+3:        my $r = shift;
+4=  =&gt;      $r-&gt;send_http_header('text/plain');
+5 
+6:        print "mod_perl rules";
+7 
+8       }
+9       ;</pre></blockquote>
+
+<p>The code from the <em class="emphasis">test.pl</em> file is between lines
+2 and 7. The rest is the <tt class="literal">Apache::Registry</tt> magic to
+cache your code inside a <tt class="literal">handler</tt>subroutine.</p>
+
+<p>It will always take some practice and patience when putting together
+debugging strategies that make effective use of the interactive
+debugger for various situations. Once you have a good strategy, bug
+squashing can actually be <a name="pmodperl-CHP-21-ITERM-5630" /><a name="pmodperl-CHP-21-ITERM-5631" /><a name="pmodperl-CHP-21-ITERM-5632" /><a name="pmodperl-CHP-21-ITERM-5633" />quite a bit of fun!</p>
+
+<a name="pmodperl-CHP-21-SECT-5.9.1" /><div class="sect3">
+<h3 class="sect3">21.5.9.1. ptkdb and interactive mod_perl debugging</h3>
+
+<p>As we <a name="pmodperl-CHP-21-ITERM-5634" /><a name="pmodperl-CHP-21-ITERM-5635" /><a name="pmodperl-CHP-21-ITERM-5636" />saw earlier, we can use the
+<tt class="literal">ptkdb</tt> visual debugger to debug CGI scripts running
+under mod_cgi. At the time of writing it works partially under
+mod_perl as well. It hangs after the first run, so you have to kill
+it manually every time. Hopefully it will work completely with
+mod_perl in the future.</p>
+
+<p>However, <tt class="literal">ptkdb</tt> won't work for
+mod_perl using the same configuration as used in mod_cgi. We have to
+tweak the <em class="emphasis">Apache/DB.pm</em> module to use
+<em class="emphasis">Devel/ptkdb.pm</em> instead of
+<em class="emphasis">Apache/perl5db.pl</em>.</p>
+
+<p>Open the file in your favorite editor and replace:</p>
+
+<blockquote><pre class="code">require 'Apache/perl5db.pl';</pre></blockquote>
+
+<p>with:</p>
+
+<blockquote><pre class="code">require Devel::ptkdb;</pre></blockquote>
+
+<p>Now when you use the interactive mod_perl debugger configuration from
+the previous section and issue a request, the
+<tt class="literal">ptkdb</tt> visual debugger will be loaded.</p>
+
+<p>If you are debugging <tt class="literal">Apache::Registry</tt>scripts, as
+in the terminal debugging mode example, go to line 140 (or to
+whatever line number at which the <tt class="literal">eval { &amp;{$cv}($r, @_)
+} if</tt> <tt class="literal">$r-&gt;seqno;</tt>statement is located)
+and press the <em class="emphasis">step in</em> button to start debugging
+the script itself.</p>
+
+<p>Note that you can use Apache with <tt class="literal">ptkdb</tt> in plain
+multi-server mode; you don't have to start
+<em class="emphasis">httpd</em> with the <em class="emphasis">-X</em> option.</p>
+
+</div>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_04.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch21_06.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">21.4. Tracing mod_perl-Specific Perl Calls</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">21.6. Analyzing Dumped core Files</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

@@ -1,0 +1,1399 @@
+<html><head><title>Improving Performance with Shared Memory and Proper Forking (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch09_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch10_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 10. Improving Performance with Shared Memory and Proper Forking</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch10_01.html#pmodperl-CHP-10-SECT-1">Sharing Memory</a><br />
+<a href="ch10_02.html">Forking and Executing Subprocessesfrom mod_perl</a><br />
+<a href="ch10_03.html">References</a><br /></p></div><p>In this chapter we will talk about two issues that play an important
+role in optimizing server performance: sharing memory and forking.</p><p>Firstly, mod_perl Apache processes can become quite large, and it is
+therefore very important to make sure that the memory used by the
+Apache processes is shared between them as much as possible.</p><p>Secondly, if you need the Apache processes to fork new processes, it
+is important to perform the <tt class="literal">fork( )</tt> calls in the
+proper way.</p><div class="sect1"><a name="pmodperl-CHP-10-SECT-1" />
+<h2 class="sect1">10.1. Sharing Memory</h2>
+
+<p>The sharing of memory is a very <a name="pmodperl-CHP-10-ITERM-4770" /><a name="pmodperl-CHP-10-ITERM-4771" />important factor. If your OS supports it
+(and most sane systems do), a lot of memory can be saved by sharing
+it between child processes. This is possible only when code is
+preloaded at server startup. However, during a child
+process's life, its memory pages tend to become
+unshared. Here is why.</p>
+
+<p>There is no way to make Perl allocate memory so that (dynamic)
+variables land on different memory pages from constants or the rest
+of your code (which is really just data to the Perl interpreter), so
+the <em class="emphasis">copy-on-write</em> effect (explained in a moment)
+will hit almost at random.</p>
+
+<p>If many modules are
+<a name="pmodperl-CHP-10-ITERM-4772" /><a name="pmodperl-CHP-10-ITERM-4773" />preloaded, you can trade off the
+memory that stays shared against the time for an occasional fork of a
+new Apache child by tuning the <tt class="literal">MaxRequestsPerChild</tt>
+Apache <a name="pmodperl-CHP-10-ITERM-4774" /><a name="pmodperl-CHP-10-ITERM-4775" />directive. Each time a child reaches
+this upper limit and dies, it will release its unshared pages. The
+new child will have to be forked, but it will share its fresh pages
+until it writes on them (when some variable gets modified).</p>
+
+<p>The ideal is a point where processes usually restart before too much
+memory becomes unshared. You should take some measurements, to see if
+it makes a real difference and to find the range of reasonable
+values. If you have success with this tuning, bear in mind that the
+value of <tt class="literal">MaxRequestsPerChild</tt> will probably be
+specific to your situation and may change with changing
+circumstances.</p>
+
+<p>It is very important to understand that the goal is not necessarily
+to have the highest <tt class="literal">MaxRequestsPerChild</tt> that you
+can. Having a child serve 300 requests on precompiled code is already
+a huge overall speedup. If this value also provides a substantial
+memory saving, that benefit may outweigh using a higher
+<tt class="literal">MaxRequestsPerChild</tt> value.</p>
+
+<p>A newly forked child <a name="pmodperl-CHP-10-ITERM-4776" /><a name="pmodperl-CHP-10-ITERM-4777" />inherits the Perl interpreter from
+its parent. If most of the Perl code is preloaded at server startup,
+then most of this preloaded code is inherited from the parent process
+too. Because of this, less RAM has to be written to create the
+process, so it is ready to serve requests very quickly.</p>
+
+<p>During the life of the <a name="pmodperl-CHP-10-ITERM-4778" /><a name="pmodperl-CHP-10-ITERM-4779" />child, its memory pages (which
+aren't really its own to start with&#8212;it uses
+the parent's pages) gradually get
+<em class="emphasis">dirty</em>&#8212;variables that were originally
+inherited and shared are updated or modified&#8212;and
+<em class="emphasis">copy-on-write</em> happens. This reduces the number
+of shared memory pages, thus increasing the memory requirement.
+Killing the child and spawning a new one allows the new child to use
+the pristine shared memory of the parent process.</p>
+
+<p>The recommendation <a name="pmodperl-CHP-10-ITERM-4780" />is that
+<tt class="literal">MaxRequestsPerChild</tt>should not be too large, or
+you will lose some of the benefit of sharing memory. With memory
+sharing in place, you can run many more servers than without it. In
+<a href="ch11_01.html">Chapter 11</a> we will devise a formula to calculate
+the optimum value for the <tt class="literal">MaxClients</tt> directive
+when sharing is taking place.</p>
+
+<p>As we mentioned in <a href="ch09_01.html">Chapter 9</a>, you can find the
+size of the shared memory by using the <em class="emphasis">ps(1)</em> or
+<em class="emphasis">top(1)</em> utilities, or by using the
+<tt class="literal">GTop</tt> module:</p>
+
+<blockquote><pre class="code">use GTop ( );
+print "Shared memory of the current process: ",
+    GTop-&gt;new-&gt;proc_mem($$)-&gt;share, "\n";
+
+print "Total shared memory: ",
+    GTop-&gt;new-&gt;mem-&gt;share, "\n";</pre></blockquote>
+
+<a name="pmodperl-CHP-10-SECT-1.1" /><div class="sect2">
+<h3 class="sect2">10.1.1. Calculating Real Memory Usage</h3>
+
+<p>We have shown how to <a name="pmodperl-CHP-10-ITERM-4781" /><a name="pmodperl-CHP-10-ITERM-4782" /><a name="pmodperl-CHP-10-ITERM-4783" />measure the size of the
+process's shared memory, but we still want to know
+what the real memory usage is. Obviously this cannot be calculated
+simply by adding up the memory size of each process, because that
+wouldn't account for the shared memory.</p>
+
+<p>On the other hand, we cannot just subtract the shared memory size
+from the total size to get the real memory-usage numbers, because in
+reality each process has a different history of processed requests,
+which makes different memory pages dirty; therefore, different
+processes have different memory pages shared with the parent process.</p>
+
+<p>So how do we measure the real memory size used by all running
+web-server processes? It is a difficult task&#8212;probably too
+difficult to make it worthwhile to find the exact number&#8212;but we
+have found a way to get a fair approximation.</p>
+
+<p>This is the calculation technique that we have devised:</p>
+
+<ol><li>
+<p>Calculate all the unshared memory, by summing up the difference
+between shared and system memory of each process. To calculate a
+difference for a single process, use:</p>
+
+<blockquote><pre class="code">use GTop;
+my $proc_mem = GTop-&gt;new-&gt;proc_mem($$);
+my $diff     = $proc_mem-&gt;size - $proc_mem-&gt;share;
+print "Difference is $diff bytes\n";</pre></blockquote>
+</li>
+<li>
+<p>Add the system memory use of the parent process, which already
+includes the shared memory of all other processes.</p>
+</li></ol>
+<p><a href="ch10_01.html#pmodperl-CHP-10-FIG-1">Figure 10-1</a> helps to visualize this.</p>
+
+<a name="pmodperl-CHP-10-FIG-1" /><div class="figure"><img src="figs/pmp_1001.gif" alt="Figure 10-1" width="234" /></div><h4 class="objtitle">Figure 10-1. Child processes sharing memory with the parent process</h4>
+
+<p>The <tt class="literal">Apache::VMonitor</tt> module uses
+<a name="pmodperl-CHP-10-ITERM-4784" />this
+technique to display real memory usage. In fact, it makes no
+separation between the parent and child processes. They are all
+counted indifferently using the following code:</p>
+
+<blockquote><pre class="code">use GTop ( );
+my $gtop = GTop-&gt;new;
+my ($parent_pid, @child_pids) = some_code( );
+# add the parent proc memory size
+my $total_real = $gtop-&gt;proc_mem($parent_pid)-&gt;size;
+# add the unshared memory sizes
+for my $pid (@child_pids) {
+    my $proc_mem = $gtop-&gt;proc_mem($pid);
+    $total_real += $proc_mem-&gt;size - $proc_mem-&gt;share;
+}</pre></blockquote>
+
+<p>Now <tt class="literal">$total_real</tt> contains approximately the amount
+of memory really used.</p>
+
+<p>This method has been verified in the following way. We calculate the
+real memory used using the technique described above. We then look at
+the system memory report for the total memory usage. We then stop
+Apache and look at the total memory usage for a second time. We check
+that the system memory usage report indicates that the total memory
+used by the whole system has gone down by about the same number that
+we've calculated.</p>
+
+<p>Note that some OSes do smart <a name="pmodperl-CHP-10-ITERM-4785" /><a name="pmodperl-CHP-10-ITERM-4786" /><a name="pmodperl-CHP-10-ITERM-4787" />memory-page caching, so
+you may not see the memory usage decrease immediately when you stop
+the server, even though it is actually happening. Also, if your
+system is swapping, it's possible that your swap
+memory was used by the server as well as the real memory. Therefore,
+to get the verification right you should use a tool that reports real
+memory usage, cached memory, and swap memory. For example, on Linux
+you can use the <em class="emphasis">free</em> command. Run this command
+before and after stopping the server, then compare the numbers
+reported in the column called <em class="emphasis">free</em>.</p>
+
+<p>Based on this logic we can <a name="pmodperl-CHP-10-ITERM-4788" />devise a formula for calculating the
+maximum possible number of child processes, taking into account the
+shared memory. From now on, instead of adding the memory size of the
+parent process, we are going to add the maximum shared size of the
+child processes, and the result will be approximately the same. We do
+that approximation because the size of the parent process is usually
+unknown during the calculation.</p>
+
+<p>Therefore, the formula to calculate the maximum number of child
+processes with minimum shared memory size of
+<tt class="literal">Min_Shared_RAM_per_Child</tt> MB that can run
+simultaneously on a machine that has a total RAM of
+<tt class="literal">Total_RAM</tt> MB available for the web server, and
+knowing the maximum process size, is:</p>
+<img src="figs/ch10eq3.gif" alt="Figure " />
+<p>which can also be rewritten as:</p>
+<img src="figs/ch10eq4.gif" alt="Figure " />
+<p>since the denominator is really the maximum possible amount of a
+child process's unshared memory.</p>
+
+<p>In <a href="ch14_01.html">Chapter 14</a> we will see how we can enforce the
+values used in calculation during runtime.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-1.2" /><div class="sect2">
+<h3 class="sect2">10.1.2. Memory-Sharing Validation</h3>
+
+<p>How do you find out if the <a name="pmodperl-CHP-10-ITERM-4789" /><a name="pmodperl-CHP-10-ITERM-4790" />code you write is shared between
+processes or not? The code should remain shared, except when it is on
+a memory page used by variables that change. As you know, a variable
+becomes unshared when a process modifies its value, and so does the
+memory page it resides on, because the memory is shared in
+memory-page units.</p>
+
+<p>Sometimes you have variables
+<a name="pmodperl-CHP-10-ITERM-4791" /><a name="pmodperl-CHP-10-ITERM-4792" />that
+use a lot of memory, and you consider their usage read-only and
+expect them to be shared between processes. However, certain
+operations that seemingly don't modify the variable
+values do modify things internally, causing the memory to become
+unshared.</p>
+
+<p>Imagine that you have a 10 MB in-memory database that resides in a
+single variable, and you perform various operations on it and want to
+make sure that the variable is still shared. For example, if you do
+some regular expression (regex)-matching processing on this variable
+and you want to use the <tt class="literal">pos( )</tt> function, will it
+make the variable unshared or not? If you access the variable once as
+a numerical value and once as a string value, will the variable
+become unshared?</p>
+
+<p>The <tt class="literal">Apache::Peek</tt> module comes to the rescue.</p>
+
+<a name="pmodperl-CHP-10-SECT-1.2.1" /><div class="sect3">
+<h3 class="sect3">10.1.2.1. Variable unsharing caused by regular expressions</h3>
+
+<p>Let's write a module
+<a name="pmodperl-CHP-10-ITERM-4793" /><a name="pmodperl-CHP-10-ITERM-4794" /><a name="pmodperl-CHP-10-ITERM-4795" />called
+<tt class="literal">Book::MyShared</tt>, shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-1">Example 10-1</a>, which we will preload at server startup so
+that all the variables of this module are initially shared by all
+children.</p>
+
+<a name="pmodperl-CHP-10-EX-1" /><div class="example">
+<h4 class="objtitle">Example 10-1. Book/MyShared.pm</h4>
+<blockquote><pre class="code">package Book::MyShared;
+use Apache::Peek;
+
+my $readonly = "Chris";
+
+sub match     { $readonly =~ /\w/g;               }
+sub print_pos { print "pos: ",pos($readonly),"\n";}
+sub dump      { Dump($readonly);                  }
+1;</pre></blockquote>
+</div>
+
+<p>This module declares the <a name="pmodperl-CHP-10-ITERM-4796" />package <tt class="literal">Book::MyShared</tt>,
+loads the <tt class="literal">Apache::Peek</tt> module and defines the
+lexically scoped <tt class="literal">$readonly</tt> variable. In most
+instances, the <tt class="literal">$readonly</tt> variable will be very
+large (perhaps a huge hash data structure), but here we will use a
+small variable to simplify this example.</p>
+
+<p>The module also defines <a name="pmodperl-CHP-10-ITERM-4797" /><a name="pmodperl-CHP-10-ITERM-4798" /><a name="pmodperl-CHP-10-ITERM-4799" />three subroutines: <tt class="literal">match(
+)</tt>, which does simple character matching;
+<tt class="literal">print_pos( )</tt>, which prints the current position of
+the matching engine inside the string that was last matched; and
+finally <tt class="literal">dump( )</tt>, which calls the
+<tt class="literal">Apache::Peek</tt> module's
+<tt class="literal">Dump( )</tt> function to dump
+<a name="pmodperl-CHP-10-ITERM-4800" />a raw Perl representation of the
+<tt class="literal">$readonly</tt> variable.</p>
+
+<p>Now we write a script (<a href="ch10_01.html#pmodperl-CHP-10-EX-2">Example 10-2</a>) that prints the
+process ID (PID) and calls all three functions. The goal is to check
+whether <tt class="literal">pos( )</tt> makes the variable dirty and
+therefore unshared.</p>
+
+<a name="pmodperl-CHP-10-EX-2" /><div class="example">
+<h4 class="objtitle">Example 10-2. share_test.pl</h4>
+<blockquote><pre class="code">use Book::MyShared;
+print "Content-type: text/plain\n\n";
+print "PID: $$\n";
+Book::MyShared::match( );
+Book::MyShared::print_pos( );
+Book::MyShared::dump( );</pre></blockquote>
+</div>
+
+<p>Before you restart the server, in <em class="emphasis">httpd.conf</em>,
+set:</p>
+
+<blockquote><pre class="code">MaxClients 2</pre></blockquote>
+
+<p>for easier tracking. You need at least two servers to compare the
+printouts of the test program. Having more than two can make the
+comparison process harder.</p>
+
+<p>Now open two browser windows and issue requests for this script in
+each window, so that you get different PIDs reported in the two
+windows and so that each process has processed a different number of
+requests for the <em class="emphasis">share_test.pl</em> script.</p>
+
+<p>In the first window you will see something like this:</p>
+
+<blockquote><pre class="code">PID: 27040
+pos: 1
+SV = PVMG(0x853db20) at 0x8250e8c
+  REFCNT = 3
+  FLAGS = (PADBUSY,PADMY,SMG,POK,pPOK)
+  IV = 0
+  NV = 0
+  PV = 0x8271af0 "Chris"\0
+  CUR = 5
+  LEN = 6
+  MAGIC = 0x853dd80
+    MG_VIRTUAL = &amp;vtbl_mglob
+    MG_TYPE = 'g'
+    MG_LEN = 1</pre></blockquote>
+
+<p>And in the second window:</p>
+
+<blockquote><pre class="code">PID: 27041
+pos: 2
+SV = PVMG(0x853db20) at 0x8250e8c
+  REFCNT = 3
+  FLAGS = (PADBUSY,PADMY,SMG,POK,pPOK)
+  IV = 0
+  NV = 0
+  PV = 0x8271af0 "Chris"\0
+  CUR = 5
+  LEN = 6
+  MAGIC = 0x853dd80
+    MG_VIRTUAL = &amp;vtbl_mglob
+    MG_TYPE = 'g'
+    MG_LEN = 2</pre></blockquote>
+
+<p>All the addresses of the supposedly large data structure are the same
+(<tt class="literal">0x8250e8c</tt> and
+<tt class="literal">0x8271af0</tt>)&#8212;therefore, the variable data
+structure is almost completely shared. The only difference is in the
+<tt class="literal">SV.MAGIC.MG_LEN</tt> record, which is not shared. This
+record is used to track where the last <tt class="literal">m//g</tt> match
+left off for the given variable, (e.g., by <tt class="literal">pos( )</tt>)
+and therefore it cannot be shared. See the
+<em class="emphasis">perlre</em> manpage for more information.</p>
+
+<p>Given that the <tt class="literal">$readonly</tt> variable is a big one,
+its value is still shared between the processes, while part of the
+variable data structure is nonshared. The nonshared part is almost
+insignificant because it takes up very little memory space.</p>
+
+<p>If you need to compare more than one variable, doing it by hand can
+be quite time consuming and error prone. Therefore,
+it's better to change the test script to dump the
+Perl datatypes into files (e.g., <em class="emphasis">/tmp/dump.$$</em>,
+where <em class="emphasis">$$</em> is the PID of the process). Then you
+can use the <em class="emphasis">diff(1)</em> utility to see whether there
+is some difference.</p>
+
+<p>Changing the <tt class="literal">dump( )</tt> function to write the
+information to a file will do the job. Notice that we use
+<tt class="literal">Devel::Peek</tt> and not
+<tt class="literal">Apache::Peek</tt>, so we can easily reroute the
+<tt class="literal">STDERR</tt>stream into a file. In our example, when
+<tt class="literal">Devel::Peek</tt> tries to print to
+<tt class="literal">STDERR</tt>, it actually prints to our file. When we
+are done, we make sure to restore the original
+<tt class="literal">STDERR</tt> file handle.</p>
+
+<p>The resulting code is shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-3">Example 10-3</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-3" /><div class="example">
+<h4 class="objtitle">Example 10-3. Book/MyShared2.pm</h4>
+<blockquote><pre class="code">package Book::MyShared2;
+use Devel::Peek;
+
+my $readonly = "Chris";
+
+sub match     { $readonly =~ /\w/g;               }
+sub print_pos { print "pos: ",pos($readonly),"\n";}
+sub dump {
+    my $dump_file = "/tmp/dump.$$";
+    print "Dumping the data into $dump_file\n";
+    open OLDERR, "&gt;&amp;STDERR";
+    open STDERR, "&gt;$dump_file" or die "Can't open $dump_file: $!";
+    Dump($readonly);
+    close STDERR ;
+    open STDERR, "&gt;&amp;OLDERR";
+}
+1;</pre></blockquote>
+</div>
+
+<p>Now we modify our script to use the modified module, as shown in
+<a href="ch10_01.html#pmodperl-CHP-10-EX-4">Example 10-4</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-4" /><div class="example">
+<h4 class="objtitle">Example 10-4. share_test2.pl</h4>
+<blockquote><pre class="code">use Book::MyShared2;
+print "Content-type: text/plain\n\n";
+print "PID: $$\n";
+Book::MyShared2::match( );
+Book::MyShared2::print_pos( );
+Book::MyShared2::dump( );</pre></blockquote>
+</div>
+
+<p>Now we can run the script as before (with <tt class="literal">MaxClients
+2</tt>). Two dump files will be created in the directory
+<em class="emphasis">/tmp</em>. In our test these were created as
+<em class="emphasis">/tmp/dump.1224</em> and
+<em class="emphasis">/tmp/dump.1225</em>. When we run
+<em class="emphasis">diff(1)</em>:</p>
+
+<blockquote><pre class="code">panic% diff -u /tmp/dump.1224 /tmp/dump.1225
+12c12
+-       MG_LEN = 1
++       MG_LEN = 2</pre></blockquote>
+
+<p>we see that the two padlists (of the variable
+<tt class="literal">$readonly</tt>) are different, as we observed before,
+when we did a manual comparison.</p>
+
+<p>If we think about these results again, we come to the conclusion that
+there is no need for two processes to find out whether the variable
+gets modified (and therefore unshared). It's enough
+just to check the data structure twice, before the script was
+executed and again afterward. We can modify the
+<tt class="literal">Book::MyShared2</tt> module to dump the padlists into a
+different file after each invocation and then to run
+<em class="emphasis">diff(1)</em> on the two files.</p>
+
+<p>Suppose you have some <a name="pmodperl-CHP-10-ITERM-4801" />lexically
+scoped variables (i.e., variables declared with <tt class="literal">my(
+)</tt>) in an <tt class="literal">Apache::Registry</tt>script. If you
+want to watch whether they get changed between invocations inside one
+particular process, you can use the
+<tt class="literal">Apache::RegistryLexInfo</tt> module. It does exactly
+that: it takes a snapshot of the padlist before and after the code
+execution and shows the difference between the two. This particular
+module was written to work with <tt class="literal">Apache::Registry</tt>
+scripts, so it won't work for loaded modules. Use
+the technique we described above for any type of variables in modules
+and scripts.</p>
+
+<p>Another way of ensuring <a name="pmodperl-CHP-10-ITERM-4802" /><a name="pmodperl-CHP-10-ITERM-4803" /><a name="pmodperl-CHP-10-ITERM-4804" /><a name="pmodperl-CHP-10-ITERM-4805" />that a
+scalar is read-only and therefore shareable is to use either the
+<tt class="literal">constant</tt> pragma or the <tt class="literal">readonly</tt>
+pragma, as shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-5">Example 10-5</a>. But then you
+won't be able to make calls that alter the variable
+even a little, such as in the example that we just showed, because it
+will be a true constant variable and you will get a compile-time
+error if you try this.</p>
+
+<a name="pmodperl-CHP-10-EX-5" /><div class="example">
+<h4 class="objtitle">Example 10-5. Book/Constant.pm</h4>
+<blockquote><pre class="code">package Book::Constant;
+use constant readonly =&gt; "Chris";
+
+sub match     { readonly =~ /\w/g;               }
+sub print_pos { print "pos: ",pos(readonly),"\n";}
+1;
+
+panic% perl -c Book/Constant.pm
+
+Can't modify constant item in match position at Book/Constant.pm
+line 5, near "readonly)"
+Book/Constant.pm had compilation errors.</pre></blockquote>
+</div>
+
+<p>However, the code shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-6">Example 10-6</a> is OK.</p>
+
+<a name="pmodperl-CHP-10-EX-6" /><div class="example">
+<h4 class="objtitle">Example 10-6. Book/Constant1.pm</h4>
+<blockquote><pre class="code">package Book::Constant1;
+use constant readonly =&gt; "Chris";
+
+sub match { readonly =~ /\w/g; }
+1;</pre></blockquote>
+</div>
+
+<p>It doesn't modify the variable flags at all.</p>
+
+</div>
+
+<a name="pmodperl-CHP-10-SECT-1.2.2" /><div class="sect3">
+<h3 class="sect3">10.1.2.2. Numerical versus string access to variables</h3>
+
+<p>Data can get unshared on
+<a name="pmodperl-CHP-10-ITERM-4806" /><a name="pmodperl-CHP-10-ITERM-4807" /><a name="pmodperl-CHP-10-ITERM-4808" /><a name="pmodperl-CHP-10-ITERM-4809" />read as well&#8212;for example,
+when a numerical variable is accessed as a string. <a href="ch10_01.html#pmodperl-CHP-10-EX-7">Example 10-7</a> shows some code that proves this.</p>
+
+<a name="pmodperl-CHP-10-EX-7" /><div class="example">
+<h4 class="objtitle">Example 10-7. numerical_vs_string.pl</h4>
+<blockquote><pre class="code">#!/usr/bin/perl -w
+
+use Devel::Peek;
+my $numerical = 10;
+my $string    = "10";
+$|=1;
+
+dump_numerical( );
+read_numerical_as_numerical( );
+dump_numerical( );
+read_numerical_as_string( );
+dump_numerical( );
+
+dump_string( );
+read_string_as_numerical( );
+dump_string( );
+read_string_as_string( );
+dump_string( );
+
+sub read_numerical_as_numerical {
+    print "\nReading numerical as numerical: ", int($numerical), "\n";
+}
+sub read_numerical_as_string {
+    print "\nReading numerical as string: ", "$numerical", "\n";
+}
+sub read_string_as_numerical {
+    print "\nReading string as numerical: ", int($string), "\n";
+}
+sub read_string_as_string {
+    print "\nReading string as string: ", "$string", "\n";
+}
+sub dump_numerical {
+    print "\nDumping a numerical variable\n";
+    Dump($numerical);
+}
+sub dump_string {
+    print "\nDumping a string variable\n";
+    Dump($string);
+}</pre></blockquote>
+</div>
+
+<p>The test script defines two lexical variables: a number and a string.
+Perl doesn't have strong data types like C does;
+Perl's scalar variables can be accessed as strings
+and numbers, and Perl will try to return the equivalent numerical
+value of the string if it is accessed as a number, and vice versa.
+The initial internal representation is based on the initially
+assigned value: a numerical value<a href="#FOOTNOTE-37">[37]</a> in the case of
+<tt class="literal">$numerical</tt> and a string value<a href="#FOOTNOTE-38">[38]</a> in the
+case of <tt class="literal">$string</tt>.</p>
+<blockquote><a name="FOOTNOTE-37" /><p> [37]<tt class="literal">IV</tt>, for signed integer value, or a few other
+possible types for floating-point and unsigned integer
+representations.</p> </blockquote>
+<blockquote><a name="FOOTNOTE-38" /><p> [38]<tt class="literal">PV</tt>, for pointer value (<tt class="literal">SV</tt>
+is already taken by a scalar data type)</p> </blockquote>
+
+<p>The script accesses <tt class="literal">$numerical</tt> as a number and
+then as a string. The internal representation is printed before and
+after each access. The same test is performed with a variable that
+was initially defined as a string (<tt class="literal">$string</tt>).</p>
+
+<p>When we run the script, we get the following output:</p>
+
+<blockquote><pre class="code">Dumping a numerical variable
+SV = IV(0x80e74c0) at 0x80e482c
+  REFCNT = 4
+  FLAGS = (PADBUSY,PADMY,IOK,pIOK)
+  IV = 10
+
+Reading numerical as numerical: 10
+
+Dumping a numerical variable
+SV = PVNV(0x810f960) at 0x80e482c
+  REFCNT = 4
+  FLAGS = (PADBUSY,PADMY,IOK,NOK,pIOK,pNOK)
+  IV = 10
+  NV = 10
+  PV = 0
+
+Reading numerical as string: 10
+
+Dumping a numerical variable
+SV = PVNV(0x810f960) at 0x80e482c
+  REFCNT = 4
+  FLAGS = (PADBUSY,PADMY,IOK,NOK,POK,pIOK,pNOK,pPOK)
+  IV = 10
+  NV = 10
+  PV = 0x80e78b0 "10"\0
+  CUR = 2
+  LEN = 28
+
+Dumping a string variable
+SV = PV(0x80cb87c) at 0x80e8190
+  REFCNT = 4
+  FLAGS = (PADBUSY,PADMY,POK,pPOK)
+  PV = 0x810f518 "10"\0
+  CUR = 2
+  LEN = 3
+
+Reading string as numerical: 10
+
+Dumping a string variable
+SV = PVNV(0x80e78d0) at 0x80e8190
+  REFCNT = 4
+  FLAGS = (PADBUSY,PADMY,NOK,POK,pNOK,pPOK)
+  IV = 0
+  NV = 10
+  PV = 0x810f518 "10"\0
+  CUR = 2
+  LEN = 3
+
+Reading string as string: 10
+
+Dumping a string variable
+SV = PVNV(0x80e78d0) at 0x80e8190
+  REFCNT = 4
+  FLAGS = (PADBUSY,PADMY,NOK,POK,pNOK,pPOK)
+  IV = 0
+  NV = 10
+  PV = 0x810f518 "10"\0
+  CUR = 2
+  LEN = 3</pre></blockquote>
+
+<p>We know that Perl does the conversion from one type to another on the
+fly, and that's where the variables get
+modified&#8212;during the automatic conversion behind the scenes.
+From this simple test you can see that variables may change
+internally when accessed in different contexts. Notice that even when
+a numerical variable is accessed as a number for the first time, its
+internals change, as Perl has intialized its <tt class="literal">PV</tt>
+and <tt class="literal">NV</tt> fields (the string and floating-point
+represenations) and adjusted the <tt class="literal">FLAGS</tt> fields.</p>
+
+<p>From this example you can clearly see that if you want your variables
+to stay shared and there is a chance that the same variable will be
+accessed both as a string and as a numerical value, you have to
+access this variable as a numerical and as a string, as in the above
+example, before the fork happens (e.g., in the startup file). This
+ensures that the variable will be shared if no one modifies its
+value. Of course, if some other variable in the same page happens to
+change its value, the page will become unshared anyway.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-10-SECT-1.3" /><div class="sect2">
+<h3 class="sect2">10.1.3. Preloading Perl Modules at Server Startup</h3>
+
+<p>As we just explained, to get the<a name="pmodperl-CHP-10-ITERM-4810" /><a name="pmodperl-CHP-10-ITERM-4811" /><a name="pmodperl-CHP-10-ITERM-4812" /> code-sharing effect, you
+should preload the code before the child processes get spawned. The
+right place to preload modules is at server startup.</p>
+
+<p>You can use the <tt class="literal">PerlRequire</tt>
+<a name="pmodperl-CHP-10-ITERM-4813" /><a name="pmodperl-CHP-10-ITERM-4814" />and <tt class="literal">PerlModule</tt>
+directives to load commonly used modules such as
+<tt class="literal">CGI.pm</tt> and <tt class="literal">DBI</tt> when the server
+is started. On most systems, server children will be able to share
+the code space used by these modules. Just add the following
+directives into <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule CGI
+PerlModule DBI</pre></blockquote>
+
+<p>An even better approach is as follows. First, create a separate
+startup file. In this file you code in plain Perl, loading modules
+like this:</p>
+
+<blockquote><pre class="code">use DBI ( );
+use Carp ( );
+1;</pre></blockquote>
+
+<p>(When a module is loaded, it may export symbols to your package
+namespace by default. The empty parentheses <tt class="literal">( )</tt>
+after a module's name prevent this.
+Don't forget this, unless you need some of these in
+the startup file, which is unlikely. It will save you a few more
+kilobytes of memory.)</p>
+
+<p>Next, <tt class="literal">require( )</tt> this startup
+<a name="pmodperl-CHP-10-ITERM-4815" />file
+in <em class="emphasis">httpd.conf</em> with the
+<tt class="literal">PerlRequire</tt> directive, placing the directive
+before all the other mod_perl configuration directives:</p>
+
+<blockquote><pre class="code">PerlRequire /path/to/startup.pl</pre></blockquote>
+
+<p>As usual, we provide some numbers to prove the theory.
+Let's conduct a memory-usage test to prove that
+preloading reduces memory requirements.</p>
+
+<p>To simplify the measurement, we will use only one child process. We
+will use these settings in <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">MinSpareServers 1
+MaxSpareServers 1
+StartServers 1
+MaxClients 1
+MaxRequestsPerChild 100</pre></blockquote>
+
+<p>We are going to use <em class="emphasis">memuse.pl</em> (shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-8">Example 10-8</a>), an <tt class="literal">Apache::Registry</tt>
+script that consists of two parts: the first one loads a bunch of
+modules (most of which aren't going to be used); the
+second reports the memory size and the shared memory size used by the
+single child process that we start, and the difference between the
+two, which is the amount of unshared memory.</p>
+
+<a name="pmodperl-CHP-10-EX-8" /><div class="example">
+<h4 class="objtitle">Example 10-8. memuse.pl</h4>
+<blockquote><pre class="code">use strict;
+use CGI ( );
+use DB_File ( );
+use LWP::UserAgent ( );
+use Storable ( );
+use DBI ( );
+use GTop ( );
+
+my $r = shift;
+$r-&gt;send_http_header('text/plain');
+my $proc_mem = GTop-&gt;new-&gt;proc_mem($$);
+my $size  = $proc_mem-&gt;size;
+my $share = $proc_mem-&gt;share;
+my $diff  = $size - $share;
+printf "%10s %10s %10s\n", qw(Size Shared Unshared);
+printf "%10d %10d %10d (bytes)\n", $size, $share, $diff;</pre></blockquote>
+</div>
+
+<p>First we restart the server and execute this CGI script with none of
+the above modules preloaded. Here is the result:</p>
+
+<blockquote><pre class="code">Size     Shared   Unshared
+4706304  2134016  2572288 (bytes)</pre></blockquote>
+
+<p>Now we take the following code:</p>
+
+<blockquote><pre class="code">use strict;
+use CGI ( );
+use DB_File ( );
+use LWP::UserAgent ( );
+use Storable ( );
+use DBI ( );
+use GTop ( );
+1;</pre></blockquote>
+
+<p>and copy it into the <em class="emphasis">startup.pl</em> file. The script
+remains unchanged. We restart the server (now the modules are
+preloaded) and execute it again. We get the following results:</p>
+
+<blockquote><pre class="code">Size     Shared   Unshared
+4710400  3997696  712704 (bytes)</pre></blockquote>
+
+<p>Let's put the two results into one table:</p>
+
+<blockquote><pre class="code">Preloading    Size   Shared  Unshared
+---------------------------------------------
+Yes        4710400  3997696    712704 (bytes)
+No         4706304  2134016   2572288 (bytes)
+---------------------------------------------
+Difference    4096  1863680  -1859584</pre></blockquote>
+
+<p>You can clearly see that when the modules weren't
+preloaded, the amount of shared memory was about 1,864 KB smaller
+than in the case where the modules were preloaded.</p>
+
+<p>Assuming that you have 256 MB dedicated to the web server, if you
+didn't preload the modules, you could have 103
+servers:</p>
+
+<blockquote><pre class="code">268435456 = X * 2572288 + 2134016
+
+X = (268435456 - 2134016) / 2572288 = 103</pre></blockquote>
+
+<p>(Here we have used the formula that we devised earlier in this
+chapter.)</p>
+
+<p>Now let's calculate the same thing with the modules
+preloaded:</p>
+
+<blockquote><pre class="code">268435456 = X * 712704 + 3997696
+
+X = (268435456 - 3997696) / 712704 = 371</pre></blockquote>
+
+<p>You can have almost four times as many servers!!!</p>
+
+<p>Remember, however, that memory pages get dirty, and the amount of
+shared memory gets smaller with time. We have presented the ideal
+case, where the shared memory stays intact. Therefore, in use, the
+real numbers will be a little bit different.</p>
+
+<p>Since you will use different modules and different code, obviously in
+your case it's possible that the process sizes will
+be bigger and the shared memory smaller, and vice versa. You probably
+won't get the same ratio we did, but the example
+certainly shows the possibilities.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-1.4" /><div class="sect2">
+<h3 class="sect2">10.1.4. Preloading Registry Scripts at Server Startup</h3>
+
+<p>Suppose you find yourself stuck <a name="pmodperl-CHP-10-ITERM-4816" /><a name="pmodperl-CHP-10-ITERM-4817" /><a name="pmodperl-CHP-10-ITERM-4818" />with self-contained
+Perl CGI scripts (i.e., all the code placed in the CGI script
+itself). You would like to preload modules to benefit from sharing
+the code between the children, but you can't or
+don't want to move most of the stuff into modules.
+What can you do?</p>
+
+<p>Luckily, you can preload scripts as well. This time the
+<tt class="literal">Apache::RegistryLoader</tt> module comes to your aid.
+<tt class="literal">Apache::RegistryLoader</tt> compiles
+<tt class="literal">Apache::Registry</tt>scripts at
+<a name="pmodperl-CHP-10-ITERM-4819" />server startup.</p>
+
+<p>For example, to preload the script
+<em class="emphasis">/perl/test.pl</em>, which is in fact the file
+<em class="emphasis">/home/httpd/perl/test.pl</em>, you would do the
+following:</p>
+
+<blockquote><pre class="code">use Apache::RegistryLoader ( );
+Apache::RegistryLoader-&gt;new-&gt;handler("/perl/test.pl",
+                          "/home/httpd/perl/test.pl");</pre></blockquote>
+
+<p>You should put this code either in <tt class="literal">&lt;Perl&gt;</tt>
+sections or in a startup script.</p>
+
+<p>But what if you have a bunch of scripts located under the same
+directory and you don't want to list them one by
+one? Then the <tt class="literal">File::Find</tt> module will do most of
+the work for you.</p>
+
+<p>The script shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-9">Example 10-9</a> walks the directory
+tree under which all <tt class="literal">Apache::Registry</tt>scripts are
+located. For each file with the extension <em class="emphasis">.pl</em>,
+it calls the <tt class="literal">Apache::RegistryLoader::handler( )</tt>
+method to preload the script in the parent server. This happens
+before Apache pre-forks the child processes.</p>
+
+<a name="pmodperl-CHP-10-EX-9" /><div class="example">
+<h4 class="objtitle">Example 10-9. startup_preload.pl</h4>
+<blockquote><pre class="code">use File::Find qw(finddepth);
+use Apache::RegistryLoader ( );
+{
+    my $scripts_root_dir = "/home/httpd/perl/";
+    my $rl = Apache::RegistryLoader-&gt;new;
+    finddepth(
+        sub {
+            return unless /\.pl$/;
+            my $url = $File::Find::name;
+            $url =~ s|$scripts_root_dir/?|/|;
+            warn "pre-loading $url\n";
+            # preload $url
+            my $status = $rl-&gt;handler($url);
+            unless($status =  = 200) {
+                warn "pre-load of '$url' failed, status=$status\n";
+           }
+        },
+        $scripts_root_dir
+    );
+}</pre></blockquote>
+</div>
+
+<p>Note that we didn't use the second argument to
+<tt class="literal">handler( )</tt> here, as we did in the first example.
+To make the loader smarter about the URI-to-filename translation, you
+might need to provide a <tt class="literal">trans( )</tt> function to
+translate the URI to a filename. URI-to-filename translation normally
+doesn't happen until an HTTP request is received, so
+the module is forced to do its own translation. If the filename is
+omitted and a <tt class="literal">trans( )</tt> function is not defined,
+the loader will try to use the URI relative to the ServerRoot.</p>
+
+<p>A simple <tt class="literal">trans( )</tt> function can be something like
+this:</p>
+
+<blockquote><pre class="code">sub mytrans {
+    my $uri = shift;
+    $uri =~ s|^/perl/|/home/httpd/perl/|;
+    return $uri;
+}</pre></blockquote>
+
+<p>You can easily derive the right translation by looking at the
+<tt class="literal">Alias</tt> directive. The above <tt class="literal">mytrans(
+)</tt> function matches our <tt class="literal">Alias</tt>:</p>
+
+<blockquote><pre class="code">Alias /perl/ /home/httpd/perl/</pre></blockquote>
+
+<p>After defining the URI-to-filename translation function, you should
+pass it during the creation of the
+<tt class="literal">Apache::RegistryLoader</tt> object:</p>
+
+<blockquote><pre class="code">my $rl = Apache::RegistryLoader-&gt;new(trans =&gt; \&amp;mytrans);</pre></blockquote>
+
+<p>We won't show any benchmarks here, since the effect
+is just like preloading modules. However, we will use this technique
+later in this chapter, when we will need to have a fair comparison
+between <tt class="literal">PerlHandler</tt> code and
+<tt class="literal">Apache::Registry</tt>scripts. This will require both
+the code and the scripts to be preloaded at server startup.</p>
+
+</div>
+<a name="pmodperl-CHP-10-SECT-1.5" /><div class="sect2">
+<h3 class="sect2">10.1.5. Module Initialization at Server Startup</h3>
+
+<p>It's important to preload <a name="pmodperl-CHP-10-ITERM-4820" /><a name="pmodperl-CHP-10-ITERM-4821" /><a name="pmodperl-CHP-10-ITERM-4822" />modules and scripts at server
+startup. But for some modules this isn't enough, and
+you have to prerun their initialization code to get more memory pages
+shared. Usually you will find information about specific modules in
+their respective manpages. We will present a few examples of widely
+used modules where the code needs to be initialized.</p>
+
+<a name="pmodperl-CHP-10-SECT-1.5.1" /><div class="sect3">
+<h3 class="sect3">10.1.5.1. Initializing DBI.pm</h3>
+
+<p>The first example is the <tt class="literal">DBI</tt> module.
+<tt class="literal">DBI</tt>
+<a name="pmodperl-CHP-10-ITERM-4823" /><a name="pmodperl-CHP-10-ITERM-4824" />works
+with many database drivers from the <tt class="literal">DBD:</tt>: category
+(e.g., <tt class="literal">DBD::mysql</tt>). If you want to minimize memory
+use after Apache forks its children, it's not enough
+to preload <tt class="literal">DBI</tt>&#8212;you must initialize
+<tt class="literal">DBI</tt> with the driver(s) that you are going to use
+(usually a single driver is used). Note that you should do this only
+under mod_perl and other environments where sharing memory is very
+important. Otherwise, you shouldn't initialize
+drivers.</p>
+
+<p>You probably already know that under mod_perl you should use the
+<tt class="literal">Apache::DBI</tt> module to get persistent database
+connections (unless you open a separate connection for each user).
+<tt class="literal">Apache::DBI</tt> automatically
+<a name="pmodperl-CHP-10-ITERM-4825" />loads <tt class="literal">DBI</tt> and
+overrides some of its methods. You should continue coding as if you
+had loaded only the <tt class="literal">DBI</tt> module.</p>
+
+<p>As with preloading modules, our goal is to find the configuration
+that will give the smallest difference between the shared and normal
+memory reported, and hence the smallest total memory usage.</p>
+
+<p>To simplify the measurements, we will again use only one child
+process. We will use these settings in
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">MinSpareServers 1
+MaxSpareServers 1
+StartServers 1
+MaxClients 1
+MaxRequestsPerChild 100</pre></blockquote>
+
+<p>We always preload these modules:</p>
+
+<blockquote><pre class="code">use Gtop( );
+use Apache::DBI( ); # preloads DBI as well</pre></blockquote>
+
+<p>We are going to run memory benchmarks on five different versions of
+the <em class="emphasis">startup.pl</em> file:</p>
+
+<dl>
+<dt><i>Version 1</i></dt>
+<dd>
+Leave the file unmodified.</p>
+</dd>
+
+
+
+<dt><i>Version 2</i></dt>
+<dd>
+Install the MySQL driver (we will use the MySQL RDBMS for our test):</p>
+
+<blockquote><pre class="code">DBI-&gt;install_driver("mysql");</pre></blockquote>
+
+<p>It's safe to use this method&#8212;as with
+<tt class="literal">use( )</tt>, if it can't be installed,
+it will <tt class="literal">die( )</tt>.</p>
+
+</dd>
+
+</dl>
+
+<dl>
+<dt><i>Version 3</i></dt>
+<dd>
+Preload the MySQL driver module:</p>
+
+<blockquote><pre class="code">use DBD::mysql;</pre></blockquote>
+
+</dd>
+
+
+<dt><i>Version 4</i></dt>
+<dd>
+Tell <tt class="literal">Apache::DBI</tt> to connect to the database when
+the child process starts (<tt class="literal">ChildInitHandler</tt>). No
+driver is preloaded before the child is spawned!</p>
+
+<blockquote><pre class="code">Apache::DBI-&gt;connect_on_init('DBI:mysql:test::localhost', "", "",
+    {
+     PrintError =&gt; 1, # warn( ) on errors
+     RaiseError =&gt; 0, # don't die on error
+     AutoCommit =&gt; 1, # commit executes
+     # immediately
+    }
+) or die "Cannot connect to database: $DBI::errstr";</pre></blockquote>
+
+</dd>
+
+
+<dt><i>Version 5</i></dt>
+<dd>
+Use both <tt class="literal">connect_on_init( )</tt> from version 4 and
+<tt class="literal">install_driver( )</tt> from version 2.</p>
+</dd>
+
+</dl>
+
+<p>The <tt class="literal">Apache::Registry</tt> test script that we have used
+is shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-10">Example 10-10</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-10" /><div class="example">
+<h4 class="objtitle">Example 10-10. preload_dbi.pl</h4>
+<blockquote><pre class="code">use strict;
+use GTop ( );
+use DBI ( );
+
+my $dbh = DBI-&gt;connect("DBI:mysql:test::localhost", "", "",
+    {
+     PrintError =&gt; 1, # warn( ) on errors
+     RaiseError =&gt; 0, # don't die on error
+     AutoCommit =&gt; 1, # commit executes immediately
+    }
+) or die "Cannot connect to database: $DBI::errstr";
+
+my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+my $do_sql = "SHOW TABLES";
+my $sth = $dbh-&gt;prepare($do_sql);
+$sth-&gt;execute( );
+my @data = ( );
+while (my @row = $sth-&gt;fetchrow_array) {
+    push @data, @row;
+}
+print "Data: @data\n";
+$dbh-&gt;disconnect( ); # NOOP under Apache::DBI
+
+my $proc_mem = GTop-&gt;new-&gt;proc_mem($$);
+my $size  = $proc_mem-&gt;size;
+my $share = $proc_mem-&gt;share;
+my $diff  = $size - $share;
+printf "%8s %8s %8s\n", qw(Size Shared Unshared);
+printf "%8d %8d %8d (bytes)\n", $size, $share, $diff;</pre></blockquote>
+</div>
+
+<p>The script opens a connection to the database
+<em class="emphasis">test</em></tt> and issues a query to learn what tables the
+database has. Ordinarily, when the data is collected and printed the
+connection would be closed, but <tt class="literal">Apache::DBI</tt>
+overrides thsi with an empty method. After processing the data, the
+memory usage is printed. You will already be familiar with that part
+of the code.</p>
+
+<p>Here are the results of the five tests. The server was restarted
+before each new test. We have sorted the results by the
+<em class="emphasis">Unshared</em></tt> column.</p>
+
+<ol><li>
+<p>After the first request:</p>
+
+<blockquote><pre class="code">Test type                              Size   Shared    Unshared
+--------------------------------------------------------------
+(2) install_driver                   3465216  2621440   843776
+(5) install_driver &amp; connect_on_init 3461120  2609152   851968
+(3) preload driver                   3465216  2605056   860160
+(1) nothing added                    3461120  2494464   966656
+(4) connect_on_init                  3461120  2482176   978944</pre></blockquote>
+
+</li><li>
+<p>After the second request (all the subsequent requests showed the same
+results):</p>
+
+<blockquote><pre class="code">Test type                              Size   Shared    Unshared
+--------------------------------------------------------------
+(2) install_driver                   3469312  2609152   860160
+(5) install_driver &amp; connect_on_init 3481600  2605056   876544
+(3) preload driver                   3469312  2588672   880640
+(1) nothing added                    3477504  2482176   995328
+(4) connect_on_init                  3481600  2469888  1011712</pre></blockquote>
+</li></ol>
+
+<p>What do we conclude from analyzing this data? First we see that only
+after a second reload do we get the final memory footprint for the
+specific request in question (if you pass different arguments, the
+memory usage will be different).</p>
+
+<p>But both tables show the same pattern of memory usage. We can clearly
+see that the real winner is version 2, where the MySQL driver was
+installed. Since we want to have a connection ready for the first
+request made to the freshly spawned child process, we generally use
+version 5. This uses somewhat more memory but has almost the same
+number of shared memory pages. Version 3 preloads only the driver,
+which results in less shared memory. Having nothing initialized
+(version 1) and using only the <tt class="literal">connect_on_init( )</tt>
+method (version 4) gave the least shared memory. The former is a
+little bit better than the latter, but both are significantly worse
+than the first two.</p>
+
+<p>Notice that the smaller the value of the
+<em class="emphasis">Unshared</em></tt> column, the more processes you can have
+using the same amount of RAM. If we compare versions 2 and 4 of the
+script, assuming for example that we have 256 MB of memory dedicated
+to mod_perl processes, we get the following numbers.</p>
+
+<p>Version 2:</p>
+<img src="figs/ch10eq5.gif" alt="Figure " />
+<p>Version 4:</p>
+<img src="figs/ch10eq6.gif" alt="Figure " />
+<p>As you can see, there are 17% more child processes with version 2.</p>
+
+</div>
+
+<a name="pmodperl-CHP-10-SECT-1.5.2" /><div class="sect3">
+<h3 class="sect3">10.1.5.2. Initializing CGI.pm</h3>
+
+<p><tt class="literal">CGI.pm</tt> is a big module
+<a name="pmodperl-CHP-10-ITERM-4826" /><a name="pmodperl-CHP-10-ITERM-4827" />that
+by default postpones the compilation of its methods until they are
+actually needed, thus making it possible to use it under a slow
+mod_cgi handler without adding a big startup overhead.
+That's not what we want under mod_perl&#8212;if you
+use <tt class="literal">CGI.pm</tt>, in addition to preloading the module
+at server startup, you should precompile the methods that
+<a name="pmodperl-CHP-10-ITERM-4828" />you are going to use. To do
+that, simply call the <tt class="literal">compile( )</tt> method:</p>
+
+<blockquote><pre class="code">use CGI;
+CGI-&gt;compile(':all');</pre></blockquote>
+
+<p>You should replace the tag group <tt class="literal">:all</tt> with the
+real tags and group tags that you are going to use if you want to
+optimize memory usage.</p>
+
+<p>We are going to compare the shared-memory footprint using a script
+that is backward compatible with mod_cgi. You can improve the
+performance of this kind of script as well, but if you really want
+fast code, think about porting it to use
+<tt class="literal">Apache::Request</tt><a href="#FOOTNOTE-39">[39]</a> for the CGI interface and some other module for your HTML
+generation.</p>
+<blockquote><a name="FOOTNOTE-39" /><p> [39]<tt class="literal">Apache::Request</tt> is significantly faster than
+<tt class="literal">CGI.pm</tt> because its methods for processing a
+request's arguments are written in C.</p>
+</blockquote>
+
+<p>The <tt class="literal">Apache::Registry</tt>script that we are going to
+use to make the comparison is shown in <a href="ch10_01.html#pmodperl-CHP-10-EX-11">Example 10-11</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-11" /><div class="example">
+<h4 class="objtitle">Example 10-11. preload_cgi_pm.pl</h4>
+<blockquote><pre class="code">use strict;
+use CGI ( );
+use GTop ( );
+
+my $q = new CGI;
+print $q-&gt;header('text/plain');
+print join "\n", map {"$_ =&gt; ".$q-&gt;param($_) } $q-&gt;param;
+print "\n";
+
+my $proc_mem = GTop-&gt;new-&gt;proc_mem($$);
+my $size  = $proc_mem-&gt;size;
+my $share = $proc_mem-&gt;share;
+my $diff  = $size - $share;
+printf "%8s %8s %8s\n", qw(Size Shared Unshared);
+printf "%8d %8d %8d (bytes)\n", $size, $share, $diff;</pre></blockquote>
+</div>
+
+<p>The script initializes the <tt class="literal">CGI</tt> object, sends the
+HTTP header, and then prints any arguments and values that were
+passed to it. At the end, as usual, we print the memory usage.</p>
+
+<p>Again, we are going to use a single child process. Here is part of
+our <em class="emphasis">httpd.conf</em></tt> file:</p>
+
+<blockquote><pre class="code">MinSpareServers 1
+MaxSpareServers 1
+StartServers 1
+MaxClients 1
+MaxRequestsPerChild 100</pre></blockquote>
+
+<p>We always preload the <tt class="literal">Gtop</tt> module:</p>
+
+<blockquote><pre class="code">use Gtop ( );</pre></blockquote>
+
+<p>We are going to run memory benchmarks on three different versions of
+the <em class="emphasis">startup.pl</em></tt> file:</p>
+
+<dl>
+<dt><i>Version 1</i></dt>
+<dd>
+Leave the file unmodified.</p>
+</dd>
+
+
+
+<dt><i>Version 2</i></dt>
+<dd>
+Preload <tt class="literal">CGI.pm</tt>:</p>
+
+
+<blockquote><pre class="code">use CGI ( );</pre></blockquote>
+</dd>
+
+
+<dt><i>Version 3</i></dt>
+<dd>
+Preload <tt class="literal">CGI.pm</tt> and precompile the methods that we
+are going to use in the script:</p>
+
+
+<blockquote><pre class="code">use CGI ( );
+CGI-&gt;compile(qw(header param));</pre></blockquote>
+</dd>
+
+</dl>
+
+<p>Here are the results of the three tests, sorted by the
+<em class="emphasis">Unshared</em> column. The server was restarted before
+each new test.</p>
+
+<ol><li>
+<p>After the first request:</p>
+
+<blockquote><pre class="code">  Test type                         Size     Shared   Unshared
+ ------------------------------------------------------------
+  (3) preloaded &amp; methods+compiled  3244032  2465792   778240
+  (2) preloaded                     3321856  2326528   995328
+  (1) not preloaded                 3321856  2146304  1175552</pre></blockquote>
+
+</li><li>
+<p>After the second request (the subsequent request showed the same
+results):</p>
+
+<blockquote><pre class="code">  Test type                         Size     Shared   Unshared
+ -------------------------------------------------------------
+  (3) preloaded &amp; methods+compiled  3248128  2445312   802816
+  (2) preloaded                     3325952  2314240  1011712
+  (1) not preloaded                 3325952  2134016  1191936</pre></blockquote>
+</li></ol>
+
+<p>Since the memory usage stabilized after the second request, we are
+going to look at the second table. By comparing the first (not
+preloaded) and the second (preloaded) versions, we can see that
+preloading adds about 180 KB (2314240 - 2134016 bytes) of shared
+memory size, which is the result we expect from most modules.
+However, by comparing the second (preloaded) and the third (preloaded
+and precompiled methods) options, we can see that by precompiling
+methods, we gain 207 KB (1011712 - 802816 bytes) more of shared
+memory. And we have used only a few methods (the
+<tt class="literal">header</tt> method loads a few more methods
+transparently for the user). The gain grows as more of the used
+methods are precompiled. If you use
+<tt class="literal">CGI.pm</tt>'s functional interface,
+all of the above applies as well.</p>
+
+<p>Even in our very simple case using the same formula, what do we see?
+Let's again assume that we have 256 MB dedicated for
+mod_perl.</p>
+
+<p>Version 1:</p>
+<img src="figs/ch10eq7.gif" alt="Figure " />
+<p>Version 3:</p>
+<img src="figs/ch10eq8.gif" alt="Figure " />
+<p>If we preload <tt class="literal">CGI.pm</tt> and precompile a few methods
+that we use in the test script, we can have 50% more child processes
+than when we don't preload and precompile the
+methods that we are going to use.</p>
+
+<p>Note that <tt class="literal">CGI.pm</tt> Versions 3.x are supposed to
+<a name="pmodperl-CHP-10-ITERM-4829" />be
+<a name="pmodperl-CHP-10-ITERM-4830" />much
+<a name="pmodperl-CHP-10-ITERM-4831" />less
+bloated, but make sure to test your code as we just demonstrated.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-10-SECT-1.6" /><div class="sect2">
+<h3 class="sect2">10.1.6. Memory Preallocation</h3>
+
+<p>Perl reuses allocated memory
+<a name="pmodperl-CHP-10-ITERM-4832" /><a name="pmodperl-CHP-10-ITERM-4833" /><a name="pmodperl-CHP-10-ITERM-4834" /><a name="pmodperl-CHP-10-ITERM-4835" />whenever possible. With
+<tt class="literal">Devel::Peek</tt> we can actually see this happening by
+peeking at the variable data structure. Consider the simple code in
+<a href="ch10_01.html#pmodperl-CHP-10-EX-12">Example 10-12</a>.</p>
+
+<a name="pmodperl-CHP-10-EX-12" /><div class="example">
+<h4 class="objtitle">Example 10-12. realloc.pl</h4>
+<blockquote><pre class="code">use Devel::Peek;
+
+foo( ) for 1..2;
+
+sub foo {
+    my $sv;
+    Dump $sv;
+    print "----\n";
+    $sv = 'x' x 100_000;
+    $sv = "";
+    Dump $sv;
+    print "\n\n";
+}</pre></blockquote>
+</div>
+
+<p>The code starts by loading the <tt class="literal">Devel::Peek</tt> module
+and calling the function <tt class="literal">foo( )</tt> twice in the
+<tt class="literal">for</tt> loop.</p>
+
+<p>The <tt class="literal">foo( )</tt> function declares a lexically scoped
+variable, <tt class="literal">$sv</tt> (scalar value). Then it dumps the
+<tt class="literal">$sv</tt> data structure and prints a separator, assigns
+a string of 100,000 <em class="emphasis">x</em> characters to
+<tt class="literal">$sv</tt>, assigns it to an empty string, and prints the
+<tt class="literal">$sv</tt> data structure again. At the end, a separator
+of two empty lines is printed.</p>
+
+<p>Let's observe the output generated by this code:</p>
+
+<blockquote><pre class="code">SV = NULL(0x0) at 0x80787c0
+  REFCNT = 1
+  FLAGS = (PADBUSY,PADMY)
+----
+SV = PV(0x804c6c8) at 0x80787c0
+  REFCNT = 1
+  FLAGS = (PADBUSY,PADMY,POK,pPOK)
+  PV = 0x8099d98 ""\0
+  CUR = 0
+  LEN = 100001
+
+
+SV = PV(0x804c6c8) at 0x80787c0
+  REFCNT = 1
+  FLAGS = (PADBUSY,PADMY)
+  PV = 0x8099d98 ""\0
+  CUR = 0
+  LEN = 100001
+----
+SV = PV(0x804c6c8) at 0x80787c0
+  REFCNT = 1
+  FLAGS = (PADBUSY,PADMY,POK,pPOK)
+  PV = 0x8099d98 ""\0
+  CUR = 0
+  LEN = 100001</pre></blockquote>
+
+<p>In this output, we are interested in the values of
+<tt class="literal">PV</tt>&#8212;the memory address of the string value,
+and <tt class="literal">LEN</tt>&#8212;the length of the allocated memory.</p>
+
+<p>When <tt class="literal">foo( )</tt> is called for the first time and the
+<tt class="literal">$sv</tt> data structure is dumped for the first time,
+we can see that no data has yet been assigned to it. The second time
+the <tt class="literal">$sv</tt> data structure is dumped, we can see that
+while <tt class="literal">$sv</tt> contains an empty string, its data
+structure still kept all the memory allocated for the long string.</p>
+
+<p>Notice that <tt class="literal">$sv</tt> is declared with <tt class="literal">my(
+)</tt>, so at the end of the function <tt class="literal">foo( )</tt>
+it goes out of scope (i.e., it is destroyed). To our surprise, when
+we observe the output from the second call to <tt class="literal">foo(
+)</tt>, we discover that when <tt class="literal">$sv</tt> is declared
+at the beginning of <tt class="literal">foo( )</tt>, it reuses the data
+structure from the previously destroyed <tt class="literal">$sv</tt>
+variable&#8212;the <tt class="literal">PV</tt> field contains the same
+memory address and the <tt class="literal">LEN</tt> field is still 100,101
+characters long.</p>
+
+<p>If we had asked for a longer memory chunk during the second
+invocation, Perl would have called <tt class="literal">realloc( )</tt> and
+a new chunk of memory would have been allocated.</p>
+
+<p>Therefore, if you have some kind of buffering variable that will grow
+over the processes life, you may want to preallocate the memory for
+this variable. For example, if you know a variable
+<tt class="literal">$Book::Buffer::buffer</tt> may grow to the size of
+100,000 characters, you can preallocate the memory in the following
+way:</p>
+
+<blockquote><pre class="code">package Book::Buffer;
+
+my $buffer;
+sub prealloc { $buffer = ' ' x 100_000; $buffer = ""; 0;}
+# ...
+1;</pre></blockquote>
+
+<p>You should load this module during the
+<tt class="literal">PerlChildInitHandler</tt>. In
+<em class="emphasis">startup.pl</em>, insert:</p>
+
+<blockquote><pre class="code">use Book::Buffer;
+Apache-&gt;push_handlers(PerlChildInitHandler =&gt; \&amp;Book::Buffer::prealloc);</pre></blockquote>
+
+<p>so each child will allocate its own memory for the variable. When
+<tt class="literal">$Book::Buffer::buffer</tt>starts growing at runtime,
+no time will be wasted on memory reallocation as long as the
+preallocated memory is sufficient.</p>
+
+</div>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch09_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch10_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">9.6. References</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">10.2. Forking and Executing Subprocessesfrom mod_perl</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

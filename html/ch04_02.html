@@ -1,0 +1,1288 @@
+<html><head><title>mod_perl Configuration (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch04_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch04_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">4.2. mod_perl Configuration</h2>
+
+<p>When you
+<a name="pmodperl-CHP-4-ITERM-3862" /><a name="pmodperl-CHP-4-ITERM-3863" />have
+tested that the Apache server works on your machine,
+it's time to configure the mod_perl part. Although
+some of the configuration directives are already familiar to you,
+mod_perl introduces a few new ones.</p>
+
+<p>It's a good idea to keep all mod_perl-related
+configuration at the end of the configuration file, after the native
+Apache configuration directives, thus avoiding any confusion.</p>
+
+<p>To ease maintenance and to simplify multiple-server installations,
+the mod_perl-enabled Apache server configuration system provides
+several alternative ways to keep your configuration directives in
+separate places. The
+<tt class="literal">Include</tt><a name="pmodperl-CHP-4-ITERM-3864" /> directive in
+<em class="emphasis">httpd.conf</em> lets you include the contents of
+other files, just as if the information were all contained in
+<em class="emphasis">httpd.conf</em>. This is a
+feature<a name="pmodperl-CHP-4-ITERM-3865" /> of Apache itself. For example,
+placing all mod_perl-related configuration in a separate file named
+<em class="emphasis">conf/mod_perl.conf</em> can be done by adding the
+following directive to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">Include conf/mod_perl.conf</pre></blockquote>
+
+<p>If you want to include this configuration conditionally, depending on
+whether your Apache has been compiled with mod_perl, you can use the
+<tt class="literal">IfModule</tt> directive :</p>
+
+<blockquote><pre class="code">&lt;IfModule mod_perl.c&gt;
+  Include conf/mod_perl.conf
+&lt;/IfModule&gt;</pre></blockquote>
+
+<p>mod_perl adds two more directives. <a name="pmodperl-CHP-4-ITERM-3866" /><a name="pmodperl-CHP-4-ITERM-3867" /><a name="pmodperl-CHP-4-ITERM-3868" /><tt class="literal">&lt;Perl&gt;</tt>
+sections allow you to execute Perl code from within any configuration
+file at server startup time. Additionally, any file containing a Perl
+program can be executed at server startup simply by using the
+<tt class="literal">PerlRequire</tt> or <tt class="literal">PerlModule</tt>
+directives, as we will show shortly.</p>
+
+<a name="pmodperl-CHP-4-SECT-2.1" /><div class="sect2">
+<h3 class="sect2">4.2.1. Alias Configurations</h3>
+
+<p>For many <a name="pmodperl-CHP-4-ITERM-3869" /><a name="pmodperl-CHP-4-ITERM-3870" /><a name="pmodperl-CHP-4-ITERM-3871" />reasons, a server can never
+allow access to its entire directory hierarchy. Although there is
+really no indication of this given to the web browser, every path
+given in a requested URI is therefore a virtual path; early in the
+processing of a request, the virtual path given in the request must
+be translated to a path relative to the filesystem root, so that
+Apache can determine what resource is really being requested. This
+path can be considered to be a physical path, although it may not
+physically exist.</p>
+
+<p>For instance, in mod_perl systems, you may
+<em class="emphasis">intend</em> that the translated path does not
+physically exist, because your module responds when it sees a request
+for this non-existent path by sending a virtual document. It creates
+the document on the fly, specifically for that request, and the
+document then vanishes. Many of the documents you see on the Web (for
+example, most documents that change their appearance depending on
+what the browser asks for) do not physically exist. This is one of
+the most important features of the Web, and one of the great powers
+of mod_perl is that it allows you complete flexibility to create
+<a name="pmodperl-CHP-4-ITERM-3872" /><a name="pmodperl-CHP-4-ITERM-3873" />virtual documents.</p>
+
+<p>The <tt class="literal">ScriptAlias</tt><a name="pmodperl-CHP-4-ITERM-3874" /><a name="pmodperl-CHP-4-ITERM-3875" /> and <tt class="literal">Alias</tt>
+directives provide a mapping of a URI to a filesystem directory. The
+directive:</p>
+
+<blockquote><pre class="code">Alias /foo /home/httpd/foo</pre></blockquote>
+
+<p>will map all requests starting with <em class="emphasis">/foo</em> to the
+files starting with <em class="emphasis">/home/httpd/foo/</em>. So when
+Apache receives a request to
+<em class="emphasis">http://www.example.com/foo/test.pl</em>, the server
+will map it to the file <em class="emphasis">test.pl</em> in the directory
+<em class="emphasis">/home/httpd/foo/</em>.</p>
+
+<p>Additionally, <tt class="literal">ScriptAlias</tt> assigns all the requests
+that match the specified URI (i.e., <em class="emphasis">/cgi-bin</em>) to
+be executed by mod_cgi.</p>
+
+<blockquote><pre class="code">ScriptAlias /cgi-bin /home/httpd/cgi-bin</pre></blockquote>
+
+<p>is actually the same as:</p>
+
+<blockquote><pre class="code">Alias /cgi-bin /home/httpd/cgi-bin
+&lt;Location /cgi-bin&gt;
+    SetHandler cgi-script
+    Options +ExecCGI
+&lt;/Location&gt;</pre></blockquote>
+
+<p>where the <tt class="literal">SetHandler</tt><a name="pmodperl-CHP-4-ITERM-3876" /> directive invokes mod_cgi. You
+shouldn't use the <tt class="literal">ScriptAlias</tt>
+directive unless you want the request to be processed under mod_cgi.
+Therefore, when configuring mod_perl sections, use
+<tt class="literal">Alias</tt> instead.</p>
+
+<p>Under mod_perl, the <tt class="literal">Alias</tt> directive will be
+followed by a section with at least two directives. The first is the
+<tt class="literal">SetHandler/perl-script</tt><a name="pmodperl-CHP-4-ITERM-3877" /> directive, which tells Apache to
+invoke mod_perl to run the script. The second directive (for example,
+<tt class="literal">PerlHandler</tt>) tells mod_perl which handler (Perl
+module) the script should be run under, and hence for which phase of
+the request. Later in this chapter, we discuss the available
+<tt class="literal">Perl*Handler</tt>s<a href="#FOOTNOTE-23">[23]</a> for
+the various request phases. A typical mod_perl configuration that
+will execute the Perl scripts under the
+<tt class="literal">Apache::Registry</tt> handler looks like this:</p> <blockquote><a name="FOOTNOTE-23" /><p> [23]When we say
+<tt class="literal">Perl*Handler</tt>, we mean the collection of all Perl
+handler directives (<tt class="literal">PerlHandler</tt>,
+<tt class="literal">PerlAccessHandler</tt>, etc.).</p> </blockquote>
+
+<blockquote><pre class="code">Alias /perl/ /home/httpd/perl/
+&lt;Location /perl&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options +ExecCGI
+&lt;/Location&gt;</pre></blockquote>
+
+<p>The last directive tells Apache to execute the file as a program,
+rather than return it as plain text.</p>
+
+<p>When you have decided which methods to use to run your scripts and
+where you will keep them, you can add the configuration directive(s)
+to <em class="emphasis">httpd.conf</em>. They will look like those below,
+but they will of course reflect the locations of your scripts in your
+filesystem and the decisions you have made about how to run the
+scripts:</p>
+
+<blockquote><pre class="code">ScriptAlias /cgi-bin/ /home/httpd/cgi-bin/
+Alias       /perl/    /home/httpd/perl/
+&lt;Location /perl&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options +ExecCGI
+&lt;/Location&gt;</pre></blockquote>
+
+<p>In the examples above, all requests issued for URIs starting with
+<em class="emphasis">/cgi-bin</em> will be served from the directory
+<em class="emphasis">/home/httpd/cgi-bin/</em>, and those starting with
+<em class="emphasis">/perl</em> will be served from the<a name="pmodperl-CHP-4-ITERM-3878" /><a name="pmodperl-CHP-4-ITERM-3879" /><a name="pmodperl-CHP-4-ITERM-3880" /> directory
+<em class="emphasis">/home/httpd/perl/</em>.</p>
+
+<a name="pmodperl-CHP-4-SECT-2.1.1" /><div class="sect3">
+<h3 class="sect3">4.2.1.1. Running scripts located in the same directory under different handlers</h3>
+
+<p>Sometimes <a name="pmodperl-CHP-4-ITERM-3881" /><a name="pmodperl-CHP-4-ITERM-3882" /><a name="pmodperl-CHP-4-ITERM-3883" />you will want to map the same
+directory to a few different locations and execute each file
+according to the way it was requested. For example, in the following
+configuration:</p>
+
+<blockquote><pre class="code"># Typical for plain cgi scripts:
+ScriptAlias /cgi-bin/  /home/httpd/perl/
+
+# Typical for Apache::Registry scripts:
+Alias       /perl/     /home/httpd/perl/
+
+# Typical for Apache::PerlRun scripts:
+Alias       /cgi-perl/ /home/httpd/perl/
+
+&lt;Location /perl/&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options +ExecCGI
+&lt;/Location&gt;
+&lt;Location /cgi-perl/&gt;
+    SetHandler perl-script
+    PerlHandler Apache::PerlRun
+    Options +ExecCGI
+&lt;/Location&gt;</pre></blockquote>
+
+<p>the following three URIs:</p>
+
+<blockquote><pre class="code">http://www.example.com/perl/test.pl
+http://www.example.com/cgi-bin/test.pl
+http://www.example.com/cgi-perl/test.pl</pre></blockquote>
+
+<p>are all mapped to the same file,
+<em class="emphasis">/home/httpd/perl/test.pl</em>. If
+<em class="emphasis">test.pl</em> is invoked with the URI prefix
+<em class="emphasis">/perl</em>, it will be executed under the
+<tt class="literal">Apache::Registry</tt> handler. If the prefix is
+<em class="emphasis">/cgi-bin</em>, it will be executed under mod_cgi, and
+if the prefix is <em class="emphasis">/cgi-perl</em>, it will be executed
+under the <tt class="literal">Apache::PerlRun</tt> handler.</p>
+
+<p>This means that we can have all our CGI scripts located at the same
+place in the filesystem and call the script in any of three ways
+simply by changing one component of the URI
+(<em class="emphasis">cgi-bin|perl|cgi-perl</em>).</p>
+
+<p>This technique makes it easy to migrate your scripts to mod_perl. If
+your script does not seem to work while running under mod_perl, in
+most cases you can easily call the script in straight mod_cgi mode or
+under <tt class="literal">Apache::PerlRun</tt> without making any script
+changes. Simply change the URL you use to invoke it.</p>
+
+<p>Although in the configuration above we have configured all three
+<tt class="literal">Alias</tt> es to point to the same directory within our
+filesystem, you can of course have them point to different
+directories if you prefer.</p>
+
+<p>This should just be a migration strategy, though. In general,
+it's a bad idea to run scripts in plain mod_cgi mode
+from a mod_perl-enabled server&#8212;the extra resource consumption
+is wasteful. It is better to run these on a plain Apache server.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-4-SECT-2.2" /><div class="sect2">
+<h3 class="sect2">4.2.2. &lt;Location /perl&gt; Sections</h3>
+
+<p>The<a name="pmodperl-CHP-4-ITERM-3884" /><a name="pmodperl-CHP-4-ITERM-3885" /> <tt class="literal">&lt;Location&gt;</tt>
+section assigns a number of rules that the server follows when the
+request's URI matches the location. Just as it is a
+widely accepted convention to use <em class="emphasis">/cgi-bin</em> for
+mod_cgi scripts, it is habitual to use <em class="emphasis">/perl</em> as
+the base URI of the Perl scripts running under mod_perl.
+Let's review the following very widely used
+<tt class="literal">&lt;Location&gt;</tt>section:</p>
+
+<blockquote><pre class="code">Alias /perl/ /home/httpd/perl/
+PerlModule Apache::Registry
+&lt;Location /perl&gt;
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options +ExecCGI
+    Allow from all
+    PerlSendHeader On
+&lt;/Location&gt;</pre></blockquote>
+
+<p>This configuration causes all requests for URIs starting with
+<em class="emphasis">/perl</em> to be handled by the mod_perl Apache
+module with the handler from the <tt class="literal">Apache::Registry</tt>
+Perl module.</p>
+
+<p>Remember the <tt class="literal">Alias</tt> from the previous section? We
+use the same <tt class="literal">Alias</tt> here. If you use a
+<tt class="literal">&lt;Location&gt;</tt> that does not have the same
+<tt class="literal">Alias</tt>, the server will fail to locate the script
+in the filesystem. You need the <tt class="literal">Alias</tt>setting only
+if the code that should be executed is located in a file.
+<tt class="literal">Alias</tt> just provides the URI-to-filepath
+translation rule.</p>
+
+<p>Sometimes there is no script to be executed. Instead, a method in a
+module is being executed, as with <em class="emphasis">/perl-status</em>,
+the code for which is stored in an Apache module. In such cases, you
+don't need <tt class="literal">Alias</tt>settings for
+these <tt class="literal">&lt;Location&gt;</tt>s.</p>
+
+<p><tt class="literal">PerlModule</tt> is equivalent to
+Perl's native <tt class="literal">use( )</tt> function
+call. We use it to load the <tt class="literal">Apache::Registry</tt>
+module, later used as a handler in the
+<tt class="literal">&lt;Location&gt;</tt>section.</p>
+
+<p>Now let's go through the directives inside the
+<tt class="literal">&lt;Location&gt;</tt>section:</p>
+
+<dl>
+<a name="pmodperl-CHP-4-ITERM-3886" /><dt><b><tt class="literal">SetHandler perl-script</tt></b></dt>
+<dd>
+The <tt class="literal">SetHandler</tt> directive assigns the mod_perl
+Apache module to handle the content generation phase.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-4-ITERM-3887" /><dt><b><tt class="literal">PerlHandler Apache::Registry</tt></b></dt>
+<dd>
+The <tt class="literal">PerlHandler</tt> directive tells mod_perl to use
+the <tt class="literal">Apache::Registry</tt> Perl module for the actual
+content generation.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-4-ITERM-3888" /><dt><b><tt class="literal">Options +ExecCGI</tt></b></dt>
+<dd>
+<tt class="literal">Options +ExecCGI</tt> ordinarily tells Apache that
+it's OK for the directory to contain CGI scripts. In
+this case, the flag is required by
+<tt class="literal">Apache::Registry</tt> to confirm that you really know
+what you're doing. Additionally, all scripts located
+in directories handled by <tt class="literal">Apache::Registry</tt> must be
+executable, another check against wayward non-script files getting
+left in the directory accidentally. If you omit this option, the
+script either will be rendered as plain text or will trigger a Save
+As dialog, depending on the client. <a href="#FOOTNOTE-24">[24]</a></p> <blockquote><a name="FOOTNOTE-24" /><p> [24]You can use
+<tt class="literal">Apache::RegistryBB</tt> to skip this and a few other
+checks.</p> </blockquote>
+</dd>
+
+
+
+<a name="pmodperl-CHP-4-ITERM-3889" /><dt><b><tt class="literal">Allow from all</tt></b></dt>
+<dd>
+The <tt class="literal">Allow</tt> directive is used to set access control
+based on the client's domain or IP adress. The
+<tt class="literal">from all</tt>setting allows any client to run the
+script.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-4-ITERM-3890" /><dt><b><tt class="literal">PerlSendHeader On</tt></b></dt>
+<dd>
+The <tt class="literal">PerlSendHeader On</tt> line tells mod_perl to
+intercept anything that looks like a header line (such as
+<tt class="literal">Content-Type: text/html</tt>) and automatically turn it
+into a correctly formatted HTTP header the way mod_cgi does. This
+lets you write scripts without bothering to call the request
+object's <tt class="literal">send_http_header( )</tt>
+method, but it adds a small overhead because of the special handling.</p>
+</dd>
+
+</dl>
+
+<p>If you use <tt class="literal">CGI.pm</tt>'s
+<tt class="literal">header( )</tt> function to generate HTTP headers, you
+do not need to activate this directive, because
+<tt class="literal">CGI.pm</tt> detects that it's running
+under mod_perl and calls <tt class="literal">send_http_header( )</tt> for
+you.</p>
+
+<p>You will want to set <tt class="literal">PerlSendHeader Off</tt> for
+non-parsed headers (<em class="emphasis">nph</em>) scripts and generate
+all the HTTP headers yourself. This is also true for mod_perl
+handlers that send headers with the <tt class="literal">send_http_header(
+)</tt> method, because having <tt class="literal">PerlSendHeader
+On</tt> as a server-wide configuration option might be a
+performance hit.</p>
+
+<dl>
+<dt><b><tt class="literal">&lt;/Location&gt;</tt></b></dt>
+<dd>
+<tt class="literal">&lt;/Location&gt;</tt> closes the
+<tt class="literal">&lt;Location&gt;</tt>section definition.</p>
+</dd>
+
+</dl>
+
+<a name="pmodperl-CHP-4-SIDEBAR-2" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">Overriding &lt;Location&gt; Settings</h4>
+
+<p>Suppose<a name="pmodperl-CHP-4-ITERM-3891" /><a name="pmodperl-CHP-4-ITERM-3892" /> you have:</p>
+
+<blockquote><pre class="code">&lt;Location /foo&gt;
+    SetHandler perl-script
+    PerlHandler Book::Module
+ &lt;/Location&gt;</pre></blockquote>
+
+<p>To remove a mod_perl handler setting from a location beneath a
+location where a handler is set (e.g.,
+<em class="emphasis">/foo/bar</em>), just reset the handler like this:</p>
+
+<blockquote><pre class="code">&lt;Location /foo/bar&gt;
+    SetHandler default-handler
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now all requests starting with <em class="emphasis">/foo/bar</em> will be
+served by Apache's default handler, which serves the
+content directly.</p>
+</td></tr></table><p></blockquote>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.3" /><div class="sect2">
+<h3 class="sect2">4.2.3. PerlModule and PerlRequire</h3>
+
+<p>As we
+<a name="pmodperl-CHP-4-ITERM-3893" />saw earlier, a module should be loaded
+before its handler can be used.
+<tt class="literal">PerlModule</tt><a name="pmodperl-CHP-4-ITERM-3894" /> and
+<tt class="literal">PerlRequire</tt><a name="pmodperl-CHP-4-ITERM-3895" /> are the two mod_perl directives that
+are used to load modules and code. They are almost equivalent to
+Perl's <tt class="literal">use( )</tt> and
+<tt class="literal">require( )</tt> functions (respectively) and are called
+from the Apache configuration file. You can pass one or more module
+names as arguments to <tt class="literal">PerlModule</tt>:</p>
+
+<blockquote><pre class="code">PerlModule Apache::DBI CGI DBD::Mysql</pre></blockquote>
+
+<p>Generally, modules are preloaded from the startup script, which is
+usually called <em class="emphasis">startup.pl</em>. This is a file
+containing Perl code that is executed through the
+<tt class="literal">PerlRequire</tt> directive. For example:</p>
+
+<blockquote><pre class="code">PerlRequire  /home/httpd/perl/lib/startup.pl</pre></blockquote>
+
+<p>A <tt class="literal">PerlRequire</tt> filename can be absolute or relative
+to the <tt class="literal">ServerRoot</tt> or to a path in
+<tt class="literal">@INC</tt>.</p>
+
+<p>As with any file with Perl code that gets <tt class="literal">use( )</tt> d
+or <tt class="literal">require( )</tt> d, it must return a true value. To
+ensure that this happens, don't forget to add
+<tt class="literal">1;</tt> at the end of <em class="emphasis">startup.pl</em>.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.4" /><div class="sect2">
+<h3 class="sect2">4.2.4. Perl*Handlers</h3>
+
+<p>As <a name="pmodperl-CHP-4-ITERM-3896" />mentioned in <a href="ch01_01.html">Chapter 1</a>, Apache specifies 11 phases of
+<a name="pmodperl-CHP-4-ITERM-3897" />the <a name="pmodperl-CHP-4-ITERM-3898" />request loop. In order of processing,
+they are: <em class="emphasis">Post-read-request</em>, <em class="emphasis">URI
+translation</em>, <em class="emphasis">header parsing</em>,
+<em class="emphasis">access control</em>,
+<em class="emphasis">authentication</em>,
+<em class="emphasis">authorization</em>, <em class="emphasis">MIME type
+checking</em>, <em class="emphasis">fixup</em>,
+<em class="emphasis">response</em> (also known as the content handling
+phase), <em class="emphasis">logging</em>, and finally
+<em class="emphasis">cleanup</em>. These are the stages of a request where
+the Apache API allows a module to step in and do something. mod_perl
+provides dedicated configuration directives for each of these stages:</p>
+
+<blockquote><pre class="code">PerlPostReadRequestHandler
+PerlInitHandler
+PerlTransHandler
+PerlHeaderParserHandler
+PerlAccessHandler
+PerlAuthenHandler
+PerlAuthzHandler
+PerlTypeHandler
+PerlFixupHandler
+PerlHandler
+PerlLogHandler
+PerlCleanupHandler</pre></blockquote>
+
+<p>These configuration directives usually are referred to as
+<tt class="literal">Perl*Handler</tt> directives. The <tt class="literal">*</tt>
+in <tt class="literal">Perl*Handler</tt> is a placeholder to be replaced by
+something that identifies the phase to be handled. For example,
+<tt class="literal">PerlLogHandler</tt> is the Perl handler that (fairly
+obviously) handles the logging phase.</p>
+
+<p>In addition, mod_perl adds a few more stages that happen outside the
+request loop:</p>
+
+<dl>
+<a name="pmodperl-CHP-4-ITERM-3899" /><dt><b><tt class="literal">PerlChildInitHandler</tt> </b></dt>
+<dd>
+Allows your modules to initialize data structures during the startup
+of the child process.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-4-ITERM-3900" /><dt><b><tt class="literal">PerlChildExitHandler</tt> </b></dt>
+<dd>
+Allows your modules to clean up during the child process shutdown.</p>
+
+<p><tt class="literal">PerlChildInitHandler</tt> and
+<tt class="literal">PerlChildExitHandler</tt> might be used, for example,
+to allocate and deallocate system resources, pre-open and close
+database connections, etc. They do not refer to parts of the request
+loop.</p>
+
+</dd>
+
+
+<a name="pmodperl-CHP-4-ITERM-3901" /><dt><b><tt class="literal">PerlRestartHandler</tt> </b></dt>
+<dd>
+Allows you to specify a routine that is called when the server is
+restarted. Since Apache always restarts itself immediately after it
+starts, this is a good phase for doing various initializations just
+before the child processes are spawned.</p>
+</dd>
+
+
+
+<a name="pmodperl-CHP-4-ITERM-3902" /><dt><b><tt class="literal">PerlDispatchHandler</tt> </b></dt>
+<dd>
+Can be used to take over the process of loading and executing handler
+code. Instead of processing the <tt class="literal">Perl*Handler</tt>
+directives directly, mod_perl will invoke the routine pointed to by
+<tt class="literal">PerlDispatchHandler</tt> and pass it the Apache request
+object and a second argument indicating the handler that would
+ordinarily be invoked to process this phase. So for example, you can
+write a <tt class="literal">PerlDispatchHandler</tt> handler with a logic
+that will allow only specific code to be executed.</p>
+</dd>
+
+</dl>
+
+<p>Since most mod_perl applications need to handle only the response
+phase, in the default compilation, most of the
+<tt class="literal">Perl*Handler</tt>s are disabled. During the
+<em class="emphasis">perl Makefile.PL</em> mod_perl build stage, you must
+specify whether or not you will want to handle parts of the request
+loop other than the usual content generation phase. If this is the
+case, you need to specify which phases, or build mod_perl with the
+option <tt class="literal">EVERYTHING=1</tt>, which enables them all. All
+the build options are covered in detail in <a href="ch03_01.html">Chapter 3</a>.</p>
+
+<p>Note that it is mod_perl that recognizes these directives, not
+Apache. They are mod_perl directives, and an ordinary Apache server
+will not recognize them. If you get error messages about these
+directives being "perhaps
+mis-spelled," it is a sure sign that the appropriate
+part of mod_perl (or the entire mod_perl module!) is missing from
+your server.</p>
+
+<p>All <tt class="literal">&lt;Location&gt;</tt>,
+<tt class="literal">&lt;Directory&gt;</tt>, and
+<tt class="literal">&lt;Files&gt;</tt>sections contain a physical path
+specification. Like <tt class="literal">PerlChildInitHandler</tt> and
+<tt class="literal">PerlChildExitHandler</tt>, the directives
+<tt class="literal">PerlPostReadRequestHandler</tt> and
+<tt class="literal">PerlTransHandler</tt> cannot be used in these sections,
+nor in <em class="emphasis">.htaccess</em> files, because the path
+translation isn't completed and a physical path
+isn't known until the end of the translation
+(<tt class="literal">PerlTransHandler</tt>) phase.</p>
+
+<p><tt class="literal">PerlInitHandler</tt> is more of an alias; its behavior
+changes depending on where it is used. In any case, it is the first
+handler to be invoked when serving a request. If found outside any
+<tt class="literal">&lt;Location&gt;</tt>,
+<tt class="literal">&lt;Directory&gt;</tt>, or
+<tt class="literal">&lt;Files&gt;</tt>section, it is an alias for
+<tt class="literal">PerlPostReadRequestHandler</tt>. When inside any such
+section, it is an alias for
+<tt class="literal">PerlHeaderParserHandler</tt>.</p>
+
+<p>Starting with the <em class="emphasis">header parsing</em> phase, the
+requested URI has been mapped to a physical server pathname, and thus
+<tt class="literal">PerlHeaderParserHandler</tt> can be used to match a
+<tt class="literal">&lt;Location&gt;</tt>,
+<tt class="literal">&lt;Directory&gt;</tt>, or
+<tt class="literal">&lt;Files&gt;</tt> configuration section, or to process
+an <em class="emphasis">.htaccess</em> file if such a file exists in the
+specified directory in the translated path.</p>
+
+<p><tt class="literal">PerlDispatchHandler</tt>,
+<tt class="literal">PerlCleanupHandler</tt>, and
+<tt class="literal">PerlRestartHandler</tt> do not correspond to parts of
+the Apache API, but allow you to fine-tune the mod_perl API. They are
+specified <em class="emphasis">outside</em> configuration sections.</p>
+
+<p>The Apache documentation and the book <em class="emphasis">Writing Apache
+Modules with Perl and C</em> (O'Reilly)
+provide in-depth information on the request phases.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.5" /><div class="sect2">
+<h3 class="sect2">4.2.5. The handler( ) Subroutine</h3>
+
+<p>By default, the <a name="pmodperl-CHP-4-ITERM-3903" /><a name="pmodperl-CHP-4-ITERM-3904" />mod_perl API expects a subroutine named
+<tt class="literal">handler( )</tt> to handle the request in the registered
+<tt class="literal">Perl*Handler</tt> module. Thus, if your module
+implements this subroutine, you can register the handler with
+mod_perl by just specifying the module name. For example, to set the
+<tt class="literal">PerlHandler</tt> to
+<tt class="literal">Apache::Foo::handler</tt>, the following setting would
+be sufficient:</p>
+
+<blockquote><pre class="code">PerlHandler Apache::Foo</pre></blockquote>
+
+<p>mod_perl will load the specified module for you when it is first
+used. Please note that this approach will not preload the module at
+startup. To make sure it gets preloaded, you have three options:</p>
+
+<ul><li>
+<p>You can explicitly preload it with the <tt class="literal">PerlModule</tt>
+directive:</p>
+
+<blockquote><pre class="code">PerlModule Apache::Foo</pre></blockquote>
+</li>
+<li>
+<p>You can preload it in the startup file:</p>
+
+<blockquote><pre class="code">use Apache::Foo ( );</pre></blockquote>
+</li>
+<li>
+<p>You can use a nice shortcut provided by the
+<tt class="literal">Perl*Handler</tt>syntax:</p>
+
+<blockquote><pre class="code">PerlHandler +Apache::Foo</pre></blockquote>
+
+<p>Note the leading <tt class="literal">+</tt> character. This directive is
+equivalent to:</p>
+
+<blockquote><pre class="code">PerlModule Apache::Foo
+&lt;Location ..&gt;
+    ...
+    PerlHandler Apache::Foo
+&lt;/Location&gt;</pre></blockquote>
+</li></ul>
+<p>If you decide to give the handler routine a name other than
+<tt class="literal">handler( )</tt> (for example, <tt class="literal">my_handler(
+)</tt>), you must preload the module and explicitly give the
+name of the handler subroutine:</p>
+
+<blockquote><pre class="code">PerlModule Apache::Foo
+&lt;Location ..&gt;
+    ...
+    PerlHandler Apache::Foo::my_handler
+&lt;/Location&gt;</pre></blockquote>
+
+<p>This configuration will preload the module at server startup.</p>
+
+<p>If a module needs to know which handler is currently being run, it
+can find out with the <tt class="literal">current_callback( )</tt> method.
+This method is most useful to <tt class="literal">PerlDispatchHandler</tt>s
+that take action for certain phases only.</p>
+
+<blockquote><pre class="code">if ($r-&gt;current_callback eq "PerlLogHandler") {
+    $r-&gt;warn("Logging request");
+}</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.6" /><div class="sect2">
+<h3 class="sect2">4.2.6. Investigating the Request Phases</h3>
+
+<p>Imagine a <a name="pmodperl-CHP-4-ITERM-3905" />complex server setup in which many
+different Perl and non-Perl handlers participate in the request
+processing, and one or more of these handlers misbehaves. A simple
+example is one where one of the handlers alters the request record,
+which breaks the functionality of other handlers. Or maybe a handler
+invoked first for any given phase of the process returns an
+unexpected <tt class="literal">OK</tt>status, thus preventing other
+handlers from doing their job. You can't just add
+debug statements to trace the offender&#8212;there are too many
+handlers involved.</p>
+
+<p>The simplest solution is to get a trace of all registered handlers
+for each phase, stating whether they were invoked and what their
+return statuses were. Once such a trace is available,
+it's much easier to look only at the players that
+actually participated, thus narrowing the search path down a
+potentially misbehaving module.</p>
+
+<p>The
+<tt class="literal">Apache::ShowRequest</tt><a name="pmodperl-CHP-4-ITERM-3906" />
+module shows the phases the request goes through, displaying module
+participation and response codes for each phase. The content response
+phase is not run, but possible modules are listed as defined. To
+configure it, just add this snippet to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">&lt;Location /showrequest&gt;
+    SetHandler perl-script
+    PerlHandler +Apache::ShowRequest
+&lt;/Location&gt;</pre></blockquote>
+
+<p>To see what happens when you access some URI, add the URI to
+<em class="emphasis">/showrequest</em>.
+<tt class="literal">Apache::ShowRequest</tt> uses
+<tt class="literal">PATH_INFO</tt> to obtain the URI that should be
+executed. So, to run <em class="emphasis">/index.html</em> with
+<tt class="literal">Apache::ShowRequest</tt>, issue a request for
+<em class="emphasis">/showrequest/index.html</em>. For
+<em class="emphasis">/perl/test.pl</em>, issue a request for
+<em class="emphasis">/showrequest/perl/test.pl</em>.</p>
+
+<p>This module produces rather lengthy output, so we will show only one
+section from the report generated while requesting
+<em class="emphasis">/showrequest/index.html</em>:</p>
+
+<blockquote><pre class="code">Running request for /index.html
+Request phase: post_read_request
+  [snip]
+Request phase: translate_handler
+   mod_perl ....................DECLINED
+   mod_setenvif ................undef
+   mod_auth ....................undef
+   mod_access ..................undef
+   mod_alias ...................DECLINED
+   mod_userdir .................DECLINED
+   mod_actions .................undef
+   mod_imap ....................undef
+   mod_asis ....................undef
+   mod_cgi .....................undef
+   mod_dir .....................undef
+   mod_autoindex ...............undef
+   mod_include .................undef
+   mod_info ....................undef
+   mod_status ..................undef
+   mod_negotiation .............undef
+   mod_mime ....................undef
+   mod_log_config ..............undef
+   mod_env .....................undef
+   http_core ...................OK
+Request phase: header_parser
+  [snip]
+Request phase: access_checker
+  [snip]
+Request phase: check_user_id
+  [snip]
+Request phase: auth_checker
+  [snip]
+Request phase: type_checker
+  [snip]
+Request phase: fixer_upper
+  [snip]
+Request phase: response handler (type: text/html)
+   mod_actions .................defined
+   mod_include .................defined
+   http_core ...................defined
+Request phase: logger
+  [snip]</pre></blockquote>
+
+<p>For each stage, we get a report of what modules could participate in
+the processing and whether they took any action. As you can see, the
+content response phase is not run, but possible modules are listed as
+defined. If we run a mod_perl script, the response phase looks like:</p>
+
+<blockquote><pre class="code">Request phase: response handler (type: perl-script)
+   mod_perl ....................defined</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.7" /><div class="sect2">
+<h3 class="sect2">4.2.7. Stacked Handlers</h3>
+
+<p>With the <a name="pmodperl-CHP-4-ITERM-3907" /><a name="pmodperl-CHP-4-ITERM-3908" /><a name="pmodperl-CHP-4-ITERM-3909" />mod_perl <em class="emphasis">stacked
+handlers</em> mechanism, it is possible for more than one
+<tt class="literal">Perl*Handler</tt> to be defined and executed during any
+stage of a request.</p>
+
+<p><tt class="literal">Perl*Handler</tt> directives can define any number of
+subroutines. For example:</p>
+
+<blockquote><pre class="code">PerlTransHandler Foo::foo Bar::bar</pre></blockquote>
+
+<p><tt class="literal">Foo::foo( )</tt> will be executed first and
+<tt class="literal">Bar::bar( )</tt>second. As always, if the
+subroutine's name is <tt class="literal">handler( )</tt>,
+you can omit it.</p>
+
+<p>With the <tt class="literal">Apache-&gt;push_handlers( )</tt> method,
+callbacks (handlers) can be added to a stack <em class="emphasis">at
+runtime</em> by mod_perl modules.</p>
+
+<p><tt class="literal">Apache-&gt;push_handlers( )</tt> takes the callback
+handler name as its first argument and a subroutine name or reference
+as its second. For example, let's add two handlers
+called <tt class="literal">my_logger1( )</tt> and <tt class="literal">my_logger2(
+)</tt> to be executed during the logging phase:</p>
+
+<blockquote><pre class="code">use Apache::Constants qw(:common);
+sub my_logger1 {
+    #some code here
+    return OK;
+}
+sub my_logger2 {
+    #some other code here
+    return OK;
+}
+Apache-&gt;push_handlers("PerlLogHandler", \&amp;my_logger1);
+Apache-&gt;push_handlers("PerlLogHandler", \&amp;my_logger2);</pre></blockquote>
+
+<p>You can also pass a reference to an anonymous subroutine. For example:</p>
+
+<blockquote><pre class="code">use Apache::Constants qw(:common);
+
+Apache-&gt;push_handlers("PerlLogHandler", sub {
+    print STDERR "_ _ANON_ _ called\n";
+    return OK;
+});</pre></blockquote>
+
+<p>After each request, this stack is erased.</p>
+
+<p>All handlers will be called in turn, unless a handler returns a
+status other than <tt class="literal">OK</tt> or
+<tt class="literal">DECLINED</tt>.</p>
+
+<p>To enable this feature, build mod_perl with:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_STACKED_HANDLERS=1 [ ... ]</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL EVERYTHING=1 [ ... ]</pre></blockquote>
+
+<p>To test whether the version of mod_perl you're
+running can stack handlers, use the
+<tt class="literal">Apache-&gt;can_stack_handlers</tt><a name="pmodperl-CHP-4-ITERM-3910" /> method. This method will return a true
+value if mod_perl was configured with
+<tt class="literal">PERL_STACKED_HANDLERS=1</tt>, and a false value
+otherwise.</p>
+
+<p>Let's look at a few real-world examples where this
+method is used:</p>
+
+<ul><li>
+<p>The widely used <tt class="literal">CGI.pm</tt> module maintains a global
+object for its plain function interface. Since the object is global,
+under mod_perl it does not go out of scope when the request is
+completed, and the <tt class="literal">DESTROY</tt> method is never called.
+Therefore, <tt class="literal">CGI-&gt;new</tt> arranges to call the
+following code if it detects that the module is used in the mod_perl
+environment:</p>
+
+<blockquote><pre class="code">Apache-&gt;push_handlers("PerlCleanupHandler", \&amp;CGI::_reset_globals);</pre></blockquote>
+
+<p>This function is called during the final stage of a request,
+resetting <tt class="literal">CGI.pm</tt>'s globals before
+the next request arrives.</p>
+</li><li>
+<p><tt class="literal">Apache::DCELogin</tt> establishes a DCE login context
+that must exist for the lifetime of a request, so the
+<tt class="literal">DCE::Login</tt> object is stored in a global variable.
+Without stacked handlers, users must set the following directive in
+the configuration file to destroy the context:</p>
+
+<blockquote><pre class="code">PerlCleanupHandler Apache::DCELogin::purge</pre></blockquote>
+
+<p>This is ugly. With stacked handlers,
+<tt class="literal">Apache::DCELogin::handler</tt> can call from within the
+code:</p>
+
+<blockquote><pre class="code">Apache-&gt;push_handlers("PerlCleanupHandler", \&amp;purge);</pre></blockquote>
+
+</li><li>
+<p><tt class="literal">Apache::DBI</tt>, the persistent database connection
+module, can pre-open the connection when the child process starts via
+its <tt class="literal">connect_on_init( )</tt> function. This function
+uses <tt class="literal">push_handlers( )</tt> to add a
+<tt class="literal">PerlChildInitHandler</tt>:</p>
+
+<blockquote><pre class="code">Apache-&gt;push_handlers(PerlChildInitHandler =&gt; \&amp;childinit);</pre></blockquote>
+
+<p>Now when the new process gets the first request, it already has the
+database connection open.</p>
+
+<p><tt class="literal">Apache::DBI</tt> also uses <tt class="literal">push_handlers(
+)</tt> to have <tt class="literal">PerlCleanupHandler</tt> handle
+rollbacks if its <tt class="literal">AutoCommit</tt> attribute is turned
+off.</p>
+</li><li>
+<p><tt class="literal">PerlTransHandlers</tt> (e.g.,
+<tt class="literal">Apache::MsqlProxy</tt>) may decide, based on the URI or
+some arbitrary condition, whether or not to handle a request. Without
+stacked handlers, users must configure it themselves.</p>
+
+<blockquote><pre class="code">PerlTransHandler Apache::MsqlProxy::translate
+PerlHandler      Apache::MsqlProxy</pre></blockquote>
+
+<p><tt class="literal">PerlHandler</tt> is never actually invoked unless
+<tt class="literal">translate( )</tt>sees that the request is a proxy
+request (<tt class="literal">$r-&gt;proxyreq</tt>). If it is a proxy
+request, <tt class="literal">translate( )</tt>sets
+<tt class="literal">$r-&gt;handler("perl-script")</tt>, and only then will
+<tt class="literal">PerlHandler</tt> handle the request. Now users do not
+have to specify <tt class="literal">PerlHandler Apache::MsqlProxy</tt>,
+because the <tt class="literal">translate( )</tt> function can set it with
+<tt class="literal">push_handlers( )</tt>.</p>
+</li></ul>
+<p>Now let's write our own example using stacked
+handlers. Imagine that you want to piece together a document that
+includes footers, headers, etc. without using SSI. The following
+example shows how to implement it. First we prepare the code as shown
+in <a href="ch04_02.html#pmodperl-CHP-4-EX-1">Example 4-1</a>.</p>
+
+<a name="pmodperl-CHP-4-EX-1" /><div class="example">
+<h4 class="objtitle">Example 4-1. Book/Compose.pm</h4>
+<blockquote><pre class="code">package Book::Compose;
+use Apache::Constants qw(OK);
+
+sub header {
+    my $r = shift;
+    $r-&gt;send_http_header("text/plain");
+    $r-&gt;print("header text\n");
+    return OK;
+}
+sub body   {
+    shift-&gt;print("body text\n");
+    return OK;
+}
+sub footer {
+    shift-&gt;print("footer text\n");
+    return OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>The code defines the package <tt class="literal">Book::Compose</tt>,
+imports the <tt class="literal">OK</tt> constant, and defines three
+subroutines: <tt class="literal">header( )</tt> to send the header,
+<tt class="literal">body( )</tt> to create and send the actual content, and
+finally <tt class="literal">footer( )</tt> to add a standard footer to the
+page. At the end of each handler we return <tt class="literal">OK</tt>, so
+the next handler, if any, will be executed.</p>
+
+<p>To enable the construction of the page, we now supply the following
+configuration:</p>
+
+<blockquote><pre class="code">PerlModule Book::Compose
+&lt;Location /compose&gt;
+    SetHandler perl-script
+    PerlHandler Book::Compose::header Book::Compose::body Book::Compose::footer
+ &lt;/Location&gt;</pre></blockquote>
+
+<p>We preload the <tt class="literal">Book::Compose</tt> module and construct
+the <tt class="literal">PerlHandler</tt> directive by listing the handlers
+in the order in which they should be invoked.<a href="#FOOTNOTE-25">[25]</a></p> <blockquote><a name="FOOTNOTE-25" /><p> [25]It may
+not seem to make sense to use this example, as it would be much
+simpler to write a single handler to call all three subroutines. But
+what if the three reside in different modules that are maintained by
+different authors?</p> </blockquote>
+
+<p>Finally, let's look at the technique that allows
+parsing the output of another <tt class="literal">PerlHandler</tt>. For
+example, suppose your module generates HTML responses, but you want
+the same content to be delivered in plain text at a different
+location. This is a little trickier, but consider the following:</p>
+
+<blockquote><pre class="code">&lt;Location /perl&gt;
+    SetHandler perl-script
+    PerlHandler Book::HTMLContentGenerator
+&lt;/Location&gt;
+&lt;Location /text&gt;
+    SetHandler perl-script
+    PerlHandler Book::HTML2TextConvertor Book::HTMLContentGenerator
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Notice that <tt class="literal">Book::HTML2TextConvertor</tt> is listed
+first. While its <tt class="literal">handler( )</tt> will be called first,
+the actual code that does the conversion will run last, as we will
+explain in a moment. Now let's look at the sample
+code in <a href="ch04_02.html#pmodperl-CHP-4-EX-2">Example 4-2</a>.</p>
+
+<a name="pmodperl-CHP-4-EX-2" /><div class="example">
+<h4 class="objtitle">Example 4-2. Book/HTML2TextConvertor.pm</h4>
+<blockquote><pre class="code">package Book::HTML2TextConvertor;
+
+sub handler {
+    my $r = shift;
+    untie *STDOUT;
+    tie *STDOUT =&gt; _ _PACKAGE_ _, $r;
+}
+
+sub TIEHANDLE {
+    my($class, $r) = @_;
+    bless { r =&gt; $r}, $class;
+}
+
+sub PRINT {
+    my $self = shift;
+    for (@_) {
+        # copy it so no 'read-only value modification' will happen
+        my $line = $_;
+        $line =~ s/&lt;[^&gt;]*&gt;//g; # strip the html &lt;tags&gt;
+        $self-&gt;{r}-&gt;print($line);
+    }
+}
+
+1;</pre></blockquote>
+</div>
+
+<p>It <tt class="literal">untie( )</tt>s <tt class="literal">STDOUT</tt> and
+re-<tt class="literal">tie( )</tt>s it to its own package, so that content
+printed to <tt class="literal">STDOUT</tt> by the previous content
+generator in the pipe goes through this module. In the
+<tt class="literal">PRINT( )</tt> method, we attempt to strip the HTML
+tags. Of course, this is only an example; correct HTML stripping
+actually requires more than one line of code and a quite complex
+regular expression, but you get the<a name="pmodperl-CHP-4-ITERM-3911" /><a name="pmodperl-CHP-4-ITERM-3912" /><a name="pmodperl-CHP-4-ITERM-3913" /> idea.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.8" /><div class="sect2">
+<h3 class="sect2">4.2.8. Perl Method Handlers</h3>
+
+<p>If mod_perl<a name="pmodperl-CHP-4-ITERM-3914" /><a name="pmodperl-CHP-4-ITERM-3915" /><a name="pmodperl-CHP-4-ITERM-3916" /> was built with:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL PERL_METHOD_HANDLERS=1 [ ... ]</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">panic% perl Makefile.PL EVERYTHING=1 [ ... ]</pre></blockquote>
+
+<p>it's possible to write method handlers in addition
+to function handlers. This is useful when you want to write code that
+takes advantage of inheritance. To make the handler act as a method
+under mod_perl, use the <tt class="literal">$$</tt> function prototype in
+the handler definition. When mod_perl sees that the handler function
+is prototyped with <tt class="literal">$$</tt>, it'll pass
+two arguments to it: the calling object or a class, depending on how
+it was called, and the Apache request object. So you can write the
+handler as:</p>
+
+<blockquote><pre class="code">sub handler ($$) {
+    my($self, $r) = @_;
+    # ...
+}</pre></blockquote>
+
+<p>The configuration
+<a name="pmodperl-CHP-4-ITERM-3917" />is almost as usual. Just use the
+class name if the default method name <tt class="literal">handler( )</tt>
+is used:</p>
+
+<blockquote><pre class="code">PerlHandler Book::SubClass</pre></blockquote>
+
+<p>However, if you choose to use a different method name, the
+object-oriented notation should be used:</p>
+
+<blockquote><pre class="code">PerlHandler Book::SubClass-&gt;my_handler</pre></blockquote>
+
+<p>The <tt class="literal">my_handler( )</tt> method will then be called as a
+class (static) method.</p>
+
+<p>Also, you can use objects created at startup to call methods. For
+example:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    use Book::SubClass;
+    $Book::Global::object = Book::SubClass-&gt;new( );
+&lt;/Perl&gt;
+...
+PerlHandler $Book::Global::object-&gt;my_handler</pre></blockquote>
+
+<p>In this example, the <tt class="literal">my_handler( )</tt> method will be
+called as an instance method on the global object
+<tt class="literal">$Book::Global</tt>.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.9" /><div class="sect2">
+<h3 class="sect2">4.2.9. PerlFreshRestart</h3>
+
+<p>To reload
+<a name="pmodperl-CHP-4-ITERM-3918" /><a name="pmodperl-CHP-4-ITERM-3919" /><a name="pmodperl-CHP-4-ITERM-3920" /><tt class="literal">PerlRequire</tt>,
+<tt class="literal">PerlModule</tt>, and other <tt class="literal">use( )</tt> d
+modules, and to flush the <tt class="literal">Apache::Registry</tt> cache
+on server restart, add this directive to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlFreshRestart On</pre></blockquote>
+
+<p>You should be careful using this setting. It used to cause trouble in
+older versions of mod_perl, and some people still report problems
+using it. If you are not sure if it's working
+properly, a full stop and restart of the server will suffice.</p>
+
+<p>Starting with mod_perl Version 1.22,
+<tt class="literal">PerlFreshRestart</tt> is ignored when mod_perl is
+compiled as a DSO. But it almost doesn't matter, as
+mod_perl as a DSO will do a full tear-down (calling
+<tt class="literal">perl_destruct( )</tt>).<a href="#FOOTNOTE-26">[26]</a></p> <blockquote><a name="FOOTNOTE-26" /><p> [26]The parent
+process would leak several MB on each restart without calling
+<tt class="literal">perl_destruct( )</tt>.</p> </blockquote>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.10" /><div class="sect2">
+<h3 class="sect2">4.2.10. PerlSetEnv and PerlPassEnv</h3>
+
+<p>In addition to <a name="pmodperl-CHP-4-ITERM-3921" /><a name="pmodperl-CHP-4-ITERM-3922" /><a name="pmodperl-CHP-4-ITERM-3923" />Apache's
+<tt class="literal">SetEnv</tt> and <tt class="literal">PassEnv</tt> directives,
+respectively setting and passing shell environment variables,
+mod_perl provides its own directives:
+<tt class="literal">PerlSetEnv</tt><a name="pmodperl-CHP-4-ITERM-3924" /> and
+<tt class="literal">PerlPassEnv</tt><a name="pmodperl-CHP-4-ITERM-3925" />.</p>
+
+<p>If you want to globally set an environment variable for the server,
+you can use the <tt class="literal">PerlSetEnv</tt> directive. For example,
+to configure the mod_perl tracing mechanism (as discussed in <a href="ch21_01.html">Chapter 21</a>), add this to <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlSetEnv MOD_PERL_TRACE all</pre></blockquote>
+
+<p>This will enable full mod_perl tracing.</p>
+
+<p>Normally, <tt class="literal">PATH</tt> is the only shell environment
+variable available under mod_perl. If you need to rely on other
+environment variables, you can have mod_perl make those available for
+your code with <tt class="literal">PerlPassEnv</tt>.</p>
+
+<p>For example, to forward the environment variable
+<tt class="literal">HOME</tt> (which is usually set to the home of the user
+who has invoked the server in <em class="emphasis">httpd.conf</em>), add:</p>
+
+<blockquote><pre class="code">PerlPassEnv HOME</pre></blockquote>
+
+<p>Once you set the environment variable, it can be accessed via the
+<tt class="literal">%ENV</tt> hash in Perl (e.g.,
+<tt class="literal">$ENV{HOME}</tt>).</p>
+
+<p><tt class="literal">PerlSetEnv</tt> and <tt class="literal">PerlPassEnv</tt> work
+just like the Apache equivalents, except that they take effect in the
+first phase of the Apache request cycle. The standard Apache
+directives <tt class="literal">SetEnv</tt> and <tt class="literal">PassEnv</tt>
+don't affect the environment until the fixup phase,
+which happens much later, just before content generation. This works
+for CGI scripts, which aren't run before then, but
+if you need to set some environment variables and access them in a
+handler invoked before the response stage, you should use the
+mod_perl directives. For example, handlers that want to use an Oracle
+relational database during the authentication phase might need to set
+the following environment variable (among others) in
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlSetEnv ORACLE_HOME /share/lib/oracle/</pre></blockquote>
+
+<p>Note that <tt class="literal">PerlSetEnv</tt> will override the environment
+variables that were available earlier. For example, we have mentioned
+that <tt class="literal">PATH</tt> is always supplied by Apache itself. But
+if you explicitly set:</p>
+
+<blockquote><pre class="code">PerlSetEnv PATH /tmp</pre></blockquote>
+
+<p>this setting will be used instead of the one set in the shell program.</p>
+
+<p>As with other configuration scoping rules, if you place
+<tt class="literal">PerlSetEnv</tt> or <tt class="literal">PerlPassEnv</tt> in
+the scope of the configuration file, it will apply everywhere (unless
+overridden). If placed into a <tt class="literal">&lt;Location&gt;</tt>
+section, or another section in the same group, these directives will
+influence only the handlers in that section.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.11" /><div class="sect2">
+<h3 class="sect2">4.2.11. PerlSetVar and PerlAddVar</h3>
+
+<p><tt class="literal">PerlSetVar</tt><a name="pmodperl-CHP-4-ITERM-3926" /> is another directive introduced by
+mod_perl. It is very similar to <tt class="literal">PerlSetEnv</tt>, but
+the key/value pairs are stored in an <tt class="literal">Apache::Table</tt>
+object and retrieved using the <tt class="literal">dir_config( )</tt>
+method.</p>
+
+<p>There are two ways to use <tt class="literal">PerlSetVar</tt>. The first is
+the usual way, as a configuration directive. For example:</p>
+
+<blockquote><pre class="code">PerlSetVar foo bar</pre></blockquote>
+
+<p>The other way is via Perl code in <tt class="literal">&lt;Perl&gt;</tt>
+sections:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    push @{ $Location{"/"}-&gt;{PerlSetVar} }, [ foo =&gt; 'bar' ];
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Now we can retrieve the value of <em class="emphasis">foo</em> using the
+<tt class="literal">dir_config( )</tt> method:</p>
+
+<blockquote><pre class="code">$foo = $r-&gt;dir_config('foo');</pre></blockquote>
+
+<p>Note that you cannot use the following code in
+<tt class="literal">&lt;Perl&gt;</tt>sections, which we discuss later in
+this chapter:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    my %foo = (a =&gt; 0, b =&gt; 1);
+    push @{ $Location{"/"}-&gt;{PerlSetVar} }, [ foo =&gt; \%foo ];
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>All values are passed to <tt class="literal">Apache::Table</tt> as strings,
+so you will get a stringified reference to a hash as a value (such as
+"<tt class="literal">HASH(0x87a5108)</tt>"). This cannot be turned back
+into the original hash upon retrieval.</p>
+
+<p>However, you can use the
+<tt class="literal">PerlAddVar</tt><a name="pmodperl-CHP-4-ITERM-3927" /> directive to push more values into
+the variable, emulating arrays. For example:</p>
+
+<blockquote><pre class="code">PerlSetVar foo bar
+PerlAddVar foo bar1
+PerlAddVar foo bar2</pre></blockquote>
+
+<p>or the equivalent:</p>
+
+<blockquote><pre class="code">PerlAddVar foo bar
+PerlAddVar foo bar1
+PerlAddVar foo bar2</pre></blockquote>
+
+<p>To retrieve the values, use the <tt class="literal">$r-&gt;dir_config-&gt;get(
+)</tt> method:</p>
+
+<blockquote><pre class="code">my @foo = $r-&gt;dir_config-&gt;get('foo');</pre></blockquote>
+
+<p>Obviously, you can always turn an array into a hash with Perl, so you
+can use this directive to pass hashes as well. Consider this example:</p>
+
+<blockquote><pre class="code">PerlAddVar foo key1
+PerlAddVar foo value1
+PerlAddVar foo key2
+PerlAddVar foo value2</pre></blockquote>
+
+<p>You can then retrieve the hash in this way:</p>
+
+<blockquote><pre class="code">my %foo = $r-&gt;dir_config-&gt;get('foo');</pre></blockquote>
+
+<p>Make sure that you use an even number of elements if you store the
+retrieved values in a hash.</p>
+
+<p>Passing a list or a hash via the <tt class="literal">PerlAddVar</tt>
+directive in a <tt class="literal">&lt;Perl&gt;</tt>section should be
+coded in this way:</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+  my %foo = (a =&gt; 0, b =&gt; 1);
+  for (%foo) {
+      push @{ $Location{"/"}-&gt;{PerlAddVar} }, [ foo =&gt; $_ ];
+  }
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>Now you get back the hash as before:</p>
+
+<blockquote><pre class="code">my %foo = $r-&gt;dir_config-&gt;get('foo');</pre></blockquote>
+
+<p>This might not seem very practical; if you have more complex needs,
+think about having dedicated configuration files.</p>
+
+<p>Customized configuration directives can also be created for the
+specific needs of a Perl module. To learn how to create these, please
+refer to Chapter 8 of <em class="emphasis">Writing Apache Modules with Perl and
+C</em> (O'Reilly), which covers this topic in
+great detail.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.12" /><div class="sect2">
+<h3 class="sect2">4.2.12. PerlSetupEnv</h3>
+
+<p>Certain Perl modules used in CGI code (such as
+<tt class="literal">CGI.pm</tt>) rely on a number of environment variables
+that are normally set by mod_cgi. For example, many modules depend on
+<tt class="literal">QUERY_STRING</tt>, <tt class="literal">SCRIPT_FILENAME</tt>,
+and <tt class="literal">REQUEST_URI</tt>. When the
+<tt class="literal">PerlSetupEnv</tt><a name="pmodperl-CHP-4-ITERM-3928" /><a name="pmodperl-CHP-4-ITERM-3929" /><a name="pmodperl-CHP-4-ITERM-3930" /> directive is turned on,
+mod_perl provides these environment variables in the same fashion
+that mod_cgi does. This directive is <tt class="literal">On</tt> by
+default, which means that all the environment variables you are
+accustomed to being available under mod_cgi are also available under
+mod_perl.</p>
+
+<p>The process of setting these environment variables adds overhead for
+each request, whether the variables are needed or not. If you
+don't use modules that rely on this behavior, you
+can turn it off in the general configuration and then turn it on in
+sections that need it (such as legacy CGI scripts):</p>
+
+<blockquote><pre class="code">PerlSetupEnv Off
+&lt;Location /perl-run&gt;
+    SetHandler perl-script
+    PerlHandler Apache::PerlRun
+    Options +ExecCGI
+    PerlSetupEnv On
+&lt;/Location&gt;</pre></blockquote>
+
+<p>You can use mod_perl methods to access the information provided by
+these environment variables (e.g.,
+<tt class="literal">$r-&gt;path_info</tt> instead of
+<tt class="literal">$ENV{PATH_INFO}</tt>). For more details, see the
+explanation in <a href="ch11_01.html">Chapter 11</a>.</p>
+
+</div>
+<a name="pmodperl-CHP-4-SECT-2.13" /><div class="sect2">
+<h3 class="sect2">4.2.13. PerlWarn and PerlTaintCheck</h3>
+
+<p><tt class="literal">PerlWarn</tt><a name="pmodperl-CHP-4-ITERM-3931" /> and
+<tt class="literal">PerlTaintCheck</tt><a name="pmodperl-CHP-4-ITERM-3932" /> have two possible values,
+<tt class="literal">On</tt> and <tt class="literal">Off</tt>.
+<tt class="literal">PerlWarn</tt> turns warnings on and off globally to the
+whole server, and <tt class="literal">PerlTaintCheck</tt> controls whether
+the server is running with taint checking or not. These two variables
+are also explained<a name="pmodperl-CHP-4-ITERM-3933" /><a name="pmodperl-CHP-4-ITERM-3934" /><a name="pmodperl-CHP-4-ITERM-3935" /> in <a href="ch06_01.html">Chapter 6</a>.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch04_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch04_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">4. mod_perl Configuration</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">4.3. The Startup File</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

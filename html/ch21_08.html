@@ -1,0 +1,695 @@
+<html><head><title>Useful Debug Modules (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch21_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">21.8. Useful Debug Modules</h2>
+
+<p>You may find the modules discussed in this section very useful while
+debugging your code. They will allow you to learn a lot about Perl
+internals.</p>
+
+<a name="pmodperl-CHP-21-SECT-8.1" /><div class="sect2">
+<h3 class="sect2">21.8.1. B::Deparse</h3>
+
+<p>Perl optimizes<a name="pmodperl-CHP-21-ITERM-5707" /><a name="pmodperl-CHP-21-ITERM-5708" /><a name="pmodperl-CHP-21-ITERM-5709" /> many things away at compile time, which
+explains why Perl is so fast under mod_perl. If you want to see what
+code is actually executed at runtime, use the
+<em class="emphasis">-MO=Deparse</em> Perl option.</p>
+
+<p>For example, if you aren't sure whether Perl will do
+what you expect it to, it will show you what Perl is really going to
+do. Consider this trap we discussed earlier:</p>
+
+<blockquote><pre class="code">open IN, "filename" || die $!;</pre></blockquote>
+
+<p>This looks like perfectly valid code, and indeed it compiles without
+any errors, but let's see what Perl is executing:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse -e 'open IN, "filename" || die $!'
+open IN, 'filename';</pre></blockquote>
+
+<p>As you can see, the <tt class="literal">die( )</tt> part was optimized
+away. <tt class="literal">open( )</tt> is a list operator (since it accepts
+a list of arguments), and list operators have lower precedence than
+the <tt class="literal">||</tt> operator. Therefore, Perl executes the
+following:</p>
+
+<blockquote><pre class="code">open IN, ("filename" || die $!);</pre></blockquote>
+
+<p>Since in our example we have used "<tt class="literal">filename</tt>",
+which is a true value, the rest of the expression in the parentheses
+above is discarded. The code is reduced to:</p>
+
+<blockquote><pre class="code">open IN, "filename";</pre></blockquote>
+
+<p>at compile time. So if the file cannot be opened for some reason, the
+program will never call <tt class="literal">die( )</tt>, since Perl has
+removed this part of the statement.</p>
+
+<p>To do the right thing you should either use parentheses explicitly to
+specify the order of execution or use the low-precedence
+<tt class="literal">or</tt> operator. Both examples below will do the right
+thing:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse -e 'open(IN, "filename") || die $!'
+die $! unless open IN, 'filename';
+panic% perl -MO=Deparse -e 'open IN, "filename" or die $!'
+die $! unless open IN, 'filename';</pre></blockquote>
+
+<p>As you can see, Perl compiles both sources into exactly the same code.</p>
+
+<p>Notice that if the "<tt class="literal">filename</tt>" argument is not
+true, the code gets compiled to this:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse,-p -e 'open IN, "" || die $!'
+open(IN, die($!));</pre></blockquote>
+
+<p>which causes the program to <tt class="literal">die($!)</tt> without any
+reason in <tt class="literal">$!</tt>:</p>
+
+<blockquote><pre class="code">panic% perl -e 'open IN, "" || die $!'
+Died at -e line 1.</pre></blockquote>
+
+<p>while if we do the right thing, we should see the reason for the
+<tt class="literal">open( )</tt> failure:</p>
+
+<blockquote><pre class="code">panic% perl -e 'open IN, "" or die $!'
+No such file or directory at -e line 1.</pre></blockquote>
+
+<p>Also consider:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse,-p -e 'select MYSTD || die $!'
+select(MYSTD);</pre></blockquote>
+
+<p>Since <tt class="literal">select( )</tt> always returns a true value, the
+right part of the expression will never be executed. Therefore, Perl
+optimizes it away. In the case of <tt class="literal">select( )</tt>, it
+always returns the currently selected file handle, and there always
+is one.</p>
+
+<p>We have used this cool <em class="emphasis">-MO=Deparse</em> technique
+without explaining it so far. <tt class="literal">B::Deparse</tt> is a
+backend module for the Perl compiler that generates Perl source code,
+based on the internal compiled structure that Perl itself creates
+after parsing a program. Therefore, you may find it useful while
+developing and debugging your code. We will show here one more useful
+thing it does. See its manpage for an extensive usage manual.</p>
+
+<p>When you use the <em class="emphasis">-p</em> option, the output also
+includes parentheses (even when they are not required by precedence),
+which can make it easy to see if Perl is parsing your expressions the
+way you intended. If we repeat the last example:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse,-p -e 'open IN, "filename" or die $!'
+(open(IN, 'filename') or die($!));</pre></blockquote>
+
+<p>we can see the exact execution precedence. For example, if you are
+writing constructor code that can serve as a class method and an
+instance method, so you can instantiate objects in both ways:</p>
+
+<blockquote><pre class="code">my $cool1 = PerlCool-&gt;new( );
+my $cool2 = $cool1-&gt;new( );</pre></blockquote>
+
+<p>and you are unsure whether you can write this:</p>
+
+<blockquote><pre class="code">package PerlCool;
+sub new {
+    my $self = shift;
+    my $type = ref $self || $self;
+    return bless {  }, type;
+}</pre></blockquote>
+
+<p>or whether you have to put in parentheses:</p>
+
+<blockquote><pre class="code">my $type = ref ($self) || $self;</pre></blockquote>
+
+<p>you can use <tt class="literal">B::Deparse</tt> to verify your assumptions:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse,-p -e 'ref $self || $self'
+(ref($self) or $self);</pre></blockquote>
+
+<p>Indeed, <tt class="literal">ref( )</tt> has a higher precedence than
+<tt class="literal">||</tt>, and therefore this code will do the right
+thing:</p>
+
+<blockquote><pre class="code">my $type = ref $self || $self;</pre></blockquote>
+
+<p>On the other hand, it might confuse other readers of your code, or
+even yourself some time in the future, so if you are unsure about
+code readability, use the parentheses.</p>
+
+<p>Of course, if you forget the simple mathematical operations
+precedences, you can ask the backend compiler to help you. This one
+is obvious:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse,-p -e 'print $a + $b * $c % $d'
+print(($a + (($b * $c) % $d)));</pre></blockquote>
+
+<p>This one is not so obvious:</p>
+
+<blockquote><pre class="code">panic% perl -MO=Deparse,-p -e 'print $a ** -$b ** $c'
+print(($a ** (-($b ** $c))));</pre></blockquote>
+
+<p><tt class="literal">B::Deparse</tt> tells it all, but you probably
+shouldn't leave such a thing in your code without
+explicit parentheses.</p>
+
+<p>Finally, let's use <tt class="literal">B::Deparse</tt> to
+help resolve the confusion regarding the statement we saw earlier:</p>
+
+<blockquote><pre class="code">$c = $a &gt; $b and $a &lt; $b ? 1 : 0;
+
+panic% perl -MO=Deparse -e '$c = $a &gt; $b and $a &lt; $b ? 1 : 0;'
+$a &lt; $b ? '???' : '???' if $c = $a &gt; $b;
+-e syntax OK</pre></blockquote>
+
+<p>Just as we explained earlier, the <tt class="literal">and</tt> operator has
+a lower precendence than the <tt class="literal">=</tt> operator. We can
+explicitly see this in the output of <tt class="literal">B::Deparse</tt>,
+which rewrites the statement in a less obscure way.</p>
+
+<p>Of course, it's worth learning the precedences of
+the Perl operators from the <em class="emphasis">perlop</em> manpage so
+you don't have to resort to using<a name="pmodperl-CHP-21-ITERM-5710" /><a name="pmodperl-CHP-21-ITERM-5711" /><a name="pmodperl-CHP-21-ITERM-5712" />
+<tt class="literal">B::Deparse</tt>.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-8.2" /><div class="sect2">
+<h3 class="sect2">21.8.2. -D Runtime Option</h3>
+
+<p>You can <a name="pmodperl-CHP-21-ITERM-5713" /><a name="pmodperl-CHP-21-ITERM-5714" /><a name="pmodperl-CHP-21-ITERM-5715" /><a name="pmodperl-CHP-21-ITERM-5716" />watch your code as
+it's being compiled and executed by Perl via the
+<em class="emphasis">-D</em> runtime option. Perl will generate different
+output according to the extra options (letters or numbers) specified
+after <em class="emphasis">-D</em>. You can supply one or more options at
+the same time. Here are the available options for Perl Version 5.6.0
+(reproduced from the <em class="emphasis">perlrun</em> manpage):</p>
+
+<blockquote><pre class="code">1  p  Tokenizing and parsing
+2  s  Stack snapshots
+4  l  Context (loop) stack processing
+8  t  Trace execution
+     16  o  Method and overloading resolution
+     32  c  String/numeric conversions
+     64  P  Print preprocessor command for -P
+    128  m  Memory allocation
+    256  f  Format processing
+    512  r  Regular expression parsing and execution
+   1024  x  Syntax tree dump
+   2048  u  Tainting checks
+   4096  L  Memory leaks (needs -DLEAKTEST when compiling Perl)
+   8192  H  Hash dump -- usurps values( )
+  16384  X  Scratchpad allocation
+  32768  D  Cleaning up
+  65536  S  Thread synchronization</pre></blockquote>
+
+<p>Let's look at some of these options. Consider this
+one-line example:</p>
+
+<blockquote><pre class="code">panic% perl -le '$_="yafoo"; s/foo/bar/; print'
+yabar</pre></blockquote>
+
+<p>which simply substitutes the string
+"foo" with the string
+"bar" in the variable
+<tt class="literal">$_</tt> and prints out its value. Now
+let's see how Perl compiles and executes the regular
+expression substitution part of the code. We will use
+Perl's <tt class="literal">-Dr</tt> (or
+<tt class="literal">-D512</tt>) option:</p>
+
+<blockquote><pre class="code">panic% perl -Dr -le '$_="yafoo"; s/foo/bar/; print'
+Compiling REx 'foo'
+size 3 first at 1
+rarest char f at 0
+   1: EXACT &lt;foo&gt;(3)
+   3: END(0)
+anchored 'foo' at 0 (checking anchored isall) minlen 3 
+Omitting $` $&amp; $' support.
+
+EXECUTING...
+
+Guessing start of match, REx 'foo' against 'yafoo'...
+Found anchored substr 'foo' at offset 2...
+Starting position does not contradict /^/m...
+Guessed: match at offset 2
+Matching REx 'foo' against 'foo'
+  Setting an EVAL scope, savestack=3
+   2 &lt;ya&gt; &lt;foo&gt;           |  1:  EXACT &lt;foo&gt;
+   5 &lt;yafoo&gt; &lt;&gt;           |  3:  END
+Match successful!
+yabar
+Freeing REx: 'foo'</pre></blockquote>
+
+<p>As you can see, there are two stages: compilation and execution.
+During the compilation stage, Perl records the stages it should go
+through when matching the string, notes what length it should match
+for, and notes whether one of the <tt class="literal">$</tt>',
+<tt class="literal">$&amp;</tt>, or <tt class="literal">$</tt>' special variables
+will be used.<a href="#FOOTNOTE-57">[57]</a>
+During the execution we can see the actual process of matching. In
+our example the match was successful.</p> <blockquote><a name="FOOTNOTE-57" /><p> [57]You should avoid using these at all,
+since they add a performance hit, and once used in any regular
+expression they will be set in every other regular expression, even
+if you didn't ask for them.</p> </blockquote>
+
+<p>The trace doesn't mention the
+<em class="emphasis">replace</em> segment of the <tt class="literal">s///</tt>
+construct, since it's not a part of the regular
+expression per se.</p>
+
+<p>The <em class="emphasis">-Dx</em> (or <em class="emphasis">-D1024</em>) option
+tells Perl to print the syntax tree dump. We'll use
+some very simple code so the execution tree will not be too long to
+be presented here:</p>
+
+<blockquote><pre class="code">panic% perl -Dx -le 'print 12*60*60'
+{
+6   TYPE = leave  =  ==&gt; DONE
+    FLAGS = (VOID,KIDS,PARENS)
+    REFCNT = 0
+    {
+1       TYPE = enter  =  ==&gt; 2
+    }
+    {
+2       TYPE = nextstate  =  ==&gt; 3
+        FLAGS = (VOID)
+        LINE = 1
+        PACKAGE = "main"
+    }
+    {
+5       TYPE = print  =  ==&gt; 6
+        FLAGS = (VOID,KIDS)
+        {
+3           TYPE = pushmark  =  ==&gt; 4
+            FLAGS = (SCALAR)
+        }
+        {
+4           TYPE = const  =  ==&gt; 5
+            FLAGS = (SCALAR)
+            SV = IV(43200)
+        }
+    }
+}</pre></blockquote>
+
+<p>This code shows us the tree of opcodes after the compilation process.
+Each opcode is prefixed with a number, which then is used to
+determine the order of execution. You can see that each opcode is
+linked to some other opcode (a number following the <tt class="literal">= =
+=&gt;</tt> tag). If you start from the opcode numbered 1, jump
+to the opcode it's linked to (2, in this example),
+and continue this way, you will see the execution pass of the code.
+Since the code might have conditional branches, Perl cannot
+predetermine a definite order at compile time; therefore, when you
+follow the execution, the numbers will not necessarily be in
+sequence.</p>
+
+<p>Of course, internally Perl uses opcode pointers in memory, not
+numbers. Numbers are used in the debug printout only for our
+convenience.</p>
+
+<p>Another interesting fact that we learn from this output is that Perl
+optimizes everything it can at compile time. For example, when you
+need to know how many seconds are in 12 hours, you could calculate it
+manually and use the resulting number. But, as we see from:</p>
+
+<blockquote><pre class="code">SV = IV(43200)</pre></blockquote>
+
+<p>Perl has already done the calculation at compile time, so no runtime
+overhead occurs if you say <tt class="literal">12*60*60</tt> and not
+<tt class="literal">43200</tt>. The former is also more self-explanatory,
+while the latter may require an explicit comment to tell us what it
+is.</p>
+
+<p>Now let's bundle a few other options together and
+see a subroutine argument stack snapshot via <em class="emphasis">s</em>,
+context stack processing via <em class="emphasis">l</em>, and trace
+execution via <em class="emphasis">t</em> all at once:</p>
+
+<blockquote><pre class="code">panic% perl -Dtls -le 'print 12*60*60'
+    =&gt;  
+(-e:1)    const(IV(12))
+    =&gt;  IV(12)  
+(-e:1)    const(IV(60))
+    =&gt;  IV(12)  IV(60)  
+(-e:1)    multiply
+    =&gt;  
+(-e:1)    const(IV(720))
+    =&gt;  IV(720)  
+(-e:1)    const(IV(60))
+    =&gt;  IV(720)  IV(60)  
+(-e:1)    multiply
+(-e:1)    ENTER scope 2 at op.c:6501
+(-e:1)    LEAVE scope 2 at op.c:6811
+(-e:0)    LEAVE scope 1 at perl.c:1319
+(-e:0)    ENTER scope 1 at perl.c:1327
+(-e:0)    Setting up jumplevel 0xbffff8cc, was 0x40129f40</pre></blockquote>
+
+<p>You can see how Perl pushes constants 12 and 60 onto an argument
+stack, executes <tt class="literal">multiply( )</tt>, gets a result of 720,
+pushes it back onto the stack, pushes 60 again, and executes another
+multiplication. The tracing and argument stack options show us this
+information. All this happens at compile time.</p>
+
+<p>In addition, we see a number of scope entering and leaving messages,
+which come from the context stack status report. These options might
+be helpful when you want to see Perl entering and leaving block
+scopes (loops, subroutines, files, etc.). As you can see, bundling a
+few options together gives very useful reports.</p>
+
+<p>Since we have been using command-line execution rather than code
+placed in the file, Perl uses <em class="emphasis">-e</em> as the
+code's filename. Line 0 doesn't
+exist; it's used for special purposes.</p>
+
+<p>Having finished the compilation, now we proceed to the execution part:</p>
+
+<blockquote><pre class="code">EXECUTING...
+
+    =&gt;  
+(-e:0)    enter
+(-e:0)    ENTER scope 2 at pp_hot.c:1535
+Entering block 0, type BLOCK
+    =&gt;  
+(-e:0)    nextstate
+    =&gt;  
+<tt class="userinput"><b>(-e:1)    pushmark</b></tt>
+<tt class="userinput"><b>    =&gt;  *  </b></tt>
+<tt class="userinput"><b>(-e:1)    const(IV(43200))</b></tt>
+<tt class="userinput"><b>    =&gt;  *  IV(43200)  </b></tt>
+<tt class="userinput"><b>(-e:1)    print</b></tt>
+<tt class="userinput"><b>43200</b></tt>
+<tt class="userinput"><b>    =&gt;  SV_YES</b></tt>
+(-e:1)    leave
+Leaving block 0, type BLOCK
+(-e:0)    LEAVE scope 2 at pp_hot.c:1657
+(-e:0)    LEAVE scope 1 at perl.c:395</pre></blockquote>
+
+<p>Here you can see what Perl does on each line of your source code. So
+basically the gist of this code (bolded in the example) is pushing
+the constant integer scalar (<tt class="literal">const(IV)</tt>) onto the
+execution stack, and then calling <tt class="literal">print( )</tt>. The
+<tt class="literal">SV_YES</tt>symbol indicates that <tt class="literal">print(
+)</tt> returns a scalar value. The rest of the output consists
+of controlling messages, where Perl changes scopes.</p>
+
+<p>Of course, as the code gets more complicated, the traces will get
+longer and trickier to understand. But sometimes these traces can be
+as indispensable as interactive debugging.</p>
+
+<p>You can use the <em class="emphasis">-D[letter|number]</em> techniques
+from within mod_perl as well by setting the
+<tt class="literal">PERL5OPT</tt> environment variable. For example, using
+the <tt class="literal">bash</tt>shell to see the compilation and
+execution traces, you can start the server in this way:</p>
+
+<blockquote><pre class="code">panic% PERL5OPT=-Dt ./httpd_perl -X</pre></blockquote>
+
+<p>You will see a lot of output while the server starts. Once it
+finishes the tracing, open the <em class="emphasis">error_log</em> file
+and issue a request to your code. The tracing output will show up in
+<a name="pmodperl-CHP-21-ITERM-5717" /><a name="pmodperl-CHP-21-ITERM-5718" /><a name="pmodperl-CHP-21-ITERM-5719" /><a name="pmodperl-CHP-21-ITERM-5720" />this file.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-8.3" /><div class="sect2">
+<h3 class="sect2">21.8.3. Devel::Peek and Apache::Peek</h3>
+
+<p><tt class="literal">Devel::Peek</tt> is
+<a name="pmodperl-CHP-21-ITERM-5721" /><a name="pmodperl-CHP-21-ITERM-5722" /><a name="pmodperl-CHP-21-ITERM-5723" /><a name="pmodperl-CHP-21-ITERM-5724" />a very useful module for looking at the
+Perl internals. It's especially useful for debugging
+XS code. With <tt class="literal">Devel::Peek</tt> we can look at Perl
+variables' data structures. This code:</p>
+
+<blockquote><pre class="code">use Devel::Peek;
+my $x = 'mod_perl rules';
+Dump $x;</pre></blockquote>
+
+<p>prints:</p>
+
+<blockquote><pre class="code">SV = PV(0x804c674) at 0x80571fc
+  REFCNT = 1
+  FLAGS = (PADBUSY,PADMY,POK,pPOK)
+  PV = 0x805ce78 "mod_perl rules"\0
+  CUR = 14
+  LEN = 15</pre></blockquote>
+
+<p>We can see that this variable is a scalar, whose reference count is 1
+(there are no other variables pointing to it). Its value is the
+string "mod_perl rules", terminated
+by <tt class="literal">\0</tt> (one more character is used for the
+string-terminating <tt class="literal">\0</tt> character, which is handled
+behind the scenes, transparently to the user), whose length is 15
+characters including the terminating <tt class="literal">\0</tt> character.
+The data structure starts at <tt class="literal">0x80571fc</tt>, and its
+string value is stored starting from the address
+<tt class="literal">0x805ce78</tt>.</p>
+
+<p>If you want to look at more complicated structures, such as a hash or
+an array, you should create references to them and pass the
+references to the <tt class="literal">Dump( )</tt> function.</p>
+
+<p>The <tt class="literal">Apache::Peek</tt> module is built for use with
+mod_perl's <tt class="literal">Devel::Peek</tt>, so you
+can use it to peek at mod_perl's code internals.</p>
+
+<p>In <a href="ch10_01.html">Chapter 10</a> we showed a few examples where
+<tt class="literal">Devel::Peek</tt> and <tt class="literal">Apache::Peek</tt>
+have been found very useful. To learn about Perl
+variables' internals, refer to the
+<em class="emphasis">perlguts</em> manpage.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-8.4" /><div class="sect2">
+<h3 class="sect2">21.8.4. Devel::Symdump and Apache::Symdump</h3>
+
+<p><tt class="literal">Devel::Symdump</tt> <a name="pmodperl-CHP-21-ITERM-5725" /><a name="pmodperl-CHP-21-ITERM-5726" /><a name="pmodperl-CHP-21-ITERM-5727" /><a name="pmodperl-CHP-21-ITERM-5728" />allows us to access
+Perl's symbol table. This package is object
+oriented. To instantiate an object, you should provide the name of
+the package to traverse. If no package is provided as an argument,
+the <tt class="literal">main</tt> package is used. If the object is created
+with <tt class="literal">new( )</tt>, <tt class="literal">Devel::Symdump</tt>
+analyzes only the packages that are given as arguments; if
+<tt class="literal">rnew( )</tt> is used, nested modules are analyzed
+recursively.</p>
+
+<p>Once the object is instantiated, the methods <tt class="literal">packages(
+)</tt>, <tt class="literal">scalars( )</tt>, <tt class="literal">arrays(
+)</tt>, <tt class="literal">hashes( )</tt>, <tt class="literal">functions(
+)</tt>, <tt class="literal">ios( )</tt>, and <tt class="literal">unknowns(
+)</tt> can be used. Each method returns an array of fully
+qualified symbols of the specified type in all packages that are held
+within a <tt class="literal">Devel::Symdump</tt> object, but without the
+leading "<tt class="literal">$</tt>", "<tt class="literal">@</tt>", or
+"<tt class="literal">%</tt>". In a scalar context, they will return the
+number of such symbols. Unknown symbols are usually either formats or
+variables that don't yet have defined values.</p>
+
+<p>For example:</p>
+
+<blockquote><pre class="code">require Devel::Symdump;
+@packs = qw(Devel::Symdump);
+$obj = Devel::Symdump-&gt;new(@packs);  
+print join "\n", $obj-&gt;scalars;
+
+Devel::Symdump::rnew 
+Devel::Symdump::inh_tree
+Devel::Symdump::_partdump 
+Devel::Symdump::DESTROY
+...more symbols stripped</pre></blockquote>
+
+<p>You may find this package useful to see what symbols are defined,
+traverse trees of symbols from inherited packages, and more. See the
+package's manpage for more information.</p>
+
+<p><tt class="literal">Apache::Symdump</tt> uses
+<tt class="literal">Devel::Symdump</tt> to record snapshots of the Perl
+symbol table in <em class="emphasis">ServerRoot/logs/symdump.$$.$n</em>.
+Here <em class="emphasis">$$</em> is the process ID and
+<em class="emphasis">$n</em> is incremented each time the handler is run.</p>
+
+<p>To enable this module, add the following to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlLogHandler Apache::Symdump</pre></blockquote>
+
+<p>This module is useful for watching the growth of the processes and
+hopefully, by taking steps against the growth, reducing it. One of
+the reasons for process growth is the definition of new symbols. You
+can use the <em class="emphasis">diff</em> utility to compare snapshots
+and get an idea of what might be making a process grow. For example:</p>
+
+<blockquote><pre class="code">panic% diff -u symdump.1892.0 symdump.1892.1</pre></blockquote>
+
+<p>where 1892 is PID. Normally, new symbols come from modules or scripts
+that were not preloaded, the Perl method cache, and so on.
+Let's write a simple script that uses
+<tt class="literal">DB_File</tt>, which wasn't preloaded
+(see <a href="ch21_08.html#pmodperl-CHP-21-EX-13">Example 21-13</a>).</p>
+
+<a name="pmodperl-CHP-21-EX-13" /><div class="example">
+<h4 class="objtitle">Example 21-13. use_dbfile.pl</h4>
+<blockquote><pre class="code">use strict;
+require DB_File;
+my $r = shift;
+$r-&gt;send_http_header("text/plain");
+$r-&gt;print("Hello $$\n");</pre></blockquote>
+</div>
+
+<p>If we issue a few requests and then compare two consecutive request
+dumps for the same process, nothing happens. That's
+because the module is loaded on the first request, and therefore from
+now on the symbol table will be the same. So in order to help
+<tt class="literal">Apache::Symdump</tt> to help us detect the load, we
+will require the module only on the second reload (see <a href="ch21_08.html#pmodperl-CHP-21-EX-14">Example 21-14</a>).</p>
+
+<a name="pmodperl-CHP-21-EX-14" /><div class="example">
+<h4 class="objtitle">Example 21-14. use_dbfile1.pl</h4>
+<blockquote><pre class="code">use strict;
+use vars qw($loaded);
+require DB_File if defined $loaded;
+$loaded = 1;
+my $r = shift;
+$r-&gt;send_http_header("text/plain");
+$r-&gt;print("Hello $$\n");</pre></blockquote>
+</div>
+
+<p>Running the <em class="emphasis">diff</em>:</p>
+
+<blockquote><pre class="code">panic% diff symdump.9909.1 symdump.9909.2 |wc -l
+  301</pre></blockquote>
+
+<p>reveals that there were 301 symbols defined, mostly from the
+<tt class="literal">DB_File</tt> and <tt class="literal">Fcntl</tt> packages. We
+can also see what new files were loaded, by applying
+<em class="emphasis">diff</em> on the <em class="emphasis">incdump.$$.$n</em>
+files, which dump the contents of <tt class="literal">%INC</tt> after each
+request:</p>
+
+<blockquote><pre class="code">panic% diff incdump.9909.1 incdump.9909.2
+1a2
+&gt; /usr/lib/perl5/5.6.1/i386-linux/auto/DB_File/autosplit.ix 
+= /usr/lib/perl5/5.6.1/i386-linux/auto/DB_File/autosplit.ix
+21a23
+&gt; DB_File.pm = /usr/lib/perl5/5.6.1/i386-linux/DB_File.pm</pre></blockquote>
+
+<p>Remember that <tt class="literal">Apache::Symdump</tt> does not clean up
+its snapshot files, so you have to do it yourself:</p>
+
+<blockquote><pre class="code">panic% rm logs/symdump.* logs/incdump.*</pre></blockquote>
+
+<p><tt class="literal">Apache::Status</tt> also uses
+<tt class="literal">Devel::Symdump</tt> to allow you to inspect symbol
+tables through your <a name="pmodperl-CHP-21-ITERM-5729" /><a name="pmodperl-CHP-21-ITERM-5730" /><a name="pmodperl-CHP-21-ITERM-5731" /><a name="pmodperl-CHP-21-ITERM-5732" />browser.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-8.5" /><div class="sect2">
+<h3 class="sect2">21.8.5. Apache::Debug</h3>
+
+<p>This module<a name="pmodperl-CHP-21-ITERM-5733" /><a name="pmodperl-CHP-21-ITERM-5734" /> sends what may be helpful debugging
+information to the client, rather than to the
+<em class="emphasis">error_log</em> file.</p>
+
+<p>This module specifies only the <tt class="literal">dump( )</tt> method:</p>
+
+<blockquote><pre class="code">use Apache::Debug ( );
+my $r = shift;
+Apache::Debug::dump($r, "some comment", "another comment", ...);</pre></blockquote>
+
+<p>For example, if we take this simple script:</p>
+
+<blockquote><pre class="code">use Apache::Debug ( );
+use Apache::Constants qw(SERVER_ERROR);
+my $r = shift;
+Apache::Debug::dump($r, SERVER_ERROR, "Uh Oh!");</pre></blockquote>
+
+<p>it prints out the HTTP headers as received by server and various
+request data:</p>
+
+<blockquote><pre class="code">SERVER_ERROR 
+
+Uh Oh! 
+
+cwd=/home/httpd/perl
+$r-&gt;method            : GET
+$r-&gt;uri               : /perl/test.pl
+$r-&gt;protocol          : HTTP/1.0
+$r-&gt;path_info         : 
+$r-&gt;filename          : /home/httpd/perl/test.pl
+$r-&gt;allow_options     : 8
+$s-&gt;server_admin      : root@localhost
+$s-&gt;server_hostname   : localhost
+$s-&gt;port              : 8000
+$c-&gt;remote_host       : 
+$c-&gt;remote_ip         : 127.0.0.1
+$c-&gt;remote_logname    : 
+$c-&gt;user              : 
+$c-&gt;auth_type         : 
+
+scalar $r-&gt;args       : 
+
+$r-&gt;args:
+
+$r-&gt;content:
+
+$r-&gt;headers_in:
+   Accept       = image/gif, image/x-xbitmap, image/jpeg, 
+                  image/pjpeg, image/png, */*
+   Accept-Charset = iso-8859-1,*,utf-8
+   Accept-Encoding = gzip
+   Accept-Language = en
+   Connection   = Keep-Alive
+   Host         = localhost:8000
+   Pragma       = no-cache
+   User-Agent   = Mozilla/4.76 [en] (X11; U; Linux 2.2.17-21mdk i686)</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-8.6" /><div class="sect2">
+<h3 class="sect2">21.8.6. Other Debug Modules</h3>
+
+<p>The following are a few other modules that you may find of use, but
+in this book we won't delve deeply into their
+details:</p>
+
+<ul><li>
+<p><tt class="literal">Apache::DumpHeaders</tt><a name="pmodperl-CHP-21-ITERM-5735" /> is used to watch an HTTP transaction,
+looking at the client and server headers.</p>
+</li><li>
+<p><tt class="literal">Apache::DebugInfo</tt><a name="pmodperl-CHP-21-ITERM-5736" /> offers the ability to monitor various
+bits of per-request data. Similar to
+<tt class="literal">Apache::DumpHeaders</tt>.</p>
+</li><li>
+<p><tt class="literal">Devel::StackTrace</tt><a name="pmodperl-CHP-21-ITERM-5737" /> encapsulates the information that can be
+found through using the <tt class="literal">caller( )</tt> function and
+provides a simple interface to this data.</p>
+</li><li>
+<p><tt class="literal">Apache::Symbol</tt><a name="pmodperl-CHP-21-ITERM-5738" /> provides XS tricks to avoid a mandatory
+"Subroutine redefined" warning when
+reloading a module that contains a subroutine that is eligible for
+inlining. Useful during development when using
+<tt class="literal">Apache::Reload</tt> or
+<tt class="literal">Apache::StatINC</tt> to reload modules.</p>
+</li></ul>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_07.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch21_09.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">21.7. Hanging Processes: Detection and Diagnostics</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">21.9. Looking Inside the Server</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

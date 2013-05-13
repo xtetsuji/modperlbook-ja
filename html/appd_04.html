@@ -1,0 +1,287 @@
+<html><head><title>Template Toolkit Language (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appd_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="appd_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+<!-- Tell TT2 not to parse this file
+ [% TAGS <+ +> %]
+-->
+
+
+<h2 class="sect1">D.4. Template Toolkit Language</h2>
+
+<p>The Template Toolkit implements a <a name="pmodperl-APP-D-ITERM-6468" /><a name="pmodperl-APP-D-ITERM-6469" />general-purpose
+<em class="emphasis">presentation</em> language rather than a
+general-purpose <em class="emphasis">programming</em> language. What that
+means is that for general programming tasks, building backend
+applications, database access, and so on, you should continue to use
+Perl and the many fine <a name="pmodperl-APP-D-ITERM-6470" />modules available for use with it.</p>
+
+<p>The strength of the Template Toolkit language is in building the
+frontend&#8212;that is, the HTML that presents the output of an
+application or displays the content of an XML file, the results of a
+database query, the collection of snapshots of your pet camel, or
+whatever it is that you're trying to do. It has many
+constructs that are familiar in programming languages, such as the
+use <a name="pmodperl-APP-D-ITERM-6471" /><a name="pmodperl-APP-D-ITERM-6472" /><a name="pmodperl-APP-D-ITERM-6473" /><a name="pmodperl-APP-D-ITERM-6474" /><a name="pmodperl-APP-D-ITERM-6475" /><a name="pmodperl-APP-D-ITERM-6476" />of variables
+(<tt class="literal">GET</tt>, <tt class="literal">SET</tt>,
+<tt class="literal">DEFAULT</tt>), conditional clauses
+(<tt class="literal">IF</tt>, <tt class="literal">UNLESS</tt>,
+<tt class="literal">ELSIF</tt>, <tt class="literal">ELSE</tt>, etc.), loops
+(<tt class="literal">FOREACH</tt>, <tt class="literal">WHILE</tt>,
+<tt class="literal">SWITCH</tt>, <tt class="literal">CASE</tt>), and exception
+<a name="pmodperl-APP-D-ITERM-6477" /><a name="pmodperl-APP-D-ITERM-6478" />handling (<tt class="literal">TRY</tt>,
+<tt class="literal">THROW</tt>, <tt class="literal">CATCH</tt>). However, these
+are generally intended to be used from the perspective of layout
+logic; that is, controlling how the output looks, not what the
+underlying application actually does. To compliment these basic
+operations, there are also various <a name="pmodperl-APP-D-ITERM-6479" /><a name="pmodperl-APP-D-ITERM-6480" />directives more specifically
+oriented to gluing chunks of content together
+(<tt class="literal">PROCESS</tt>, <tt class="literal">INCLUDE</tt>,
+<tt class="literal">INSERT</tt>, <tt class="literal">WRAPPER</tt>,
+<tt class="literal">BLOCK</tt>), for providing useful content-manipulation
+tools (<tt class="literal">FILTER</tt>, <tt class="literal">MACRO</tt>), and for
+the loading of external modules (<tt class="literal">USE</tt>) by which the
+toolkit can easily and quickly be extended.</p>
+
+<p>Although we are focusing on HTML in particular, it is worth pointing
+out that the Template Toolkit is actually language-neutral. It
+operates on text files (although it can be used to generate binary
+files such as images or PDF documents), and as such, it
+doesn't really care what kind of text
+you're generating, be it HTML, XML, LaTeX,
+PostScript, or an Apache <em class="emphasis">httpd.conf</em>
+configuration file.</p>
+
+<a name="pmodperl-APP-D-SECT-4.1" /><div class="sect2">
+<h3 class="sect2">D.4.1. Simple Template Example</h3>
+
+<p>So without further ado, let's see
+<a name="pmodperl-APP-D-ITERM-6481" />what a typical template looks like:</p>
+
+<blockquote><pre class="code">[% PROCESS header title="Some Interesting Links" %]
+
+&lt;p&gt;
+Here are some interesting links:
+&lt;ul&gt;
+[% FOREACH link = weblinks %]
+   &lt;li&gt;&lt;a href="[% link.url %]"&gt;[% link.title %]&lt;/a&gt;&lt;/li&gt;
+[% END %]
+&lt;/ul&gt;
+&lt;/p&gt;
+
+[% PROCESS footer %]</pre></blockquote>
+
+<p>The first thing to note is that template directives are embedded
+within <tt class="literal">[%</tt> and <tt class="literal">%]</tt>. You can
+change these values, along with several dozen other configuration
+options, but we'll stick with the defaults for now.
+The directives within those tags are instructions to the template
+processor. They can contain references to variables (e.g.,
+<tt class="literal">[%</tt> <tt class="literal">link.url %]</tt>) or language
+constructs that typically begin with an uppercase word and may have
+additional arguments (e.g., <tt class="literal">[% PROCESS footer %]</tt>).
+Anything else outside the tags is plain text and is passed through
+unaltered.</p>
+
+<p>The example shows the <tt class="literal">PROCESS</tt> directive
+<a name="pmodperl-APP-D-ITERM-6482" /><a name="pmodperl-APP-D-ITERM-6483" />being used to pull in a
+<em class="filename">header</em> template at the top of the page and a
+<em class="filename">footer</em> template at the bottom. The
+<em class="filename">header</em> and <em class="filename">footer</em> templates
+can have their own directives embedded within them and will be
+processed accordingly. You can pass arguments when calling
+<tt class="literal">PROCESS</tt>, just as you might when calling a
+subroutine in Perl. This is shown in the first line, where we set a
+value for the <tt class="literal">title</tt> variable.</p>
+
+<p>By default, variables are global, and if you
+<a name="pmodperl-APP-D-ITERM-6484" /><a name="pmodperl-APP-D-ITERM-6485" /><a name="pmodperl-APP-D-ITERM-6486" />change <tt class="literal">title</tt> in one
+template, the new value will apply in any other templates that
+<a name="pmodperl-APP-D-ITERM-6487" /><a name="pmodperl-APP-D-ITERM-6488" />reference it. The
+<tt class="literal">INCLUDE</tt> directive goes a little further to make
+arguments more local, giving you better protection from accidentally
+changing a variable with global consequences. Separate variable
+namespaces can also be used to avoid collisions between variables of
+the same name (e.g., <tt class="literal">page.title</tt> versus
+<tt class="literal">book.title</tt>).</p>
+
+<p>In the middle of the example, we see <a name="pmodperl-APP-D-ITERM-6489" /><a name="pmodperl-APP-D-ITERM-6490" />the
+<tt class="literal">FOREACH</tt> directive. This defines the start of a
+repeated block that continues until the <tt class="literal">END</tt>
+directive two lines below. Loops, conditionals, and other blocks can
+be combined in any way and nested indefinitely. In this case,
+we're setting the <tt class="literal">link</tt> variable
+to alias each item in the list referenced by the
+<tt class="literal">weblinks</tt> variable. We print the
+<tt class="literal">url</tt> and <tt class="literal">title</tt> for each item,
+with some appropriate HTML markup to display them formatted as an
+HTML bullet list.</p>
+
+<p>The <em class="emphasis">dot</em> (.) operator is used
+to access data items within data items, and it tries to do the right
+thing according to the data type. For example, each item in the list
+could be a reference to a hash array, in which case
+<tt class="literal">link.url</tt> would be equivalent to the Perl code
+<tt class="literal">$link-&gt;{url}</tt>, or it could be an object against
+which methods can be called, such as <tt class="literal">$link-&gt;url(
+)</tt>. The dotted notation hides the specifics of your backend
+code so that you don't have to know or care about
+the specifics of the implementation. Thus, you can change your data
+from hash arrays to objects at some later date and slot them straight
+in without making any changes to the templates.</p>
+
+<p>Let's now go back to our earlier example and see if
+we can make sense of it:</p>
+
+<blockquote><pre class="code">&lt;h3&gt;[% users.size %] users currently logged in:&lt;/h3&gt;
+&lt;ul&gt;
+[% FOREACH user = users %]
+   [%# 'loop' is a reference to the FOREACH iterator -%]
+   &lt;li&gt;[% loop.count %]/[% loop.size %]: 
+       &lt;a href="[% user.home %]"&gt;[% user.name %]&lt;/a&gt;
+   [% IF user.about %]
+       &lt;p&gt;[% user.about %]&lt;/p&gt;
+   [% END %]
+   [% INCLUDE userinfo %]
+   &lt;/li&gt;
+[% END %]
+&lt;/ul&gt;</pre></blockquote>
+
+<p>Anything outside a <tt class="literal">[%</tt> ... <tt class="literal">%]</tt>
+directive&#8212;in this case, various HTML fragments that are
+building a list of users currently logged in to our fictional
+system&#8212;is passed through intact.</p>
+
+<p>The various constructs that we meet inside the directives are:</p>
+
+<dl>
+<dt><b><tt class="literal">users</tt></b></dt>
+<dd>
+We're assuming here that
+<a name="pmodperl-APP-D-ITERM-6491" /><a name="pmodperl-APP-D-ITERM-6492" /><a name="pmodperl-APP-D-ITERM-6493" />the
+<tt class="literal">users</tt> variable contains a reference to a list of
+users. In fact, it might also be a reference to a subroutine that
+generates a list of users on demand, but that's a
+backend implementation detail we're quite rightly
+not concerned with here. The Template Toolkit does the right thing to
+access a list or call a subroutine to return a list, so we
+don't have to worry about such things.</p>
+
+<p>The users themselves (i.e., the items in the <tt class="literal">users</tt>
+list) can be references to hash arrays, or maybe references to
+objects. Again, the Template Toolkit hides the implementation details
+and does the right thing when the time comes.</p>
+</dd>
+
+
+<dt><b><tt class="literal">users.size</tt></b></dt>
+<dd>
+There are a number of "virtual
+methods" you can call on basic Perl data types.
+Here, the <tt class="literal">.size</tt> virtual method returns the number
+of items in the <tt class="literal">users</tt> list.</p>
+</dd>
+
+
+<dt><b><tt class="literal">FOREACH user = users</tt></b></dt>
+<dd>
+The <tt class="literal">FOREACH</tt> directive defines a block of template
+code up to the corresponding <tt class="literal">END</tt> directive and
+processes it repeatedly for each item in the <tt class="literal">users</tt>
+list. For each iteration, the <tt class="literal">user</tt> variable is set
+to reference the current item in the list.</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">loop</tt></b></dt>
+<dd>
+The <tt class="literal">loop</tt> variable is set automatically within a
+<tt class="literal">FOREACH</tt> block to reference a special object (an
+iterator) that controls the loop. You can call various methods in
+this object, such as <tt class="literal">loop.count</tt> to return the
+current iteration (from 1 to <em class="emphasis">n</em>) and
+<tt class="literal">loop.size</tt> to return the size of the list (in this
+case, the same as <tt class="literal">users.size</tt>).</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">user</tt></b></dt>
+<dd>
+The <tt class="literal">user</tt> variable references each item in the
+<tt class="literal">users</tt> list in turn. This can be a reference to a
+hash array or an object, but we don't care which.
+Again, these details are sensibly hidden from view. We just want the
+<tt class="literal">home</tt> part of <tt class="literal">user</tt>, and
+we're not too worried about where it comes from or
+what has to be done to fetch it.</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">IF user.about</tt></b></dt>
+<dd>
+The <tt class="literal">IF</tt> directive defines a block that gets
+processed if the condition evaluates to some true value. Here
+we're simply testing to see if
+<tt class="literal">user.about</tt> is defined. As you might expect, you
+can combine <tt class="literal">IF</tt> with <tt class="literal">ELSIF</tt> and
+<tt class="literal">ELSE</tt> and also use <tt class="literal">UNLESS</tt>.</p>
+</dd>
+
+
+
+<dt><b><tt class="literal">INCLUDE userinfo</tt></b></dt>
+<dd>
+The <tt class="literal">INCLUDE</tt> directive is used here to process and
+include the output of an external template called
+<em class="emphasis">userinfo</em>. The <tt class="literal">INCLUDE_PATH</tt>
+configuration option can be used to specify where external templates
+can be found, so you can avoid hardcoding any absolute paths in the
+templates. All the variables currently defined are visible within the
+<em class="emphasis">userinfo</em> template, allowing it to access
+<tt class="literal">[% user.whatever %]</tt> to correctly reference the
+current <tt class="literal">user</tt> in the <tt class="literal">FOREACH</tt>
+loop.</p>
+
+<p>We've created this separate
+<em class="emphasis">userinfo</em> template and can assume it generates a
+nice table showing some interesting information about the current
+user. When you have simple, self-contained elements like this,
+it's often a good idea to move them out into
+separate template files. For one thing, the example is easier to read
+without large chunks of HTML obstructing the high-level view. A more
+important benefit is that we can now reuse this component in any
+other template where we need to display the same table of information
+about a user.</p>
+</dd>
+
+</dl>
+
+<p>Now that you're familiar with what templates look
+like, let's move on to see how we go about
+processing them.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="appd_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="appd_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">D.3. Typical Uses</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">D.5. Processing Templates</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

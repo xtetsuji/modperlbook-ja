@@ -1,0 +1,506 @@
+<html><head><title>Exposing Apache::Registry Secrets (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">6.2. Exposing Apache::Registry Secrets</h2>
+
+<p>Let's start with
+<a name="pmodperl-CHP-6-ITERM-4322" /><a name="pmodperl-CHP-6-ITERM-4323" /><a name="pmodperl-CHP-6-ITERM-4324" />some
+simple code and see what can go wrong with it. This simple CGI script
+initializes a variable <tt class="literal">$counter</tt> to
+<tt class="literal">0</tt> and prints its value to the browser while
+incrementing it:</p>
+
+<blockquote><pre class="code">#!/usr/bin/perl -w
+use strict;
+
+print "Content-type: text/plain\n\n";
+
+my $counter = 0;
+
+for (1..5) {
+    increment_counter( );
+}
+
+sub increment_counter {
+    $counter++;
+    print "Counter is equal to $counter !\n";
+}</pre></blockquote>
+
+<p>When issuing a request to <em class="emphasis">/perl/counter.pl</em> or a
+similar script, we would expect to see the following output:</p>
+
+<blockquote><pre class="code">Counter is equal to 1 !
+Counter is equal to 2 !
+Counter is equal to 3 !
+Counter is equal to 4 !
+Counter is equal to 5 !</pre></blockquote>
+
+<p>And in fact that's what we see when we execute this
+script for the first time. But let's reload it a few
+times.... After a few reloads, the counter suddenly stops counting
+from 1. As we continue to reload, we see that it keeps on growing,
+but not steadily, starting almost randomly at 10, 10, 10, 15, 20...,
+which makes no sense at all!</p>
+
+<blockquote><pre class="code">Counter is equal to 6 !
+Counter is equal to 7 !
+Counter is equal to 8 !
+Counter is equal to 9 !
+Counter is equal to 10 !</pre></blockquote>
+
+<p>We saw two anomalies in this very simple script:</p>
+
+<ul><li>
+<p>Unexpected increment of our counter over 5</p>
+</li><li>
+<p>Inconsistent growth over reloads</p>
+</li></ul>
+<p>The reason for this strange behavior is that although
+<tt class="literal">$counter</tt> is incremented with each request, it is
+never reset to 0, even though we have this line:</p>
+
+<blockquote><pre class="code">my $counter = 0;</pre></blockquote>
+
+<p>Doesn't this work under mod_perl?</p>
+
+<a name="pmodperl-CHP-6-SECT-2.1" /><div class="sect2">
+<h3 class="sect2">6.2.1. The First Mystery: Why Does the Script Go Beyond 5?</h3>
+
+<p>If we <a name="pmodperl-CHP-6-ITERM-4325" /><a name="pmodperl-CHP-6-ITERM-4326" /><a name="pmodperl-CHP-6-ITERM-4327" /><a name="pmodperl-CHP-6-ITERM-4328" /><a name="pmodperl-CHP-6-ITERM-4329" />look at
+the <em class="emphasis">error_log</em> file (we <em class="emphasis">did</em>
+enable warnings), we'll see something like this:</p>
+
+<blockquote><pre class="code">Variable "$counter" will not stay shared 
+at /home/httpd/perl/counter.pl line 13.</pre></blockquote>
+
+<p>This warning is generated when a script contains a named (as opposed
+to an anonymous) nested subroutine that refers to a lexically scoped
+(with <tt class="literal">my( )</tt>) variable defined outside this nested
+subroutine.</p>
+
+<p>Do you see a nested named subroutine in our script? We
+don't! What's going on? Maybe
+it's a bug in Perl? But wait, maybe the Perl
+interpreter sees the script in a different way! Maybe the code goes
+through some changes before it actually gets executed? The easiest
+way to check what's actually happening is to run the
+script with a debugger.</p>
+
+<p>Since we must debug the script when it's being
+executed by the web server, a normal debugger won't
+help, because the debugger has to be invoked from within the web
+server. Fortunately, we can use Doug MacEachern's
+<tt class="literal">Apache::DB</tt><a name="pmodperl-CHP-6-ITERM-4330" /> module to debug our script. While
+<tt class="literal">Apache::DB</tt> allows us to debug the code
+interactively (as we will show in <a href="ch21_01.html">Chapter 21</a>), we
+will use it noninteractively in this example.</p>
+
+<p>To enable the<a name="pmodperl-CHP-6-ITERM-4331" /> debugger, modify the
+<em class="emphasis">httpd.conf</em> file in the following way:</p>
+
+<blockquote><pre class="code">PerlSetEnv PERLDB_OPTS "NonStop=1 LineInfo=/tmp/db.out AutoTrace=1 frame=2"
+PerlModule Apache::DB
+&lt;Location /perl&gt;
+    PerlFixupHandler Apache::DB
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options ExecCGI
+    PerlSendHeader On
+&lt;/Location&gt;</pre></blockquote>
+
+<p>We have added a debugger configuration setting using the
+<tt class="literal">PERLDB_OPTS</tt><a name="pmodperl-CHP-6-ITERM-4332" />
+<a name="pmodperl-CHP-6-ITERM-4333" /><a name="pmodperl-CHP-6-ITERM-4334" />environment
+variable, which has the same effect as calling the debugger from the
+command line. We have also loaded and enabled
+<tt class="literal">Apache::DB</tt> as a
+<tt class="literal">PerlFixupHandler</tt>.</p>
+
+<p>In addition, we'll load the <tt class="literal">Carp</tt>
+module, using <tt class="literal">&lt;Perl&gt;</tt>sections (this could
+also be done in the <em class="emphasis">startup.pl</em> file):</p>
+
+<blockquote><pre class="code">&lt;Perl&gt;
+    use Carp;
+&lt;/Perl&gt;</pre></blockquote>
+
+<p>After applying the changes, we restart the server and issue a request
+to <em class="emphasis">/perl/counter.pl</em>, as before. On the surface,
+nothing has changed; we still see the same output as before. But two
+things have happened in the background:</p>
+
+<ul><li>
+<p>The file <em class="emphasis">/tmp/db.out</em> was written, with a
+complete trace of the code that was executed.</p>
+</li><li>
+<p>Since we have loaded the <tt class="literal">Carp</tt> module, the
+<em class="emphasis">error_log</em> file now contains the real code that
+was actually executed. This is produced as a side effect of reporting
+the "Variable
+"$counter" will not stay shared
+at..." warning that we saw earlier.</p>
+</li></ul>
+<p>Here is the code that was actually executed:</p>
+
+<blockquote><pre class="code">package Apache::ROOT::perl::counter_2epl;
+use Apache qw(exit);
+sub handler {
+    BEGIN {
+        $^W = 1;
+    };
+    $^W = 1;
+
+    use strict;
+
+    print "Content-type: text/plain\n\n";
+
+    my $counter = 0;
+
+    for (1..5) {
+        increment_counter( );
+    }
+
+    sub increment_counter {
+        $counter++;
+        print "Counter is equal to $counter !\n";
+    }
+}</pre></blockquote>
+
+<p>Note that the code in <em class="emphasis">error_log</em>
+wasn't indented&#8212;we've
+indented it to make it obvious that the code was wrapped inside the
+<tt class="literal">handler( )</tt>subroutine.</p>
+
+<p>From looking at this code, we learn that every
+<tt class="literal">Apache::Registry</tt>script is cached under a package
+whose name is formed from the <tt class="literal">Apache::ROOT:</tt>:
+prefix and the script's URI
+(<em class="emphasis">/perl/counter.pl</em>) by replacing all occurrences
+of <tt class="literal">/</tt> with <tt class="literal">:</tt>: and
+. with <tt class="literal">_2e</tt>.
+That's how mod_perl knows which script should be
+fetched from the cache on each request&#8212;each script is
+transformed into a package with a unique name and with a single
+subroutine named <tt class="literal">handler( )</tt>, which includes all
+the code that was originally in the script.</p>
+
+<p>Essentially, what's happened is that because
+<tt class="literal">increment_counter( )</tt> is a subroutine that refers
+to a lexical variable defined outside of its scope, it has become a
+<a name="pmodperl-CHP-6-ITERM-4335" /><a name="pmodperl-CHP-6-ITERM-4336" /><a name="pmodperl-CHP-6-ITERM-4337" /><em class="emphasis">closure</em>. Closures
+don't normally trigger warnings, but in this case we
+have a nested subroutine. That means that the first time the
+enclosing subroutine <tt class="literal">handler( )</tt> is called, both
+subroutines are referring to the same variable, but after that,
+<tt class="literal">increment_counter( )</tt> will keep its own copy of
+<tt class="literal">$counter</tt> (which is why <tt class="literal">$counter</tt>
+is not <em class="emphasis">shared</em>) and increment its own copy.
+Because of this, the value of <tt class="literal">$counter</tt> keeps
+increasing and is never reset to 0.</p>
+
+<p>If we were to use the
+<tt class="literal">diagnostics</tt><a name="pmodperl-CHP-6-ITERM-4338" />
+pragma in the script, which by default turns terse warnings into
+verbose warnings, we would see a reference to an inner (nested)
+subroutine in the text of the warning. By observing the code that
+gets executed, it is clear that <tt class="literal">increment_counter(
+)</tt> is a named nested subroutine since it gets defined inside
+the <tt class="literal">handler( )</tt>subroutine.</p>
+
+<p>Any subroutine defined in the body of the script executed under
+<tt class="literal">Apache::Registry</tt><a name="pmodperl-CHP-6-ITERM-4339" /> becomes a nested subroutine. If the code
+is placed into
+a<a name="pmodperl-CHP-6-ITERM-4340" /><a name="pmodperl-CHP-6-ITERM-4341" /> library or a module that the
+script <tt class="literal">require( )</tt>s or <tt class="literal">use( )</tt>s,
+this effect doesn't occur.</p>
+
+<p>For example, if we move the code from the script into the subroutine
+<tt class="literal">run( )</tt>, place the subroutines in the
+<em class="emphasis">mylib.pl</em> file, save it in the same directory as
+the script itself, and <tt class="literal">require( )</tt> it, there will
+be no problem at all.<a href="#FOOTNOTE-29">[29]</a>
+Examples <a href="ch06_02.html#pmodperl-CHP-6-EX-1">Example 6-1</a> and <a href="ch06_02.html#pmodperl-CHP-6-EX-2">Example 6-2</a> show how we spread the code across the two
+files.</p> <blockquote><a name="FOOTNOTE-29" /><p> [29]Don't forget
+the <tt class="literal">1;</tt> at the end of the library, or the
+<tt class="literal">require( )</tt> call might fail.</p> </blockquote>
+
+<a name="pmodperl-CHP-6-EX-1" /><div class="example">
+<h4 class="objtitle">Example 6-1. mylib.pl</h4>
+<blockquote><pre class="code">my $counter;
+sub run {
+    $counter = 0;
+    for (1..5) {
+        increment_counter( );
+    }
+}
+sub increment_counter {
+    $counter++;
+    print "Counter is equal to $counter !\n";
+}
+1;</pre></blockquote>
+</div>
+
+<a name="pmodperl-CHP-6-EX-2" /><div class="example">
+<h4 class="objtitle">Example 6-2. counter.pl</h4>
+<blockquote><pre class="code">use strict;
+require "./mylib.pl";
+print "Content-type: text/plain\n\n";
+run( );</pre></blockquote>
+</div>
+
+<p>This solution is the easiest and fastest way to solve the nested
+subroutine problem. All you have to do is to move the code into a
+separate file, by first wrapping the initial code into some function
+that you later call from the script, and keeping the lexically scoped
+variables that could cause the problem out of this function.</p>
+
+<p>As a general rule, it's best to put all the code in
+external libraries (unless the script is very short) and have only a
+few lines of code in the main script. Usually the main script simply
+calls the main function in the library, which is often called
+<tt class="literal">init( )</tt> or <tt class="literal">run( )</tt>. This way,
+you don't have to worry about the effects of named
+nested subroutines.</p>
+
+<p>As we will show later in this chapter, however, this quick solution
+might be problematic on a different front. If you have many scripts,
+you might try to move more than one script's code
+into a file with a similar filename, like
+<em class="emphasis">mylib.pl</em>.
+A<a name="pmodperl-CHP-6-ITERM-4342" /> much cleaner solution would be to
+spend a little bit more time on the porting process and use a fully
+<a name="pmodperl-CHP-6-ITERM-4343" />qualified package, as in
+Examples <a href="ch06_02.html#pmodperl-CHP-6-EX-3">Example 6-3</a> and <a href="ch06_02.html#pmodperl-CHP-6-EX-4">Example 6-4</a>.</p>
+
+<a name="pmodperl-CHP-6-EX-3" /><div class="example">
+<h4 class="objtitle">Example 6-3. Book/Counter.pm</h4>
+<blockquote><pre class="code">package Book::Counter;
+
+my $counter = 0;
+
+sub run {
+    $counter = 0;
+    for (1..5) {
+        increment_counter( );
+    }
+}
+
+sub increment_counter {
+    $counter++;
+    print "Counter is equal to $counter !&lt;BR&gt;\n";
+}
+
+1;
+_  _END_  _</pre></blockquote>
+</div>
+
+<a name="pmodperl-CHP-6-EX-4" /><div class="example">
+<h4 class="objtitle">Example 6-4. counter-clean.pl</h4>
+<blockquote><pre class="code">use strict;
+use Book::Counter;
+
+print "Content-type: text/plain\n\n";
+Book::Counter::run( );</pre></blockquote>
+</div>
+
+<p>As you can see, the only difference is in the package declaration. As
+long as the package name is unique, you won't
+encounter any collisions with other scripts running on the same
+server.</p>
+
+<p>Another solution to this problem is to change the
+<a name="pmodperl-CHP-6-ITERM-4344" /><a name="pmodperl-CHP-6-ITERM-4345" />lexical variables to global
+variables. There are two ways <a name="pmodperl-CHP-6-ITERM-4346" />global variables can be used:</p>
+
+<ul><li>
+<p>Using the <tt class="literal">vars</tt><a name="pmodperl-CHP-6-ITERM-4347" /><a name="pmodperl-CHP-6-ITERM-4348" /> pragma. With the
+<tt class="literal">use strict 'vars</tt>' setting, global variables can be
+used after being declared with <tt class="literal">vars</tt>. For example,
+this code:</p>
+<blockquote><pre class="code">use strict;
+use vars qw($counter $result);
+# later in the code
+$counter = 0;
+$result  = 1;</pre></blockquote>
+
+<p>is similar to this code if <tt class="literal">use strict</tt> is not used:</p>
+<blockquote><pre class="code">$counter = 0;
+$result  = 1;</pre></blockquote>
+
+<p>However, the former style of coding is much cleaner, because it
+allows you to use global variables by declaring them, while avoiding
+the problem of misspelled variables being treated as undeclared
+globals.</p>
+
+<p>The only drawback to using <tt class="literal">vars</tt> is that each
+global declared with it consumes more memory than the undeclared but
+fully qualified globals, as we will see in the next item.</p>
+</li><li>
+<p>Using <a name="pmodperl-CHP-6-ITERM-4349" />fully qualified variables. Instead of using
+<tt class="literal">$counter</tt>, we can use
+<tt class="literal">$Foo::counter</tt>, which will place the global
+variable <tt class="literal">$counter</tt> into the package
+<tt class="literal">Foo</tt>. Note that we don't know
+which package name <tt class="literal">Apache::Registry</tt> will assign to
+the script, since it depends on the location from which the script
+will be called. Remember that globals must always be initialized
+before they can be used.</p>
+</li></ul>
+<p>Perl 5.6.x also introduces a third way, with the <tt class="literal">our(
+)</tt><a name="pmodperl-CHP-6-ITERM-4350" /> declaration. <tt class="literal">our(
+)</tt> can be used in different scopes, similar to <tt class="literal">my(
+)</tt>, but it creates global variables.</p>
+
+<p>Finally, it's possible to avoid this problem
+altogether by always passing the
+<a name="pmodperl-CHP-6-ITERM-4351" />variables as arguments to the
+functions (see <a href="ch06_02.html#pmodperl-CHP-6-EX-5">Example 6-5</a>).</p>
+
+<a name="pmodperl-CHP-6-EX-5" /><div class="example">
+<h4 class="objtitle">Example 6-5. counter2.pl</h4>
+<blockquote><pre class="code">#!/usr/bin/perl -w
+use strict;
+
+print "Content-type: text/plain\n\n";
+
+my $counter = 0;
+
+for (1..5) {
+    $counter = increment_counter($counter);
+}
+
+sub increment_counter {
+    my $counter = shift;
+
+    $counter++;
+    print "Counter is equal to $counter !\n";
+
+    return $counter;
+}</pre></blockquote>
+</div>
+
+<p>In this case, there is no variable-sharing problem. The drawback is
+that this approach adds the overhead of passing and returning the
+variable from the function. But on the other hand, it ensures that
+your code is doing the right thing and is not dependent on whether
+the functions are wrapped in other blocks, which is the case with the
+<tt class="literal">Apache::Registry</tt> handlers family.</p>
+
+<p>When Stas (one of the authors of this book) had just started using
+mod_perl and wasn't aware of the nested subroutine
+problem, he happened to write a pretty complicated registration
+program that was run under mod_perl. We will reproduce here only the
+interesting part of that script:</p>
+
+<blockquote><pre class="code">use CGI;
+$q = CGI-&gt;new;
+my $name = $q-&gt;param('name');
+print_response( );
+
+sub print_response {
+    print "Content-type: text/plain\n\n";
+    print "Thank you, $name!";
+}</pre></blockquote>
+
+<p>Stas and his boss checked the program on the development server and
+it worked fine, so they decided to put it in production. Everything
+seemed to be normal, but the boss decided to keep on checking the
+program by submitting variations of his profile using <em class="emphasis">The
+Boss</em> as his username. Imagine his surprise when, after a
+few successful submissions, he saw the response
+"<em class="emphasis">Thank you,
+Stas!</em>" instead of
+"<em class="emphasis">Thank you, The
+Boss!</em>"</p>
+
+<p>After investigating the problem, they learned that they had been hit
+by the nested subroutine problem. Why didn't they
+notice this when they were trying the software on their development
+server? We'll explain shortly.</p>
+
+<p>To conclude this first mystery, remember to keep the
+<tt class="literal">warnings</tt> mode <tt class="literal">On</tt> on the
+development server and to watch the <em class="emphasis">error_log</em>
+file<a name="pmodperl-CHP-6-ITERM-4352" /> for<a name="pmodperl-CHP-6-ITERM-4353" /> <a name="pmodperl-CHP-6-ITERM-4354" /><a name="pmodperl-CHP-6-ITERM-4355" /><a name="pmodperl-CHP-6-ITERM-4356" /><a name="pmodperl-CHP-6-ITERM-4357" /><a name="pmodperl-CHP-6-ITERM-4358" />warnings.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-2.2" /><div class="sect2">
+<h3 class="sect2">6.2.2. The Second Mystery&#8212;Inconsistent Growth over Reloads</h3>
+
+<p>Let's return to <a name="pmodperl-CHP-6-ITERM-4359" /><a name="pmodperl-CHP-6-ITERM-4360" /><a name="pmodperl-CHP-6-ITERM-4361" /><a name="pmodperl-CHP-6-ITERM-4362" />our original example and
+<a name="pmodperl-CHP-6-ITERM-4363" />proceed with the
+second mystery we noticed. Why have we seen inconsistent results over
+numerous reloads?</p>
+
+<p>What happens is that each time the parent process gets a request for
+the page, it hands the request over to a child process. Each child
+process runs its own copy of the script. This means that each child
+process has its own copy of <tt class="literal">$counter</tt>, which will
+increment independently of all the others. So not only does the value
+of each <tt class="literal">$counter</tt> increase independently with each
+invocation, but because different children handle the requests at
+different times, the increment seems to grow inconsistently. For
+example, if there are 10 <em class="emphasis">httpd</em> children, the
+first 10 reloads might be correct (if each request went to a
+different child). But once reloads start reinvoking the script from
+the child processes, strange results will appear.</p>
+
+<p>Moreover, requests can appear at random since child processes
+don't always run the same requests. At any given
+moment, one of the children could have served the same script more
+times than any other, while another child may never have run it.</p>
+
+<p>Stas and his boss didn't discover the aforementioned
+problem with the user registration system before going into
+production because the <em class="emphasis">error_log</em> file was too
+crowded with warnings continuously logged by multiple child
+processes.</p>
+
+<p>To immediately recognize the problem visually (so you can see
+incorrect results), you need to run the server as a
+<a name="pmodperl-CHP-6-ITERM-4364" /><a name="pmodperl-CHP-6-ITERM-4365" /><a name="pmodperl-CHP-6-ITERM-4366" />single process. You
+can do this by invoking the server with the <em class="emphasis">-X</em>
+option:</p>
+
+<blockquote><pre class="code">panic% httpd -X</pre></blockquote>
+
+<p>Since there are no other servers (children) running, you will get the
+problem report on the second reload.</p>
+
+<p>Enabling the <tt class="literal">warnings</tt> mode (as explained earlier
+in this chapter) and monitoring the <em class="emphasis">error_log</em>
+file will help you detect most of the possible errors. Some warnings
+can become errors, as we have just seen. You should check every
+reported warning and eliminate it, so it won't
+appear in <em class="emphasis">error_log</em> again. If your
+<em class="emphasis">error_log</em> file is filled up with hundreds of
+lines on every script invocation, you will have difficulty noticing
+and locating real problems, and on a production server
+you'll soon run out of disk space if your site is
+popular.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">6. Coding with mod_perl in Mind</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.3. Namespace Issues</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

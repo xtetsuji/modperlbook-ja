@@ -1,0 +1,566 @@
+<html><head><title>Perl Specifics in the mod_perl Environment (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch06_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">6.4. Perl Specifics in the mod_perl Environment</h2>
+
+<p>In the following sections, we discuss the specifics of
+Perl's behavior under mod_perl.</p>
+
+<a name="pmodperl-CHP-6-SECT-4.1" /><div class="sect2">
+<h3 class="sect2">6.4.1. exit( )</h3>
+
+<p>Perl's
+<a name="pmodperl-CHP-6-ITERM-4389" />core <tt class="literal">exit(
+)</tt><a name="pmodperl-CHP-6-ITERM-4390" /><a name="pmodperl-CHP-6-ITERM-4391" /><a name="pmodperl-CHP-6-ITERM-4392" /> function
+shouldn't be used in mod_perl code. Calling it
+causes the mod_perl process to exit, which defeats the purpose of
+using mod_perl. The <tt class="literal">Apache::exit( )</tt>
+<a name="pmodperl-CHP-6-ITERM-4393" />function should be used instead.
+Starting with Perl Version 5.6.0, mod_perl overrides <tt class="literal">exit(
+)</tt> behind the scenes using
+<tt class="literal">CORE::GLOBAL:</tt>:, a new <em class="emphasis">magical</em>
+package.</p>
+
+<a name="pmodperl-CHP-6-SIDEBAR-1" /><blockquote><table border="1" cellpadding="6"><tr><td>
+<h4 class="objtitle">The CORE:: Package</h4>
+
+<p><tt class="literal">CORE:</tt>:<a name="pmodperl-CHP-6-ITERM-4394" /><a name="pmodperl-CHP-6-ITERM-4395" />
+is a special package that provides access to Perl's
+built-in functions. You may need to use this package to override some
+of the built-in functions. For example, if you want to override the
+<tt class="literal">exit( )</tt> built-in function, you can do so with:</p>
+
+<blockquote><pre class="code">use subs qw(exit);
+exit( ) if $DEBUG;
+sub exit { warn "exit( ) was called"; }</pre></blockquote>
+
+<p>Now when you call <tt class="literal">exit( )</tt> in the same scope in
+which it was overridden, the program won't exit, but
+instead will just print a warning "exit( ) was
+called". If you want to use the original built-in
+function, you can still do so with:</p>
+
+<blockquote><pre class="code"># the 'real' exit
+CORE::exit( );</pre></blockquote>
+</td></tr></table><p></blockquote>
+
+<p><tt class="literal">Apache::Registry</tt> and
+<tt class="literal">Apache::PerlRun</tt> override <tt class="literal">exit(
+)</tt> with <tt class="literal">Apache::exit( )</tt> behind the
+scenes; therefore, scripts running under these modules
+don't need to be modified to use
+<tt class="literal">Apache::exit( )</tt>.</p>
+
+<p>If <tt class="literal">CORE::exit( )</tt> is used in scripts running under
+mod_perl, the child will exit, but the current request
+won't be logged. More importantly, a proper exit
+won't be performed. For example, if there are some
+database handles, they will remain open, causing costly memory and
+(even worse) database connection leaks.</p>
+
+<p>If the <a name="pmodperl-CHP-6-ITERM-4396" />child
+process needs to be killed,
+<tt class="literal">Apache::exit(Apache::Constants::DONE)</tt>should be
+used instead. This will cause the
+<a name="pmodperl-CHP-6-ITERM-4397" />server
+to exit gracefully, completing the logging functions and protocol
+requirements.</p>
+
+<p>If the child process needs to be killed cleanly after the request has
+completed, use the
+<tt class="literal">$r-&gt;child_terminate</tt><a name="pmodperl-CHP-6-ITERM-4398" /> method. This method can be called
+anywhere in the code, not just at the end. This method sets the value
+of the
+<tt class="literal">MaxRequestsPerChild</tt><a name="pmodperl-CHP-6-ITERM-4399" /><a name="pmodperl-CHP-6-ITERM-4400" />
+configuration directive to <tt class="literal">1</tt> and clears the
+<tt class="literal">keepalive</tt> flag. After the request is serviced, the
+current connection is broken because of the
+<tt class="literal">keepalive</tt> flag, which is set to false, and the
+parent tells the child to cleanly quit because
+<tt class="literal">MaxRequestsPerChild</tt> is smaller than or equal to
+the number of requests served.</p>
+
+<p>In an <tt class="literal">Apache::Registry</tt>script you would write:</p>
+
+<blockquote><pre class="code">Apache-&gt;request-&gt;child_terminate;</pre></blockquote>
+
+<p>and in <em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlFixupHandler "sub { shift-&gt;child_terminate }"</pre></blockquote>
+
+<p>You would want to use the latter example only if you wanted the child
+to terminate every time the registered handler was called. This is
+probably not what you want.</p>
+
+<p>You can also use a <a name="pmodperl-CHP-6-ITERM-4401" /><a name="pmodperl-CHP-6-ITERM-4402" />post-processing
+handler to trigger child termination. You might do this if you wanted
+to execute your own cleanup code before the process exits:</p>
+
+<blockquote><pre class="code">my $r = shift;
+$r-&gt;post_connection(\&amp;exit_child);
+
+sub exit_child {
+    # some logic here if needed
+    $r-&gt;child_terminate;
+}</pre></blockquote>
+
+<p>This is the code that is used by the
+<tt class="literal">Apache::SizeLimit</tt><a name="pmodperl-CHP-6-ITERM-4403" /> module, which terminates processes that
+grow bigger than a preset quota.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.2" /><div class="sect2">
+<h3 class="sect2">6.4.2. die( )</h3>
+
+<p><tt class="literal">die( )</tt> is <a name="pmodperl-CHP-6-ITERM-4404" /><a name="pmodperl-CHP-6-ITERM-4405" /><a name="pmodperl-CHP-6-ITERM-4406" /><a name="pmodperl-CHP-6-ITERM-4407" />usually used to abort the flow of the
+program if something goes wrong. For example, this common idiom is
+used when opening files:</p>
+
+<blockquote><pre class="code">open FILE, "foo" or die "Cannot open 'foo' for reading: $!";</pre></blockquote>
+
+<p>If the file cannot be opened, the script will <tt class="literal">die(
+)</tt>: script execution is aborted, the reason for death is
+printed, and the Perl interpreter is terminated.</p>
+
+<p>You will hardly find any properly written Perl scripts that
+don't have at least one <tt class="literal">die( )</tt>
+statement in them.</p>
+
+<p>CGI scripts running under mod_cgi exit on completion, and the Perl
+interpreter exits as well. Therefore, it doesn't
+matter whether the interpreter exits because the script died by
+natural death (when the last statement in the code flow was executed)
+or was aborted by a <tt class="literal">die( )</tt>statement.</p>
+
+<p>Under mod_perl, we don't want the process to quit.
+Therefore, mod_perl takes care of it behind the scenes, and
+<tt class="literal">die( )</tt> calls don't abort the
+process. When <tt class="literal">die( )</tt> is called, mod_perl logs the
+error message and calls <tt class="literal">Apache::exit( )</tt> instead of
+<tt class="literal">CORE::die( )</tt>. Thus, the script stops, but the
+process doesn't quit. Of course, we are talking
+about the cases where the code calling <tt class="literal">die( )</tt> is
+not wrapped inside an exception handler (e.g., an <tt class="literal">eval {
+}</tt> block) that traps <tt class="literal">die( )</tt> calls, or the
+<tt class="literal">$SIG{_ _DIE_ _}</tt>sighandler, which allows you to
+override the behavior of <tt class="literal">die( )</tt> (see <a href="ch21_01.html">Chapter 21</a>). <a href="ch06_13.html#pmodperl-CHP-6-SECT-13">Section 6.13</a> at the end of this
+chapter mentions a few exception-handling modules available from
+CPAN.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.3" /><div class="sect2">
+<h3 class="sect2">6.4.3. Global Variable Persistence</h3>
+
+<p>Under <a name="pmodperl-CHP-6-ITERM-4408" /><a name="pmodperl-CHP-6-ITERM-4409" /><a name="pmodperl-CHP-6-ITERM-4410" /><a name="pmodperl-CHP-6-ITERM-4411" />mod_perl a child process
+doesn't exit after serving a single request. Thus,
+global variables persist inside the same process from request to
+request. This means that you should be careful not to rely on the
+value of a global variable if it isn't initialized
+at the beginning of each request. For example:</p>
+
+<blockquote><pre class="code"># the very beginning of the script
+use strict;
+use vars qw($counter);
+$counter++;</pre></blockquote>
+
+<p>relies on the fact that Perl interprets an undefined value of
+<tt class="literal">$counter</tt> as a zero value, because of the increment
+operator, and therefore sets the value to <tt class="literal">1</tt>.
+However, when the same code is executed a second time in the same
+process, the value of <tt class="literal">$counter</tt> is not undefined
+any more; instead, it holds the value it had at the end of the
+previous execution in the same process. Therefore, a cleaner way to
+code this snippet would be:</p>
+
+<blockquote><pre class="code">use strict;
+use vars qw($counter);
+$counter = 0;
+$counter++;</pre></blockquote>
+
+<p>In practice, you should avoid using global variables unless there
+really is no alternative. Most of the problems with global variables
+arise from the fact that they keep their values across functions, and
+it's easy to lose track of which function modifies
+the variable and where. This problem is solved by localizing these
+variables with <tt class="literal">local( )</tt>. But if you are already
+doing this, using lexical scoping (with <tt class="literal">my( )</tt>) is
+even better because its scope is clearly defined, whereas localized
+variables are seen and can be modified from anywhere in the code.
+Refer to the <em class="emphasis">perlsub</em> manpage for more details.
+Our example will now be written as:</p>
+
+<blockquote><pre class="code">use strict;
+my $counter = 0;
+$counter++;</pre></blockquote>
+
+<p>Note that it is a good practice to both declare and initialize
+<a name="pmodperl-CHP-6-ITERM-4412" /><a name="pmodperl-CHP-6-ITERM-4413" />variables,
+since doing so will clearly convey your intention to the
+code's maintainer.</p>
+
+<p>You should be especially careful with Perl special variables, which
+cannot be lexically scoped. With special variables, <tt class="literal">local(
+)</tt> must be used. For example, if you want to read in a whole
+file at once, you need to <tt class="literal">undef( )</tt> the input
+record separator. The following code reads the contents of an entire
+file in one go:</p>
+
+<blockquote><pre class="code">open IN, $file or die $!;
+$/ = undef;
+$content = &lt;IN&gt;; # slurp the whole file in
+close IN;</pre></blockquote>
+
+<p>Since you have modified the special Perl variable
+<tt class="literal">$/</tt> globally, it'll affect any
+other code running under the same process. If somewhere in the code
+(or any other code running on the same server) there is a snippet
+reading a file's content line by line, relying on
+the default value of <tt class="literal">$/</tt> (<tt class="literal">\n</tt>),
+this code will work incorrectly. Localizing the modification of this
+special variable solves this potential problem:</p>
+
+<blockquote><pre class="code">{
+  local $/; # $/ is undef now
+  $content = &lt;IN&gt;; # slurp the whole file in
+}</pre></blockquote>
+
+<p>Note that the localization is enclosed in a block. When control
+passes out of the block, the previous value of <tt class="literal">$/</tt>
+will be restored automatically.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.4" /><div class="sect2">
+<h3 class="sect2">6.4.4. STDIN, STDOUT, and STDERR Streams</h3>
+
+<p>Under <a name="pmodperl-CHP-6-ITERM-4414" /><a name="pmodperl-CHP-6-ITERM-4415" /><a name="pmodperl-CHP-6-ITERM-4416" />mod_perl, both
+<tt class="literal">STDIN</tt><a name="pmodperl-CHP-6-ITERM-4417" />
+and
+<tt class="literal">STDOUT</tt><a name="pmodperl-CHP-6-ITERM-4418" />
+are tied to the socket from which the request originated. If, for
+example, you use a third-party module that prints some output to
+<tt class="literal">STDOUT</tt> when it shouldn't (for
+example, control messages) and you want to avoid this, you must
+temporarily redirect <tt class="literal">STDOUT</tt> to
+<em class="emphasis">/dev/null</em>. You will then have to restore
+<tt class="literal">STDOUT</tt> to the original handle when you want to
+send a response to the client. The following code demonstrates a
+possible implementation of this workaround:</p>
+
+<blockquote><pre class="code">{
+    my $nullfh = Apache::gensym( );
+    open $nullfh, '&gt;/dev/null' or die "Can't open /dev/null: $!";
+    local *STDOUT = $nullfh;
+    call_something_thats_way_too_verbose( );
+    close $nullfh;
+}</pre></blockquote>
+
+<p>The code defines a block in which the <tt class="literal">STDOUT</tt>
+stream is localized to print to <em class="emphasis">/dev/null</em>. When
+control passes out of this block, <tt class="literal">STDOUT</tt> gets
+restored to the previous value.</p>
+
+<p><tt class="literal">STDERR</tt><a name="pmodperl-CHP-6-ITERM-4419" />
+is tied to a file defined by the <tt class="literal">ErrorLog</tt>
+directive. When native <em class="emphasis">syslog</em> support is
+enabled, the <tt class="literal">STDERR</tt>stream will be redirected to
+<em class="emphasis">/dev/null</em>.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.5" /><div class="sect2">
+<h3 class="sect2">6.4.5. Redirecting STDOUT into a Scalar Variable</h3>
+
+<p>Sometimes <a name="pmodperl-CHP-6-ITERM-4420" /><a name="pmodperl-CHP-6-ITERM-4421" /><a name="pmodperl-CHP-6-ITERM-4422" /><a name="pmodperl-CHP-6-ITERM-4423" />you encounter a black-box
+function that prints its output to the default file handle (usually
+<tt class="literal">STDOUT</tt>) when you would rather put the output into
+a scalar. This is very relevant under mod_perl, where
+<tt class="literal">STDOUT</tt> is tied to the <tt class="literal">Apache</tt>
+request object. In this situation, the <tt class="literal">IO::String</tt>
+package is especially useful. You can re-<tt class="literal">tie( )</tt>
+<tt class="literal">STDOUT</tt> (or any other file handle) to a string by
+doing a simple <tt class="literal">select( )</tt> on the
+<tt class="literal">IO::String</tt> object. Call <tt class="literal">select(
+)</tt> again at the end on the original file handle to
+re-<tt class="literal">tie( )</tt> <tt class="literal">STDOUT</tt> back to its
+original stream:</p>
+
+<blockquote><pre class="code">my $str;
+my $str_fh = IO::String-&gt;new($str);
+
+my $old_fh = select($str_fh);
+black_box_print( );
+select($old_fh) if defined $old_fh;</pre></blockquote>
+
+<p>In this example, a new <tt class="literal">IO::String</tt> object is
+created. The object is then selected, the <tt class="literal">black_box_print(
+)</tt> function is called, and its output goes into the string
+object. Finally, we restore the original file handle, by
+re-<tt class="literal">select( )</tt> ing the originally selected file
+handle. The <tt class="literal">$str</tt> variable contains all the output
+produced by the <tt class="literal">black_box_print( )</tt> function.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.6" /><div class="sect2">
+<h3 class="sect2">6.4.6. print( )</h3>
+
+<p>Under <a name="pmodperl-CHP-6-ITERM-4424" /><a name="pmodperl-CHP-6-ITERM-4425" />mod_perl, <tt class="literal">CORE::print(
+)</tt> (using either <tt class="literal">STDOUT</tt> as a filehandle
+argument or no filehandle at all) will redirect output to
+<tt class="literal">Apache::print( )</tt>, since the
+<tt class="literal">STDOUT</tt> file handle is tied to
+<tt class="literal">Apache</tt>. That is, these two are functionally
+equivalent:</p>
+
+<blockquote><pre class="code">print "Hello";
+$r-&gt;print("Hello");</pre></blockquote>
+
+<p><tt class="literal">Apache::print( )</tt> will return immediately without
+printing anything if <tt class="literal">$r-&gt;connection-&gt;aborted</tt>
+returns true. This happens if the connection has been aborted by the
+client (e.g., by pressing the Stop button).</p>
+
+<p>There is also an optimization built into <tt class="literal">Apache::print(
+)</tt>: if any of the arguments to this function are scalar
+references to strings, they are automatically dereferenced. This
+avoids needless copying of large strings when passing them to
+subroutines. For example, the following code will print the actual
+value of <tt class="literal">$long_string</tt>:</p>
+
+<blockquote><pre class="code">my $long_string = "A" x 10000000;
+$r-&gt;print(\$long_string);</pre></blockquote>
+
+<p>To print the reference value itself, use a double reference:</p>
+
+<blockquote><pre class="code">$r-&gt;print(\\$long_string);</pre></blockquote>
+
+<p>When <tt class="literal">Apache::print( )</tt>sees that the passed value
+is a reference, it dereferences it once and prints the real reference
+value:</p>
+
+<blockquote><pre class="code">SCALAR(0x8576e0c)</pre></blockquote>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.7" /><div class="sect2">
+<h3 class="sect2">6.4.7. Formats</h3>
+
+<p>The<a name="pmodperl-CHP-6-ITERM-4426" /><a name="pmodperl-CHP-6-ITERM-4427" /><a name="pmodperl-CHP-6-ITERM-4428" /><a name="pmodperl-CHP-6-ITERM-4429" /> interface
+<a name="pmodperl-CHP-6-ITERM-4430" />to file handles that are linked to
+variables with Perl's <tt class="literal">tie( )</tt>
+function is not yet complete. The <tt class="literal">format( )</tt> and
+<tt class="literal">write( )</tt> functions are missing. If you configure
+Perl with <tt class="literal">sfio</tt>, <tt class="literal">write( )</tt> and
+<tt class="literal">format( )</tt>should work just fine.</p>
+
+<p>Instead of <tt class="literal">format( )</tt>, you can use <tt class="literal">printf(
+)</tt><a name="pmodperl-CHP-6-ITERM-4431" />. For example, the following formats
+are equivalent:</p>
+
+<blockquote><pre class="code">format   printf
+---------------
+##.##    %2.2f
+####.##  %4.2f</pre></blockquote>
+
+<p>To print a string with fixed-length elements, use the
+<tt class="literal">printf( )</tt> format <tt class="literal">%n.ms</tt> where
+<em class="emphasis">n</em> is the length of the field allocated for the
+string and <em class="emphasis">m</em> is the maximum number of characters
+to take from the string. For example:</p>
+
+<blockquote><pre class="code">printf "[%5.3s][%10.10s][%30.30s]\n",
+       12345, "John Doe", "1234 Abbey Road"</pre></blockquote>
+
+<p>prints:</p>
+
+<blockquote><pre class="code">[  123][  John Doe][                1234 Abbey Road]</pre></blockquote>
+
+<p>Notice that the first string was allocated five characters in the
+output, but only three were used because <em class="emphasis">m</em>=5 and
+<em class="emphasis">n</em>=3 (<tt class="literal">%5.3s</tt>). If you want to
+ensure that the text will always be correctly aligned without being
+truncated, <em class="emphasis">n</em> should always be greater than or
+equal to <em class="emphasis">m</em>.</p>
+
+<p>You can change the alignment to the left by adding a minus sign
+(<tt class="literal">-</tt>) after the <tt class="literal">%</tt>. For example:</p>
+
+<blockquote><pre class="code">printf "[%-5.5s][%-10.10s][%-30.30s]\n",
+       123, "John Doe", "1234 Abbey Road"</pre></blockquote>
+
+<p>prints:</p>
+
+<blockquote><pre class="code">[123  ][John Doe  ][1234 Abbey Road                ]</pre></blockquote>
+
+<p>You can also use a plus sign (<tt class="literal">+</tt>) for the
+right-side alignment. For example:</p>
+
+<blockquote><pre class="code">printf "[%+5s][%+10s][%+30s]\n",
+       123, "John Doe", "1234 Abbey Road"</pre></blockquote>
+
+<p>prints:</p>
+
+<blockquote><pre class="code">[  123][  John Doe][                1234 Abbey Road]</pre></blockquote>
+
+<p>Another alternative to <tt class="literal">format( )</tt> and
+<tt class="literal">printf( )</tt> is to use the
+<tt class="literal">Text::Reform</tt> module from CPAN.</p>
+
+<p>In the examples above we've printed the number
+<em class="emphasis">123</em> as a string (because we used the
+<tt class="literal">%s</tt> format specifier), but numbers can also be
+printed using numeric formats. See <em class="emphasis">perldoc -f
+sprintf</em> for full details.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.8" /><div class="sect2">
+<h3 class="sect2">6.4.8. Output from System Calls</h3>
+
+<p>The <a name="pmodperl-CHP-6-ITERM-4432" /><a name="pmodperl-CHP-6-ITERM-4433" /><a name="pmodperl-CHP-6-ITERM-4434" /><a name="pmodperl-CHP-6-ITERM-4435" /><a name="pmodperl-CHP-6-ITERM-4436" />output of
+<tt class="literal">system( )</tt>, <tt class="literal">exec( )</tt>, and
+<tt class="literal">open(PIPE,"|program")</tt> calls will not be sent to
+the browser unless Perl was configured with <tt class="literal">sfio</tt>.
+To learn if your version of Perl is <tt class="literal">sfio</tt>-enabled,
+look at the output of the <em class="emphasis">perl -V</em> command for
+the <em class="emphasis">useperlio</em> and <em class="emphasis">d_sfio</em>
+strings.</p>
+
+<p>You can use backticks as a possible workaround:</p>
+
+<blockquote><pre class="code">print `command here`;</pre></blockquote>
+
+<p>But this technique has very poor performance, since it forks a new
+process. See the discussion about forking in <a href="ch10_01.html">Chapter 10</a>.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.9" /><div class="sect2">
+<h3 class="sect2">6.4.9. BEGIN blocks</h3>
+
+<p>Perl <a name="pmodperl-CHP-6-ITERM-4437" /><a name="pmodperl-CHP-6-ITERM-4438" />executes <tt class="literal">BEGIN</tt> blocks
+as soon as possible, when it's compiling the code.
+The same is true under mod_perl. However, since mod_perl normally
+compiles scripts and modules only once, either in the parent process
+or just once per child, <tt class="literal">BEGIN</tt> blocks are run only
+once. As the <em class="emphasis">perlmod</em> manpage explains, once a
+<tt class="literal">BEGIN</tt> block has run, it is immediately undefined.
+In the mod_perl environment, this means that <tt class="literal">BEGIN</tt>
+blocks will not be run during the response to an incoming request
+unless that request happens to be the one that causes the compilation
+of the code. However, there are cases when <tt class="literal">BEGIN</tt>
+blocks will be rerun for each request.</p>
+
+<p><tt class="literal">BEGIN</tt> blocks in
+<a name="pmodperl-CHP-6-ITERM-4439" /><a name="pmodperl-CHP-6-ITERM-4440" />modules and files pulled in
+via <tt class="literal">require( )</tt> or <tt class="literal">use( )</tt> will
+be executed:</p>
+
+<ul><li>
+<p>Only once, if pulled in by the parent process.</p>
+</li><li>
+<p>Once per child process, if not pulled in by the parent process.</p>
+</li><li>
+<p>One additional time per child process, if the module is reloaded from
+disk by <tt class="literal">Apache::StatINC</tt>.</p>
+</li><li>
+<p>One additional time in the parent process on each restart, if
+<tt class="literal">PerlFreshRestart</tt> is <tt class="literal">On</tt>.</p>
+</li><li>
+<p>On every request, if the module with the <tt class="literal">BEGIN</tt>
+block is deleted from <tt class="literal">%INC</tt>, before the
+module's compilation is needed. The same thing
+happens when <tt class="literal">do( )</tt> is used, which loads the module
+even if it's already loaded.</p>
+</li></ul>
+<p><tt class="literal">BEGIN</tt> blocks in
+<tt class="literal">Apache::Registry</tt><a name="pmodperl-CHP-6-ITERM-4441" /><a name="pmodperl-CHP-6-ITERM-4442" /> scripts will be executed:</p>
+
+<ul><li>
+<p>Only once, if pulled in by the parent process via
+<tt class="literal">Apache::RegistryLoader</tt>.</p>
+</li><li>
+<p>Once per child process, if not pulled in by the parent process.</p>
+</li><li>
+<p>One additional time per child process, each time the script file
+changes on disk.</p>
+</li><li>
+<p>One additional time in the parent process on each restart, if pulled
+in by the parent process via
+<tt class="literal">Apache::RegistryLoader</tt> and
+<tt class="literal">PerlFreshRestart</tt> is <tt class="literal">On</tt>.</p>
+</li></ul>
+<p>Note that this second list is applicable only to the scripts
+themselves. For the modules used by the scripts, the previous list
+applies.</p>
+
+</div>
+<a name="pmodperl-CHP-6-SECT-4.10" /><div class="sect2">
+<h3 class="sect2">6.4.10. END Blocks</h3>
+
+<p>As the<a name="pmodperl-CHP-6-ITERM-4443" /><a name="pmodperl-CHP-6-ITERM-4444" /> <em class="emphasis">perlmod</em> manpage
+explains, an <tt class="literal">END</tt>subroutine is executed when the
+Perl interpreter exits. In the mod_perl environment, the Perl
+interpreter exits only when the child process exits. Usually a single
+process serves many requests before it exits, so
+<tt class="literal">END</tt> blocks cannot be used if they are expected to
+do something at the end of each request's
+processing.</p>
+
+<p>If there is a need to run some code after a request has been
+processed, the <tt class="literal">$r-&gt;register_cleanup(
+)</tt><a name="pmodperl-CHP-6-ITERM-4445" /> function should be used. This function
+accepts a reference to a function to be called during the
+<tt class="literal">PerlCleanupHandler</tt> phase, which behaves just like
+the <tt class="literal">END</tt> block in the normal Perl environment. For
+example:</p>
+
+<blockquote><pre class="code">$r-&gt;register_cleanup(sub { warn "$$ does cleanup\n" });</pre></blockquote>
+
+<p>or:</p>
+
+<blockquote><pre class="code">sub cleanup { warn "$$ does cleanup\n" };
+$r-&gt;register_cleanup(\&amp;cleanup);</pre></blockquote>
+
+<p>will run the registered code at the end of each request, similar to
+<tt class="literal">END</tt> blocks under mod_cgi.</p>
+
+<p>As you already know by now, <tt class="literal">Apache::Registry</tt>
+handles things differently. It does execute all
+<tt class="literal">END</tt> blocks encountered during compilation of
+<tt class="literal">Apache::Registry</tt>scripts at the end of each
+request, like mod_cgi does. That includes any <tt class="literal">END</tt>
+blocks defined in the packages <tt class="literal">use( )</tt> d by the
+scripts.</p>
+
+<p>If you want something to run only once in the parent process on
+shutdown and restart, you can use <tt class="literal">register_cleanup(
+)</tt> in <em class="emphasis">startup.pl</em>:</p>
+
+<blockquote><pre class="code">warn "parent pid is $$\n";
+Apache-&gt;server-&gt;register_cleanup(
+    sub { warn "server cleanup in $$\n" });</pre></blockquote>
+
+<p>This is useful when some server-wide cleanup should be performed when
+the server is stopped or restarted.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch06_03.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch06_05.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">6.3. Namespace Issues</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">6.5. CHECK and INIT Blocks</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

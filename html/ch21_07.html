@@ -1,0 +1,601 @@
+<html><head><title>Hanging Processes: Detection and Diagnostics (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch21_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">21.7. Hanging Processes: Detection and Diagnostics</h2>
+
+<p>Sometimes an <em class="emphasis">httpd</em> process might hang in the
+middle of processing a request. This may happen because of a bug in
+the code, such as being stuck in a <tt class="literal">while</tt> loop. Or
+it may be blocked in a system call, perhaps waiting indefinitely for
+an unavailable resource. To fix the problem, we need to learn in what
+circumstances the process hangs, so that we can reproduce the
+problem, which will allow us to uncover its cause.</p>
+
+<a name="pmodperl-CHP-21-SECT-7.1" /><div class="sect2">
+<h3 class="sect2">21.7.1. Hanging Because of an Operating System Problem</h3>
+
+<p>Sometimes <a name="pmodperl-CHP-21-ITERM-5666" /><a name="pmodperl-CHP-21-ITERM-5667" /><a name="pmodperl-CHP-21-ITERM-5668" /><a name="pmodperl-CHP-21-ITERM-5669" />you can find a process hanging
+because of some kind of system problem. For example, if the processes
+was doing some disk I/O operation, it might get stuck in
+uninterruptible sleep ('<tt class="literal">D</tt>' disk wait in
+<em class="emphasis">ps</em> report, '<tt class="literal">U</tt>' in
+<em class="emphasis">top</em>), which indicates either that something is
+broken in your kernel or that you're using NFS.
+Also, usually you find that you cannot <em class="emphasis">kill -9</em>
+this process.</p>
+
+<p>Another process that cannot be killed with <em class="emphasis">kill
+-9</em> is a zombie process ('<tt class="literal">Z</tt>' disk wait
+in <em class="emphasis">ps</em> report, <tt class="literal">&lt;defunc&gt;</tt>
+in <em class="emphasis">top</em>), in which case the process is already
+dead and Apache didn't wait on it properly (of
+course, it can be some other process not related to Apache).</p>
+
+<p>In the case of <em class="emphasis">disk wait</em>, you can actually get
+the <em class="emphasis">wait</em> channel from <em class="emphasis">ps</em>
+and look it up in your kernel symbol table to find out what resource
+it was waiting on. This might point the way to what component of the
+system is misbehaving, if the problem occurs frequently.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-7.2" /><div class="sect2">
+<h3 class="sect2">21.7.2. When a Process Might Hang</h3>
+
+<p>In <a href="ch19_01.html">Chapter 19</a>, we<a name="pmodperl-CHP-21-ITERM-5670" /><a name="pmodperl-CHP-21-ITERM-5671" /> discussed the concept of deadlock. This
+can happen when two processes are each trying to acquire locks on the
+resources held by the other. Neither process will release the lock it
+currently holds, and thus neither can acquire a lock on the second
+resource it desires.</p>
+
+<p>This scenario is a very good candidate for code that might lead to a
+hanging process. Since usually the deadlock cannot be resolved
+without manual intervention, the two processes will hang, doing
+nothing and wasting system resources, while trying to acquire locks.</p>
+
+<p>An infinite loop might lead to a hanging process as well. Moreover,
+such a loop will usually consume a lot of CPU resources and memory.
+You should be very careful when using <tt class="literal">while</tt> and
+similar loop constructs that are capable of creating endless loops.</p>
+
+<p>A process relying on some external resource, for example when
+accessing a file over NFS, might hang if the mounted partition it
+tries to access is not available. Usually it takes a long time before
+the request times out, and in the meantime the process may hang.</p>
+
+<p>There are many other reasons that a process might hang, but these are
+some of the most common.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-7.3" /><div class="sect2">
+<h3 class="sect2">21.7.3. Detecting Hanging Processes</h3>
+
+<p>It's not so easy to<a name="pmodperl-CHP-21-ITERM-5672" /><a name="pmodperl-CHP-21-ITERM-5673" />
+detect hanging processes. There is no way you can tell how long the
+request is taking to process by using plain system utilities such as
+<em class="emphasis">ps</em> and <em class="emphasis">top</em>. The reason is
+that each Apache process serves many requests without quitting.
+System utilities can tell how long the process has been running since
+its creation, but this information is useless in our case, since
+Apache processes normally run for extended periods.</p>
+
+<p>However, there are a few approaches that can help to detect a hanging
+process. If the hanging process happens to demand lots of resources,
+it's quite easy to spot it by using the
+<em class="emphasis">top</em><a name="pmodperl-CHP-21-ITERM-5674" /> utility. You will see the same
+process show up in the first few lines of the automatically refreshed
+report. (But often the hanging process uses few resources&#8212;e.g.,
+when waiting for some event to happen.)</p>
+
+<p>Another easy case is when some process thrashes the
+<em class="emphasis">error_log</em><a name="pmodperl-CHP-21-ITERM-5675" /> file, writing millions of error
+messages there. Generally this process uses lots of resources and is
+also easily spotted by using <em class="emphasis">top</em>.</p>
+
+<p>Two other tools that report the status of Apache processes are the
+<a name="pmodperl-CHP-21-ITERM-5676" />mod_status
+module, which is usually accessed from the
+<em class="emphasis">/server_status</em> location, and the
+<tt class="literal">Apache::VMonitor</tt><a name="pmodperl-CHP-21-ITERM-5677" /> module, covered in <a href="ch05_01.html">Chapter 5</a>.</p>
+
+<p>Both tools provide counters of requests processed per Apache process.
+You can watch the report for a few minutes and try to spot any
+process with an unchanging number of processed requests and a status
+of <em class="emphasis">W</em> (waiting). This means that it has hung.</p>
+
+<p>But if you have 50 processes, it can be quite hard to spot such a
+process.
+<tt class="literal">Apache::Watchdog::RunAway</tt><a name="pmodperl-CHP-21-ITERM-5678" /> is a hanging-processes monitor and
+terminator that implements this feature and could be used to solve
+this kind of problem. It's covered in <a href="ch05_01.html">Chapter 5</a>.</p>
+
+<p>If you have a really bad problem, where processes hang one after the
+other, the time will come when the number of hanging processes is
+equal to the value of <tt class="literal">MaxClients</tt>. This means that
+no more processes will be spawned. As far as the users are concerned,
+your server will be down. It is easy to detect this situation,
+attempt to resolve it, and notify the administrator using a simple
+<em class="emphasis">crontab</em><a name="pmodperl-CHP-21-ITERM-5679" />
+<a name="pmodperl-CHP-21-ITERM-5680" />watchdog that periodically requests
+some very light script (see <a href="ch05_01.html">Chapter 5</a>).</p>
+
+<p>In the watchdog, you set a timeout appropriate for your service,
+which may be anything from a few seconds to a few minutes. If the
+server fails to respond before the timeout expires, the watchdog
+spots trouble and attempts to restart the server. After a restart an
+email report is sent to the administrator saying that there was a
+problem and whether or not the restart was successful.</p>
+
+<p>If you get such reports constantly, something is wrong with your web
+service and you should review your code. Note that
+it's possible that your server is being overloaded
+by more requests than it can handle, so the requests are being queued
+and not processed for a while, which triggers the
+watchdog's alarm. If this is the case, you may need
+to add more servers or more memory, or perhaps split a single machine
+across a cluster of machines.</p>
+
+</div>
+<a name="pmodperl-CHP-21-SECT-7.4" /><div class="sect2">
+<h3 class="sect2">21.7.4. Determination of the Reason</h3>
+
+<p>Given the PID, there are three ways to find out where the server is
+hanging:</p>
+
+<ul><li>
+<p>Deploy the Perl calls-tracing mechanism. This will allow you to spot
+the location of the Perl code that triggers the problem.</p>
+</li><li>
+<p>Use a system calls-tracing utility such as
+<em class="emphasis">strace</em>. This approach reveals low-level details
+about the misbehavior of some part of the system.</p>
+</li><li>
+<p>Use an interactive debugger such as <tt class="literal">gdb</tt>. When the
+process is stuck and you don't know what it was
+doing just before it got stuck, using <tt class="literal">gdb</tt> you can
+attach to this process and print its call stack, to reveal where the
+last call originated. Just like with <em class="emphasis">strace</em>, you
+see the C function call trace, not the Perl high-level function
+calls.</p>
+</li></ul>
+<a name="pmodperl-CHP-21-SECT-7.4.1" /><div class="sect3">
+<h3 class="sect3">21.7.4.1. Using the Perl trace</h3>
+
+<p>To see <a name="pmodperl-CHP-21-ITERM-5681" /><a name="pmodperl-CHP-21-ITERM-5682" /><a name="pmodperl-CHP-21-ITERM-5683" />where an
+<em class="emphasis">httpd</em> process is spinning, the first step is to
+add the following to your startup file:</p>
+
+<blockquote><pre class="code">package Book::StartUp;
+use Carp ( );
+$SIG{'USR2'} = sub { 
+    Carp::confess("caught SIGUSR2!");
+};</pre></blockquote>
+
+<p>The above code assigns a signal handler for the
+<tt class="literal">USR2</tt>signal. This signal has been chosen because
+it's unlikely to be used by the other server
+components.</p>
+
+<p>We can check the registered signal handlers with help of
+<tt class="literal">Apache::Status</tt>. Using this code, if we fetch the
+URL <em class="emphasis">http://localhost/perl-status?sig</em> we will
+see:</p>
+
+<blockquote><pre class="code">USR2 = \&amp;Book::StartUp::_ _ANON_ _</pre></blockquote>
+
+<p>where <tt class="literal">Book::StartUp</tt> is the name of the package
+declared in <em class="emphasis">startup.pl</em>.</p>
+
+<p>After applying this server configuration, let's use
+the simple code in <a href="ch21_07.html#pmodperl-CHP-21-EX-10">Example 21-10</a>, where
+<tt class="literal">sleep(10000)</tt> will emulate a hanging process.</p>
+
+<a name="pmodperl-CHP-21-EX-10" /><div class="example">
+<h4 class="objtitle">Example 21-10. debug/perl_trace.pl</h4>
+<blockquote><pre class="code">local $|=1;
+my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+print "[$$] Going to sleep\n";
+hanging_sub( );
+
+sub hanging_sub { sleep 10000; }</pre></blockquote>
+</div>
+
+<p>We execute the above script as
+<em class="emphasis">http://localhost/perl/debug/perl_trace.pl</em>. In
+the script we use <tt class="literal">$|=1;</tt> to unbuffer the STDOUT
+stream and we get the PID from the <tt class="literal">$$</tt>special
+variable.</p>
+
+<p>Now we issue the <em class="emphasis">kill</em> command, using the PID we
+have just seen printed to the browser's window:</p>
+
+<blockquote><pre class="code">panic% kill -USR2 PID</pre></blockquote>
+
+<p>and watch this showing up in the <em class="emphasis">error_log</em> file:</p>
+
+<blockquote><pre class="code">caught SIGUSR2!
+    at /home/httpd/perl/startup/startup.pl line 32
+Book::StartUp::_ _ANON_ _('USR2') called 
+    at /home/httpd/perl/debug/perl_trace.pl line 6
+Apache::ROOT::perl::debug::perl_trace_2epl::hanging_sub( ) called 
+    at /home/httpd/perl/debug/perl_trace.pl line 5
+Apache::ROOT::perl::debug::perl_trace_2epl::handler('Apache=SCALAR(0x8309d08)') 
+  called 
+    at /usr/lib/perl5/site_perl/5.6.1/i386-linux/Apache/Registry.pm 
+      line 140
+eval {...} called 
+    at /usr/lib/perl5/site_perl/5.6.1/i386-linux/Apache/Registry.pm
+      line 140
+Apache::Registry::handler('Apache=SCALAR(0x8309d08)') called 
+    at PerlHandler subroutine `Apache::Registry::handler' line 0
+eval {...} called 
+    at PerlHandler subroutine `Apache::Registry::handler' line 0</pre></blockquote>
+
+<p>We can clearly see that the process
+"hangs" in the code executed at
+line 6 of the
+<em class="emphasis">/home/httpd/perl/debug/perl_trace.pl</em> script, and
+it was called by the <tt class="literal">hanging_sub( )</tt> routine
+defined at<a name="pmodperl-CHP-21-ITERM-5684" /><a name="pmodperl-CHP-21-ITERM-5685" /><a name="pmodperl-CHP-21-ITERM-5686" /> line 5.</p>
+
+</div>
+
+<a name="pmodperl-CHP-21-SECT-7.4.2" /><div class="sect3">
+<h3 class="sect3">21.7.4.2. Using the system calls trace</h3>
+
+<p>Let's <a name="pmodperl-CHP-21-ITERM-5687" /><a name="pmodperl-CHP-21-ITERM-5688" /><a name="pmodperl-CHP-21-ITERM-5689" />write
+another similar mod_perl script that hangs, and deploy
+<em class="emphasis">strace</em> to find the point at which it hangs (see
+<a href="ch21_07.html#pmodperl-CHP-21-EX-11">Example 21-11</a>).</p>
+
+<a name="pmodperl-CHP-21-EX-11" /><div class="example">
+<h4 class="objtitle">Example 21-11. hangme.pl</h4>
+<blockquote><pre class="code">local $|=1;
+my $r = shift;
+$r-&gt;send_http_header('text/plain');
+
+print "PID = $$\n";
+
+my $i = 0;
+while (1) {
+    $i++;
+    sleep 1;
+}</pre></blockquote>
+</div>
+
+<p>The reason this simple code hangs is obvious. It never breaks from
+the <tt class="literal">while</tt> loop. As you can see, it prints the PID
+of the current process to the browser. Of course, in a real situation
+you cannot use the same trick&#8212;in the previous section we
+presented several ways to detect the runaway processes and their
+PIDs.</p>
+
+<p>We save the above code in a file and make a request. As usual, we use
+<tt class="literal">$|=1;</tt> in our demonstration scripts to unbuffer
+STDOUT so we will immediately see the process ID. Once the script is
+requested, the script prints the PID and obviously hangs. So we press
+the Stop button, but the process continues to hang in this code.
+Isn't Apache supposed to detect the broken
+connection and abort the request? Yes and no&#8212;you will
+understand soon what's really happening.</p>
+
+<p>First let's attach to the process and see what
+it's doing. We use the PID the script printed to the
+browser&#8212;in this case, it is 10045:</p>
+
+<blockquote><pre class="code">panic% strace -p 10045
+
+[...truncated identical output...]
+SYS_175(0, 0xbffff41c, 0xbffff39c, 0x8, 0) = 0
+SYS_174(0x11, 0, 0xbffff1a0, 0x8, 0x11) = 0
+SYS_175(0x2, 0xbffff39c, 0, 0x8, 0x2)   = 0
+nanosleep(0xbffff308, 0xbffff308, 0x401a61b4, 0xbffff308, 0xbffff41c) = 0
+time([940973834])                       = 940973834
+time([940973834])                       = 940973834
+[...truncated the identical output...]</pre></blockquote>
+
+<p>It isn't what we expected to see, is it? These are
+some system calls we don't see in our little
+example. What we actually see is how Perl translates our code into
+system calls. We know that our code hangs in this snippet:</p>
+
+<blockquote><pre class="code">while (1) {
+    $i++;
+    sleep 1;
+}</pre></blockquote>
+
+<p>so these must be the system calls that represent this loop, since
+they are printed repeatedly.</p>
+
+<p>Usually the situation is different from the one we have shown. You
+first detect the hanging process, then you attach to it and watch the
+trace of calls it does (or observe the last few system calls if the
+process is hanging waiting for something, as when blocking on a
+file-lock request). From watching the trace you figure out what
+it's actually doing, and probably find the
+corresponding lines in your Perl code. For example,
+let's see how one process hangs while requesting an
+exclusive lock on a file that is exclusively locked by another
+process (see <a href="ch21_07.html#pmodperl-CHP-21-EX-12">Example 21-12</a>).</p>
+
+<a name="pmodperl-CHP-21-EX-12" /><div class="example">
+<h4 class="objtitle">Example 21-12. excl_lock.pl</h4>
+<blockquote><pre class="code">use Fcntl qw(:flock);
+use Symbol;
+
+fork( ); # child and parent do the same operation
+
+my $fh = gensym;
+open $fh, "&gt;/tmp/lock" or die "cannot open /tmp/lock: $!";
+print "$$: I'm going to obtain the lock\n";
+flock $fh, LOCK_EX;
+print "$$: I've got the lock\n";
+sleep 30;
+close $fh;</pre></blockquote>
+</div>
+
+<p>The code is simple. The process executing the code forks a second
+process, and both do the same thing: generate a unique symbol to be
+used as a file handle, open the lock file for writing using the
+generated symbol, lock the file in exclusive mode, sleep for 30
+seconds (pretending to do some lengthy operation), and close the lock
+file, which also unlocks the file.</p>
+
+<p>The <tt class="literal">gensym</tt> function is imported from the
+<tt class="literal">Symbol</tt> module. The <tt class="literal">Fcntl</tt> module
+provides us with a symbolic constant, <tt class="literal">LOCK_EX</tt>.
+This is imported via the <tt class="literal">:flock</tt> tag, which imports
+this and other <tt class="literal">flock( )</tt> constants.</p>
+
+<p>The code used by both processes is identical, so we cannot predict
+which one will get its hands on the lock file and succeed in locking
+it first. Thus, we add <tt class="literal">print( )</tt>statements to find
+the PID of the process blocking (waiting to get the lock) on a lock
+request.</p>
+
+<p>When the above code is executed from the command line, we see that
+one of the processes gets the lock:</p>
+
+<blockquote><pre class="code">panic% perl ./excl_lock.pl
+
+3038: I'm going to obtain the lock
+3038: I've got the lock
+3037: I'm going to obtain the lock</pre></blockquote>
+
+<p>Here we see that process 3037 is blocking, so we attach to it:</p>
+
+<blockquote><pre class="code">panic% strace -p 3037
+
+about to attach c10
+flock(3, LOCK_EX</pre></blockquote>
+
+<p>It's clear from the above trace that the process is
+waiting for an exclusive lock. The missing closing parenthesis is not
+a typo; it means that <em class="emphasis">strace</em>
+didn't yet receive a return status from the call.</p>
+
+<p>After spending time watching the running traces of different scripts,
+you will learn to more easily recognize what Perl code is being
+<a name="pmodperl-CHP-21-ITERM-5690" /><a name="pmodperl-CHP-21-ITERM-5691" /><a name="pmodperl-CHP-21-ITERM-5692" />executed.</p>
+
+</div>
+
+<a name="pmodperl-CHP-21-SECT-7.4.3" /><div class="sect3">
+<h3 class="sect3">21.7.4.3. Using the interactive debugger</h3>
+
+<p>Another <a name="pmodperl-CHP-21-ITERM-5693" /><a name="pmodperl-CHP-21-ITERM-5694" /><a name="pmodperl-CHP-21-ITERM-5695" /><a name="pmodperl-CHP-21-ITERM-5696" />way to see a trace of the running
+code is to use a debugger such as <tt class="literal">gdb</tt> (the GNU
+debugger). It's supposed to work on any platform
+that supports the GNU development tools. Its purpose is to allow you
+to see what is going on inside a program while it executes, or what
+it was doing at the moment it failed.</p>
+
+<p>To trace the execution of a process, <tt class="literal">gdb</tt> needs to
+know the PID and the path to the binary that the process is
+executing. For Perl code, it's
+<em class="emphasis">/usr/bin/perl</em> (or whatever the path to your Perl
+is). For <em class="emphasis">httpd</em> processes, it's
+the path to your <em class="emphasis">httpd</em> executable&#8212;often
+the binary is called <em class="emphasis">httpd</em>, but
+there's really no standard location for it.</p>
+
+<p>Here are a few examples using <tt class="literal">gdb</tt>. First,
+let's go back to our last locking example, execute
+it as before, and attach to the process that didn't
+get the lock:</p>
+
+<blockquote><pre class="code">panic% gdb /usr/bin/perl 3037</pre></blockquote>
+
+<p>After starting the debugger, we execute the
+<em class="emphasis">where</em> command to see the trace:</p>
+
+<blockquote><pre class="code">(gdb) where
+#0  0x40209791 in flock ( ) from /lib/libc.so.6
+#1  0x400e8dc9 in Perl_pp_flock ( ) at pp_sys.c:2033
+#2  0x40099c56 in Perl_runops_debug ( ) at run.c:53
+#3  0x4003118c in S_run_body (oldscope=1) at perl.c:1443
+#4  0x40030c7e in perl_run (my_perl=0x804bf00) at perl.c:1365
+#5  0x804953e in main (argc=3, argv=0xbffffac4, env=0xbffffad4)
+    at perlmain.c:52
+#6  0x4018bcbe in _ _libc_start_main ( ) from /lib/libc.so.6</pre></blockquote>
+
+<p>That's not what we may have expected to see (i.e., a
+Perl stack trace). And now it's a different trace
+from the one we saw when we were using <em class="emphasis">strace</em>.
+Here we see the current state of the call stack, with <tt class="literal">main(
+)</tt> at the bottom of the stack and <tt class="literal">flock(
+)</tt> at the top.</p>
+
+<p>We have to find out the place the code was called
+from&#8212;it's possible that the code calls
+<tt class="literal">flock( )</tt> in several places, and we
+won't be able to locate the place in the code where
+the actual problem occurs without having this information. Therefore,
+we again use the <em class="emphasis">curinfo</em> macro after loading it
+from the <em class="emphasis">.gdbinit</em> file:</p>
+
+<blockquote><pre class="code">(gdb) source /usr/src/httpd_perl/mod_perl-1.25/.gdbinit
+(gdb) curinfo
+9:/home/httpd/perl/excl_lock.pl</pre></blockquote>
+
+<p>As we can see, the program was stuck at line 9 of
+<em class="emphasis">/home/httpd/perl/excl_lock.pl</em> and
+that's the place to look at to resolve the problem.</p>
+
+<p>When you attach to a running process with <tt class="literal">gdb</tt>, the
+program stops executing and control of the program is passed to the
+debugger. You can continue the normal program run with the
+<em class="emphasis">continue</em> command or execute it step by step with
+the <em class="emphasis">next</em> and <em class="emphasis">step</em> commands,
+which you type at the <tt class="literal">gdb</tt> prompt.
+(<em class="emphasis">next</em> steps over any function calls in the
+source, while <em class="emphasis">step</em> steps into them.)</p>
+
+<p>The use of C/C++ debuggers is a large topic, beyond the scope of this
+book. The <tt class="literal">gdb</tt> man and info pages are quite good.
+You might also want to check <tt class="literal">ddd</tt> (the Data Display
+Debugger), which provides a visual interface to
+<tt class="literal">gdb</tt> and other debuggers. It even knows how to
+debug Perl programs.</p>
+
+<p>For completeness, let's see the
+<tt class="literal">gdb</tt> trace of the <em class="emphasis">httpd</em>
+process that's hanging in the
+<tt class="literal">while(1)</tt> loop of the first example in this
+section:</p>
+
+<blockquote><pre class="code">panic% gdb /home/httpd/httpd_perl/bin/httpd 1005
+
+(gdb) where
+#0  0x402251c1 in nanosleep ( ) from /lib/libc.so.6
+#1  0x40225158 in sleep ( ) from /lib/libc.so.6
+#2  0x4014d3a6 in Perl_pp_sleep ( ) at pp_sys.c:4187
+#3  0x400f5c56 in Perl_runops_debug ( ) at run.c:53
+#4  0x4008e088 in S_call_body (myop=0xbffff688, is_eval=0) at perl.c:1796
+#5  0x4008dc4f in perl_call_sv (sv=0x82fc75c, flags=4) at perl.c:1714
+#6  0x807350e in perl_call_handler (sv=0x82fc75c, r=0x8309eec, args=0x0)
+    at mod_perl.c:1677
+#7  0x80729cd in perl_run_stacked_handlers (hook=0x80d0db9 "PerlHandler", 
+    r=0x8309eec, handlers=0x82e9b64) at mod_perl.c:1396
+#8  0x80701b4 in perl_handler (r=0x8309eec) at mod_perl.c:922
+#9  0x809f409 in ap_invoke_handler (r=0x8309eec) at http_config.c:517
+#10 0x80b3e8f in process_request_internal (r=0x8309eec) at http_request.c:1286
+#11 0x80b3efa in ap_process_request (r=0x8309eec) at http_request.c:1302
+#12 0x80aae60 in child_main (child_num_arg=0) at http_main.c:4205
+#13 0x80ab0e8 in make_child (s=0x80eea54, slot=0, now=981621024)
+    at http_main.c:4364
+#14 0x80ab19c in startup_children (number_to_start=3) at http_main.c:4391
+#15 0x80ab80c in standalone_main (argc=1, argv=0xbffff9e4) at http_main.c:4679
+#16 0x80ac03c in main (argc=1, argv=0xbffff9e4) at http_main.c:5006
+#17 0x401bbcbe in _ _libc_start_main ( ) from /lib/libc.so.6</pre></blockquote>
+
+<p>As before, we can see a complete trace of the last executed call. To
+see the line the program hangs, we use <em class="emphasis">curinfo</em>
+again:</p>
+
+<blockquote><pre class="code">(gdb) source /usr/src/httpd_perl/mod_perl-1.25/.gdbinit
+(gdb) curinfo
+9:/home/httpd/perl/hangme.pl</pre></blockquote>
+
+<p>Indeed, the program spends most of its time at line 9:</p>
+
+<blockquote><pre class="code">7 : while (1) {
+8 :     $i++;
+9 :    sleep 1;
+10: }</pre></blockquote>
+
+<p>Since <tt class="literal">while( )</tt> and <tt class="literal">$i++</tt> are
+executed very fast, it's almost impossible to catch
+Perl running either of these<a name="pmodperl-CHP-21-ITERM-5697" /><a name="pmodperl-CHP-21-ITERM-5698" /><a name="pmodperl-CHP-21-ITERM-5699" /><a name="pmodperl-CHP-21-ITERM-5700" /> instructions.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-21-SECT-7.5" /><div class="sect2">
+<h3 class="sect2">21.7.5. mod_perl gdb Debug Macros</h3>
+
+<p>So far we have<a name="pmodperl-CHP-21-ITERM-5701" /><a name="pmodperl-CHP-21-ITERM-5702" /> seen only the use of the
+<em class="emphasis">curinfo</em> <tt class="literal">gdb</tt> macro.
+Let's explore a few more <tt class="literal">gdb</tt>
+macros that come with the mod_perl source and might be handy during a
+problem debug.</p>
+
+<p>Remember that we are still stuck in the <tt class="literal">while(1)</tt>
+loop, and that's when we are going to run the macros
+(assuming of course that they were loaded as per our last example).
+The <em class="emphasis">longmess</em><a name="pmodperl-CHP-21-ITERM-5703" /> macro shows us the full Perl
+<a name="pmodperl-CHP-21-ITERM-5704" />backtrace of the current state:</p>
+
+<blockquote><pre class="code">(gdb) longmess
+at /home/httpd/perl/hangme.pl line 9
+Apache::ROOT::perl::hangme_2epl::handler
+('Apache=SCALAR(0x82ec0ec)') called at 
+/usr/lib/perl5/site_perl/5.6.1/i386-linux/Apache/Registry.pm 
+line 143
+eval {...} called at 
+/usr/lib/perl5/site_perl/5.6.1/i386-linux/Apache/Registry.pm 
+line 143
+Apache::Registry::handler('Apache=SCALAR(0x82ec0ec)') 
+called at (eval 29) line 0
+eval {...} called at (eval 29) line 0</pre></blockquote>
+
+<p>So we can see that we are inside the
+<tt class="literal">Apache::Registry</tt> handler, which was executed via
+<tt class="literal">eval( )</tt>, and the program is currently executing
+the code on line 9 in the script
+<em class="emphasis">/home/httpd/perl/hangme.pl</em>. Internally the macro
+uses <tt class="literal">Carp::longmess( )</tt> to generate the trace. The
+<em class="emphasis">shortmess</em><a name="pmodperl-CHP-21-ITERM-5705" /> macro is similar to
+<em class="emphasis">longmess</em>, but it prints only the top-level
+caller's package, via <tt class="literal">Carp::shortmess(
+)</tt>:</p>
+
+<blockquote><pre class="code">(gdb) shortmess 
+at /usr/lib/perl5/site_perl/5.6.1/i386-linux/Apache/Registry.pm
+line 143</pre></blockquote>
+
+<p>Don't search for <tt class="literal">shortmess( )</tt> or
+<tt class="literal">longmess( )</tt> functions in the
+<tt class="literal">Carp</tt> manpage&#8212;you won't find
+them, as they aren't a part of the public API. The
+<em class="emphasis">caller</em><a name="pmodperl-CHP-21-ITERM-5706" /> macro prints the package that called the
+last command:</p>
+
+<blockquote><pre class="code">(gdb) caller
+caller = Apache::ROOT::perl::hangme_2epl</pre></blockquote>
+
+<p>In our example this is the
+<tt class="literal">Apache::ROOT::perl::hangme_2epl</tt> package, which was
+created on the fly by <tt class="literal">Apache::Registry</tt>.</p>
+
+<p>Other macros allow you to look at the values of variables and will
+probably require some level of Perl API knowledge. You may want to
+refer to the <em class="emphasis">perlxs</em>,
+<em class="emphasis">perlguts</em> and other related manpages before you
+proceed with these.</p>
+
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch21_06.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch21_08.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">21.6. Analyzing Dumped core Files</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">21.8. Useful Debug Modules</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>

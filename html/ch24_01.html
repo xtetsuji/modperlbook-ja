@@ -1,0 +1,270 @@
+<html><head><title>mod_perl 2.0: Installation and Configuration (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part5.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch24_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+<h1 class="chapter">Chapter 24. mod_perl 2.0: Installation and Configuration</h1>
+<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<a href="ch24_01.html#pmodperl-CHP-24-SECT-1">What's New in Apache 2.0</a><br />
+<a href="ch24_02.html">What's New in Perl 5.6.0-5.8.0</a><br />
+<a href="ch24_03.html">What's New in mod_perl 2.0</a><br />
+<a href="ch24_04.html">Installing mod_perl 2.0</a><br />
+<a href="ch24_05.html">Configuring mod_perl 2.0</a><br />
+<a href="ch24_06.html">Resources</a><br /></p></div><p>Since Doug MacEachern introduced mod_perl 1.0<a href="#FOOTNOTE-58">[58]</a> in 1996, he has
+had to tweak it with every change in Apache and Perl, while
+maintaining compatibility with the older versions. These rewrites
+have led to very complex source code, with hundreds of
+<tt class="literal">#ifdef</tt>s and workarounds for various
+incompatibilities in older Perl and Apache versions.</p> <blockquote><a name="FOOTNOTE-58" /><p> [58]Here
+and in the rest of this and the next chapter we refer to the mod_perl
+1.x series as mod_perl 1.0 and to 2.0.x as mod_perl 2.0 to keep
+things simple. Similarly, we call the Apache 1.3.x series Apache 1.3
+and the 2.0.x series Apache 2.0.</p> </blockquote><p>Apache 2.0, however, is based on a new threads design, requiring that
+mod_perl be based on a thread-safe Perl interpreter. Perl 5.6.0 was
+the first Perl version to support internal thread-safety across
+multiple interpreters. Since Perl 5.6.0 and Apache 2.0 are the very
+minimum requirements for the newest version of mod_perl, backward
+compatibility was no longer a concern, so this seemed like a good
+time to start from scratch. mod_perl 2.0 was the result: a leaner,
+more efficient mod_perl that's streamlined for
+Apache 2.0.</p><p>mod_perl 2.0 includes a mechanism for building the Perl interface to
+the Apache API automatically, allowing us to easily adjust mod_perl
+2.0 to the ever-changing Apache 2.0 API during its development
+period. Another important feature is the
+<tt class="literal">Apache::Test</tt> framework, which was originally
+developed for mod_perl 2.0 but then was adopted by Apache 2.0
+developers to test the core server features and third-party modules.
+Moreover the tests written using the <tt class="literal">Apache::Test</tt>
+framework could be run with Apache 1.0 and 2.0, assuming that both
+supported the same features.</p><p>Many other interesting changes have already happened to mod_perl in
+Version 2.0, and more will be developed in the future. Some of these
+will be covered in this chapter, and some you will discover on your
+own while reading mod_perl documentation.</p><p>At the time of this writing, mod_perl 2.0 is considered beta when
+used with the <em class="emphasis">prefork</em> Multi-Processing Model
+module (MPM) and alpha when used with a threaded MPM. It is likely
+that Perl 5.8.0+ will be required for mod_perl 2.0 to move past alpha
+with threaded MPMs. Also, the Apache 2.0 API hasn't
+yet been finalized, so it's possible that certain
+examples in this chapter may require modifications once production
+versions of Apache 2.0 and mod_perl 2.0 are released.</p><p>In this chapter, we'll first discuss the new
+features in Apache 2.0, Perl 5.6 and later, and mod_perl 2.0 (in that
+order). Then we'll cover the installation and
+configuration of mod_perl 2.0. Details on the new functionality
+implemented in mod_perl 2.0 are provided in <a href="ch25_01.html">Chapter 25</a>.</p><div class="sect1"><a name="pmodperl-CHP-24-SECT-1" />
+<h2 class="sect1">24.1. What's New in Apache 2.0</h2>
+
+<p>Whereas Apache 1.2 and 1.3 were based on the NCSA
+<em class="emphasis">httpd</em> code base, Apache 2.0 rewrote big chunks
+of the 1.3 code base, mainly to support numerous new features and
+enhancements. Here are the most important new features:</p>
+
+<dl>
+<dt><i>Apache Portable Runtime (APR)</i></dt>
+<dd>
+The APR presents a standard <a name="pmodperl-CHP-24-ITERM-5859" /><a name="pmodperl-CHP-24-ITERM-5860" /><a name="pmodperl-CHP-24-ITERM-5861" />API for writing portable
+client and server applications, covering file I/O, logging, shared
+memory, threads, managing child processes, and many other
+functionalities needed for developing the Apache core and third-party
+modules in a portable and efficient way. One important effect is that
+it significantly simplifies the code that uses the APR, making it
+much easier to review and understand the Apache code, and increasing
+the number of revealed bugs and contributed patches.</p>
+
+<p>The APR uses the concept of memory pools, which significantly
+simplifies the memory-management code and reduces the possibility of
+memory leaks (which always haunt C programmers).</p>
+</dd>
+
+
+<dt><i>I/O filtering</i></dt>
+<dd>
+Apache 2.0 allows multiple
+<a name="pmodperl-CHP-24-ITERM-5862" /><a name="pmodperl-CHP-24-ITERM-5863" />modules to filter both the request and the
+response. Now one module can pipe its output to another module as if
+it were being sent directly from the TCP stream. The same mechanism
+works with the generated response.</p>
+
+<p>With I/O filtering in place, simple filters (e.g., data compression
+and decompression) can easily be implemented, and complex filters
+(e.g., SSL) can now be implemented without needing to modify the the
+server code (unlike with Apache 1.3).</p>
+
+<p>To make the filtering mechanism efficient and avoid unnecessary
+copying, the <em class="emphasis">bucket brigades</em> model was used, as
+follows.</p>
+
+<p>A bucket represents a chunk of data. Buckets linked together comprise
+a brigade. Each bucket in a brigade can be modified, removed, and
+replaced with another bucket. The goal is to minimize the data
+copying where possible. Buckets come in different types: files, data
+blocks, end-of-stream indicators, pools, etc. You
+don't need to know anything about the internal
+representation of a bucket in order to manipulate it.</p>
+
+<p>The stream of data is represented by bucket brigades. When a filter
+is called, it gets passed the brigade that was the output of the
+previous filter. This brigade is then manipulated by the filter
+(e.g., by modifying some buckets) and passed to the next filter in
+the stack.</p>
+
+<p><a href="ch24_01.html#pmodperl-CHP-24-FIG-1">Figure 24-1</a> depicts an imaginary bucket brigade. The
+figure shows that after the presented bucket brigade has passed
+through several filters, some buckets were removed, some were
+modified, and some were added. Of course, the handler that gets the
+brigade doesn't know the history of the brigade; it
+can only see the existing buckets in the brigade. We will see bucket
+brigades in use when discussing protocol handlers and filters.</p>
+
+</dd>
+
+
+<dt><i>Multi-Processing Model modules (MPMs)</i></dt>
+<dd>
+In the previous Apache generation, <a name="pmodperl-CHP-24-ITERM-5864" /><a name="pmodperl-CHP-24-ITERM-5865" />the
+same code base was trying to manage incoming requests for different
+platforms, which led to scalability problems on certain (mostly
+non-Unix) platforms. This also led to an undesired complexity of the
+code.</p>
+
+
+<p>Apache 2.0 introduces the concept of MPMs, whose main responsibility
+is to map the incoming requests to either threads, processes, or a
+threads/processes hybrid. Now it's possible to write
+different processing modules specific to various platforms. For
+example, Apache 2.0 on Windows is much more efficient and
+maintainable now, since it uses <em class="emphasis">mpm_winnt</em></tt>, which
+deploys native Windows features.</p>
+
+<p>Here is a partial list of the major MPMs available as of this writing:</p>
+
+<dl>
+<dt><i>prefork</i></dt>
+<dd>
+The <em class="emphasis">prefork</em> MPM implements
+<a name="pmodperl-CHP-24-ITERM-5866" /><a name="pmodperl-CHP-24-ITERM-5867" />Apache
+1.3's preforking model, in which each request is
+handled by a different forked child process.</p>
+</dd>
+
+
+
+<dt><i>worker</i></dt>
+<dd>
+The <em class="emphasis">worker</em></tt> MPM implements
+<a name="pmodperl-CHP-24-ITERM-5868" /><a name="pmodperl-CHP-24-ITERM-5869" />a
+hybrid multi-process/multi-threaded approach based on the
+<em class="emphasis">pthreads</em></tt>standard.</p>
+</dd>
+
+
+
+<dt><i>mpmt_os2, netware, winnt, and beos</i></dt>
+<dd>
+These MPMs also implement <a name="pmodperl-CHP-24-ITERM-5870" /><a name="pmodperl-CHP-24-ITERM-5871" /><a name="pmodperl-CHP-24-ITERM-5872" /><a name="pmodperl-CHP-24-ITERM-5873" /><a name="pmodperl-CHP-24-ITERM-5874" /><a name="pmodperl-CHP-24-ITERM-5875" /><a name="pmodperl-CHP-24-ITERM-5876" /><a name="pmodperl-CHP-24-ITERM-5877" />the hybrid
+multi-process/multi-threaded model, like <em class="emphasis">worker</em>,
+but unlike <em class="emphasis">worker</em>, each is based on the native
+OS thread implementations, while <em class="emphasis">worker</em> uses the
+<em class="emphasis">pthread</em> library available on Unix.</p>
+</dd>
+
+</dl>
+
+<p>On platforms that support more than one MPM, it's
+possible to switch the used MPMs as the need changes. For example, on
+Unix it's possible to start with a preforked module,
+then migrate to a more efficient threaded MPM as demand grows and the
+code matures (assuming that the code base is capable of running in
+the threaded environment).</p>
+</dd>
+
+
+
+<dt><i>New hook scheme</i></dt>
+<dd>
+In Apache 2.0 it's possible to
+<a name="pmodperl-CHP-24-ITERM-5878" />dynamically register functions for each
+Apache hook, with more than one function registered per hook.
+Moreover, when adding new functions, you can specify where the new
+function should be added&#8212;for example, a function can be
+inserted between two already registered functions, or in front of
+them.</p>
+</dd>
+
+
+
+<dt><i>Protocol modules</i></dt>
+<dd>
+The previous Apache generation
+<a name="pmodperl-CHP-24-ITERM-5879" /><a name="pmodperl-CHP-24-ITERM-5880" />could speak
+only the HTTP protocol. Apache 2.0 has introduced a
+"server framework" architecture,
+making it possible to plug in handlers for protocols other than HTTP.
+The protocol module design also abstracts the transport layer, so
+protocols such as SSL can be hooked into the server without requiring
+modifications to the Apache source code. This allows Apache to be
+extended much further than in the past, making it possible to add
+support for protocols such as FTP, NNTP, POP3, RPC flavors, and the
+like. The main advantage is that protocol plug-ins can take advantage
+of Apache's portability, process/thread management,
+configuration mechanism, and plug-in API.</p>
+</dd>
+
+
+
+<dt><i>GNU Autoconf-based configuration</i></dt>
+<dd>
+Apache 2.0 uses the ubiquitous GNU <em class="emphasis">Autoconf</em></tt> for
+its configuration process, to make the configuration process more
+portable.</p>
+</dd>
+
+
+
+<dt><i>Parsed configuration tree</i></dt>
+<dd>
+Apache 2.0 makes the parsed configuration tree available at runtime,
+so modules needing to read the configuration data (e.g., mod_info)
+don't have to re-parse the configuration file, but
+can reuse the parsed tree.</p>
+
+<p>All these new features boost Apache's performance,
+scalability, and flexibility. The APR helps the overall performance
+by doing lots of platform-specific optimizations in the APR internals
+and giving the developer the already greatly optimized API.</p>
+
+<p>The I/O layering helps performance too, since now modules
+don't need to waste memory and CPU cycles to
+manually store the data in shared memory or
+<em class="emphasis">pnotes</em> in order to pass the data to another
+module (e.g., to provide <em class="emphasis">gzip</em> compression for
+outgoing data).</p>
+
+<p>And, of course, an important impact of these features is the
+simplification and added flexibility for the core and third-party
+Apache module developers.</p>
+</dd>
+
+</dl>
+
+<a name="pmodperl-CHP-24-FIG-1" /><div class="figure"><img src="figs/pmp_2401.gif" alt="Figure 24-1" width="484" /></div><h4 class="objtitle">Figure 24-1. Imaginary bucket brigade</h4>
+</div>
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part5.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch24_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">V. mod_perl 2.0</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">24.2. What's New in Perl 5.6.0-5.8.0</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+      </map>
+
+</body></html>

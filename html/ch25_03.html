@@ -1,0 +1,1289 @@
+<html><head><title>I/O Filtering (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+
+</head><body bgcolor="#ffffff">
+
+
+
+
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch25_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="part6.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
+
+
+
+<h2 class="sect1">25.3. I/O Filtering</h2>
+
+<p>Now let's talk about a totally new feature of
+mod_perl 2.0: input/output filtering.</p>
+
+<p>As of this writing the mod_perl filtering API hasn't
+been finalized, and it's possible that it will
+change by the time the production version of mod_perl 2.0 is
+released. However, most concepts presented here
+won't change, and you should find the discussion and
+the examples useful for understanding how filters work. For the most
+up-to-date documentation, refer<a name="pmodperl-CHP-25-ITERM-6004" /><a name="pmodperl-CHP-25-ITERM-6005" /> to <a href="http://perl.apache.org/docs/2.0/user/handlers/filters.html">http://perl.apache.org/docs/2.0/user/handlers/filters.html</a>.</p>
+
+<a name="pmodperl-CHP-25-SECT-3.1" /><div class="sect2">
+<h3 class="sect2">25.3.1. I/O Filtering Concepts</h3>
+
+<p>Before introducing the mod_perl filtering API, there are several
+important concepts to understand.</p>
+
+<a name="pmodperl-CHP-25-SECT-3.1.1" /><div class="sect3">
+<h3 class="sect3">25.3.1.1. Two methods for manipulating data</h3>
+
+<p>As discussed <a name="pmodperl-CHP-25-ITERM-6006" /><a name="pmodperl-CHP-25-ITERM-6007" />in
+the last chapter, Apache 2.0 considers all incoming and outgoing data
+as chunks of information, disregarding their kind and source or
+storage methods. These data chunks are stored in buckets, which form
+bucket brigades. Input and output filters massage the data in the
+bucket brigades.</p>
+
+<p>mod_perl 2.0 filters can directly manipulate the bucket brigades or
+use the simplified streaming <a name="pmodperl-CHP-25-ITERM-6008" />interface,
+where<a name="pmodperl-CHP-25-ITERM-6009" /> the filter
+object acts like a file handle, which can be read from and printed
+to.</p>
+
+<p>Even though you don't have to work with bucket
+brigades directly, since you can write filters using the simplified,
+streaming filter interface (which works with bucket brigades behind
+the scenes), it's still important to understand
+bucket brigades. For example, you need to know that an output filter
+will be invoked as many times as the number of bucket brigades sent
+from an upstream filter or a content handler, and that the
+end-of-stream indicator (EOS) is sometimes sent in a separate bucket
+brigade, so it shouldn't be a surprise if the filter
+is invoked even though no real data went through.</p>
+
+<p>You will also need to understand how to manipulate bucket brigades if
+you plan to implement protocol modules, as you have seen earlier in
+this chapter.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-3.1.2" /><div class="sect3">
+<h3 class="sect3">25.3.1.2. HTTP request versus connection filters</h3>
+
+<p>HTTP request <a name="pmodperl-CHP-25-ITERM-6010" /><a name="pmodperl-CHP-25-ITERM-6011" />filters are applied when
+Apache serves an HTTP request.</p>
+
+<p>HTTP request input filters get invoked on the body of the HTTP
+request only if the body is consumed by the content handler. HTTP
+request headers are not passed through the HTTP request input
+filters.</p>
+
+<p>HTTP response output filters get invoked on the body of the HTTP
+response, if the content handler has generated one. HTTP response
+headers are not passed through the HTTP response output filters.</p>
+
+<p>Connection-level filters are applied at the connection level.</p>
+
+<p>A connection may be configured to serve one or more HTTP requests, or
+handle other protocols. Connection filters see all the incoming and
+outgoing data. If an HTTP request is served, connection filters can
+modify the HTTP headers and the body of the request and response. Of
+course, if a different protocol is served over the connection (e.g.,
+IMAP), the data could have a completely different pattern than the
+HTTP protocol (headers and body).</p>
+
+<p>Apache supports several other filter types that mod_perl 2.0 may
+support in the future.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-3.1.3" /><div class="sect3">
+<h3 class="sect3">25.3.1.3. Multiple invocations of filter handlers</h3>
+
+<p>Unlike <a name="pmodperl-CHP-25-ITERM-6012" /><a name="pmodperl-CHP-25-ITERM-6013" />other Apache handlers, filter
+handlers may get invoked more than once during the same request.
+Filters get invoked as many times as the number of bucket brigades
+sent from the upstream filter or content provider.</p>
+
+<p>For example, if a content-generation handler sends a string, and then
+forces a flush, following with more data:</p>
+
+<blockquote><pre class="code"># assuming buffered STDOUT ($|=  =0)
+$r-&gt;print("foo");
+$r-&gt;rflush;
+$r-&gt;print("bar");</pre></blockquote>
+
+<p>Apache will generate one <a name="pmodperl-CHP-25-ITERM-6014" />bucket brigade with two buckets
+(there are several types of buckets that contain data&#8212;one of
+them is <em class="emphasis">transient</em>):</p>
+
+<blockquote><pre class="code">bucket type       data
+----------------------
+1st    transient   foo
+2nd    flush</pre></blockquote>
+
+<p>and send it to the filter chain. Then, assuming that no more data was
+sent after <tt class="literal">print("bar")</tt>, it will create a last
+bucket brigade containing data:</p>
+
+<blockquote><pre class="code">bucket type       data
+----------------------
+1st    transient   bar</pre></blockquote>
+
+<p>and send it to the filter chain. Finally it'll send
+yet another bucket brigade with the EOS bucket indicating that no
+more will be data sent:</p>
+
+<blockquote><pre class="code">bucket type       data
+----------------------
+1st    eos</pre></blockquote>
+
+<p>In our example the filter will be invoked three times. Notice that
+sometimes the EOS bucket comes attached to the last bucket brigade
+with data and sometimes in its own bucket brigade. This should be
+transparent to the filter logic, as we will see shortly.</p>
+
+<p>A user may install an upstream filter, and that filter may decide to
+insert extra bucket brigades or collect all the data in all bucket
+brigades passing through it and send it all down in one brigade.
+What's important to remember when coding a filter is
+to never assume that the filter is always going to be invoked once,
+or a fixed number of times. You can't make
+assumptions about the way the data is going to come in. Therefore, a
+typical filter handler may need to split its logic into three parts,
+as depicted in <a href="ch25_03.html#pmodperl-CHP-25-FIG-4">Figure 25-4</a>.</p>
+
+<a name="pmodperl-CHP-25-FIG-4" /><div class="figure"><img src="figs/pmp_2504.gif" alt="Figure 25-4" width="402" /></div><h4 class="objtitle">Figure 25-4. mod_perl 2.0 filter logic</h4>
+
+<p>Jumping ahead, we will show some pseudocode that represents all three
+parts. This is what a typical filter looks like:</p>
+
+<blockquote><pre class="code">sub handler {
+    my $filter = shift;
+
+    # runs on first invocation
+    unless ($filter-&gt;ctx) {
+        init($filter);
+        $filter-&gt;ctx(1);
+    }
+
+    # runs on all invocations
+    process($filter);
+
+    # runs on the last invocation
+    if ($filter-&gt;seen_eos) {
+        finalize($filter);
+    }
+
+    return Apache::OK;
+}
+sub init     { ... }
+sub process  { ... }
+sub finalize { ... }</pre></blockquote>
+
+<p>Let's examine the parts of this pseudofilter:</p>
+
+<ol><li>
+<p>Initialization</p>
+
+<p>During the <a name="pmodperl-CHP-25-ITERM-6015" /><a name="pmodperl-CHP-25-ITERM-6016" />initialization, the filter runs all
+the code that should be performed only once across multiple
+invocations of the filter (during a single request). The filter
+context is used to accomplish this task. For each new request, the
+<a name="pmodperl-CHP-25-ITERM-6017" />filter context is created before the
+filter is called for the first time, and it's
+destroyed at the end of the request. When the filter is invoked for
+the first time, <tt class="literal">$filter-&gt;ctx</tt> returns
+<tt class="literal">undef</tt> and the custom function <tt class="literal">init(
+)</tt> is called:</p>
+
+<blockquote><pre class="code">unless ($filter-&gt;ctx) {
+    init($filter);
+    $filter-&gt;ctx(1);
+}</pre></blockquote>
+
+<p>This function can, for example, retrieve some configuration data set
+in <em class="emphasis">httpd.conf</em> or initialize some data structure
+to its default value. To make sure that <tt class="literal">init( )</tt>
+won't be called on the following invocations, we
+must set the filter context before the first invocation is completed:</p>
+
+<blockquote><pre class="code">$filter-&gt;ctx(1);</pre></blockquote>
+
+<p>In practice, the context is not just served as a flag, but used to
+store real data. For example, the following filter handler counts the
+number of times it was invoked during a single request:</p>
+
+<blockquote><pre class="code">sub handler {
+    my $filter = shift;
+
+    my $ctx = $filter-&gt;ctx;
+    $ctx-&gt;{invoked}++;
+    $filter-&gt;ctx($ctx);
+    warn "filter was invoked $ctx-&gt;{invoked} times\n";
+
+    return Apache::DECLINED;
+}</pre></blockquote>
+
+<p>Since this filter handler doesn't consume the data
+from the upstream filter, it's important that this
+handler returns <tt class="literal">Apache::DECLINED</tt>, so that mod_perl
+will pass the bucket brigades to the next filter. If this handler
+returns <tt class="literal">Apache::OK</tt>, the data will simply be lost.</p>
+</li><li>
+<p>Processing</p>
+
+<p>The <a name="pmodperl-CHP-25-ITERM-6018" /><a name="pmodperl-CHP-25-ITERM-6019" />next part:</p>
+
+<blockquote><pre class="code">process($filter);</pre></blockquote>
+
+<p>is unconditionally invoked on every filter invocation. This is where
+the incoming data is read, modified, and sent out to the next filter
+in the filter chain. Here is an example that lowers the case of the
+characters passing through:</p>
+
+<blockquote><pre class="code">use constant READ_SIZE  =&gt; 1024;
+sub process {
+    my $filter = shift;
+    while ($filter-&gt;read(my $data, READ_SIZE)) {
+        $filter-&gt;print(lc $data);
+    }
+}</pre></blockquote>
+
+<p>Here the filter operates on only a single bucket brigade. Since it
+manipulates every character separately, the logic is really simple.</p>
+
+<p>In more complicated filters, the filters may need to buffer data
+first before the transformation can be applied. For example, if the
+filter operates on HTML tokens (e.g., <tt class="literal">&lt;img
+src="me.jpg"&gt;</tt>), it's possible that one
+brigade will include the beginning of the token
+(<tt class="literal">&lt;img</tt> ) and the remainder of the token
+(<tt class="literal">src="me.jpg</tt>" &gt;) will come in the next bucket
+brigade (on the next filter invocation). In certain cases it may
+involve more than two bucket brigades to get the whole token, and the
+filter will have to store the remainder of the unprocessed data in
+the filter context and then reuse it in the next invocation. Another
+good example is a filter that performs data compression (compression
+usually is effective only when applied to relatively big chunks of
+data)&#8212;if a single bucket brigade doesn't
+contain enough data, the filter may need to buffer the data in the
+filter context until it collects enough of it.</p>
+
+</li><li>
+<p>Finalization</p>
+
+<p>Finally, <a name="pmodperl-CHP-25-ITERM-6020" /><a name="pmodperl-CHP-25-ITERM-6021" />some filters need to know when they
+are invoked for the last time, in order to perform various cleanups
+and/or flush any remaining data. As mentioned earlier, Apache
+indicates this event by a special end-of-stream token, represented by
+a bucket of type EOS. If the filter is using the streaming interface,
+rather than manipulating the bucket brigades directly, it can check
+whether this is the last time it's invoked using the
+<tt class="literal">$filter-&gt;seen_eos</tt> method:</p>
+
+<blockquote><pre class="code">if ($filter-&gt;seen_eos) {
+    finalize($filter);
+}</pre></blockquote>
+
+<p>This check should be done at the end of the filter handler, because
+sometimes the EOS token comes attached to the tail of data (the last
+invocation gets both the data and the EOS token) and sometimes it
+comes all alone (the last invocation gets only the EOS token). So if
+this test is performed at the beginning of the handler and the EOS
+bucket was sent in together with the data, the EOS event may be
+missed and the filter won't function properly.</p>
+
+<p>Filters that directly manipulate bucket brigades have to look for a
+bucket whose type is EOS for the same reason.</p>
+</li>
+</ol>
+
+<p>Some filters may need to deploy all three parts of the described
+logic. Others will need to do only initialization and processing, or
+processing and finalization, while the simplest filters might perform
+only the normal processing (as we saw in the example of the filter
+handler that lowers the case of the characters going <a name="pmodperl-CHP-25-ITERM-6022" /><a name="pmodperl-CHP-25-ITERM-6023" />through it).</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-3.1.4" /><div class="sect3">
+<h3 class="sect3">25.3.1.4. Blocking calls</h3>
+
+<p>All <a name="pmodperl-CHP-25-ITERM-6024" /><a name="pmodperl-CHP-25-ITERM-6025" />filters (excluding the core filter
+that reads from the network and the core filter that writes to it)
+block at least once when invoked. Depending on whether
+it's an input or an output filter, the blocking
+happens when the <a name="pmodperl-CHP-25-ITERM-6026" />bucket brigade is requested from the
+upstream filter or when the bucket brigade is passed to the next
+filter.</p>
+
+<p>Input and output filters differ in the ways they acquire the bucket
+brigades (which include the data that they filter). Although the
+difference can't be seen when a streaming API is
+used, it's important to understand how things work
+underneath.</p>
+
+<p>When an input filter is invoked, it first asks the upstream filter
+for the next bucket brigade (using the <tt class="literal">get_brigade(
+)</tt> call). That upstream filter in turn asks for the bucket
+brigade from the next upstream filter in the chain, and so on, until
+the last filter that reads from the network (called
+<tt class="literal">core_in</tt>) is reached. The
+<tt class="literal">core_in</tt> filter reads, using a socket, a portion of
+the incoming data from the network, processes it, and sends it to its
+downstream filter, which processes the data and sends it to its
+downstream filter, and so on, until it reaches the very first filter
+that asked for the data. (In reality, some other handler triggers the
+request for the bucket brigade (e.g., the HTTP response handler or a
+protocol module), but for our discussion it's good
+enough to assume that it's the first filter that
+issues the <tt class="literal">get_brigade( )</tt> call.)</p>
+
+<p><a href="ch25_03.html#pmodperl-CHP-25-FIG-5">Figure 25-5</a> depicts a typical input filter chain
+data flow, in addition to the program control flow. The arrows show
+when the control is switched from one filter to another, and the
+black-headed arrows show the actual data flow. The diagram includes
+some pseudocode, both in Perl for the mod_perl filters and in C for
+the internal Apache filters. You don't have to
+understand C to understand this diagram. What's
+important to understand is that when input filters are invoked they
+first call each other via the <tt class="literal">get_brigade( )</tt> call
+and then block (notice the brick walls in the diagram), waiting for
+the call to return. When this call returns, all upstream filters have
+already completed their filtering tasks.</p>
+
+<a name="pmodperl-CHP-25-FIG-5" /><div class="figure"><img src="figs/pmp_2505.gif" alt="Figure 25-5" width="468" /></div><h4 class="objtitle">Figure 25-5. mod_perl 2.0 input filter program control and data flow</h4>
+
+<p>As mentioned earlier, the streaming interface hides these details;
+however, the first call to <tt class="literal">$filter-&gt;read( )</tt>
+will block, as underneath it performs the <tt class="literal">get_brigade(
+)</tt> call.</p>
+
+<p><a href="ch25_03.html#pmodperl-CHP-25-FIG-5">Figure 25-5</a> shows a part of the actual input filter
+chain for an HTTP request. The <tt class="literal">..</tt>. shows that
+there are more filters in between the mod_perl filter and
+<tt class="literal">http_in</tt>.</p>
+
+<p>Now let's look at what happens in the output filter
+chain. The first filter acquires the bucket brigades containing the
+response data from the content handler (or another protocol handler
+if we aren't talking HTTP), then it applies any
+modifications and passes the data to the next filter (using the
+<tt class="literal">pass_brigade( )</tt> call), which in turn applies its
+modifications and sends the bucket brigade to the next filter, and so
+on, all the way down to the last filter (called
+<tt class="literal">core</tt>), which writes the data to the network, via
+the socket to which the client is listening. Even though the output
+filters don't have to wait to acquire the bucket
+brigade (since the upstream filter passes it to them as an argument),
+they still block in a similar fashion to input filters, because they
+have to wait for the <tt class="literal">pass_brigade( )</tt> call to
+return.</p>
+
+<p><a href="ch25_03.html#pmodperl-CHP-25-FIG-6">Figure 25-6</a> depicts a typical output filter chain
+data flow in addition to the program control flow. As in the input
+filter chain diagram, the arrows show the program control flow, and
+the black-headed arrows show the data flow. Again, the diagram uses
+Perl pseudocode for the mod_perl filter and C pseudocode for the
+Apache filters, and the brick walls represent the blocking. The
+diagram shows only part of the real HTTP response filter chain;
+<tt class="literal">..</tt>. stands for the <a name="pmodperl-CHP-25-ITERM-6027" /><a name="pmodperl-CHP-25-ITERM-6028" />omitted filters.</p>
+
+<a name="pmodperl-CHP-25-FIG-6" /><div class="figure"><img src="figs/pmp_2506.gif" alt="Figure 25-6" width="468" /></div><h4 class="objtitle">Figure 25-6. mod_perl 2.0 output filter program control and data flow</h4>
+
+</div>
+</div>
+<a name="pmodperl-CHP-25-SECT-3.2" /><div class="sect2">
+<h3 class="sect2">25.3.2. Filter Configuration</h3>
+
+<p>HTTP request <a name="pmodperl-CHP-25-ITERM-6029" /><a name="pmodperl-CHP-25-ITERM-6030" />filter
+handlers are declared using the
+<tt class="literal">FilterRequestHandler</tt> attribute. Consider the
+following request input and output filter skeletons:</p>
+
+<blockquote><pre class="code">package Book::FilterRequestFoo;
+use base qw(Apache::Filter);
+
+sub input  : FilterRequestHandler {
+    my($filter, $bb, $mode, $block, $readbytes) = @_;
+    #...
+}
+
+sub output : FilterRequestHandler {
+    my($filter, $bb) = @_;
+    #...
+}
+
+1;</pre></blockquote>
+
+<p>If the attribute is not specified, the default
+<tt class="literal">FilterRequestHandler</tt> attribute is assumed. Filters
+specifying subroutine attributes must subclass
+<tt class="literal">Apache::Filter</tt>.</p>
+
+<p>The <a name="pmodperl-CHP-25-ITERM-6031" />request<a name="pmodperl-CHP-25-ITERM-6032" /> filters are usually configured in the
+<tt class="literal">&lt;Location&gt;</tt> or equivalent sections:</p>
+
+<blockquote><pre class="code">PerlModule Book::FilterRequestFoo
+PerlModule Book::NiceResponse
+&lt;Location /filter_foo&gt;
+    SetHandler modperl
+    PerlResponseHandler     Book::NiceResponse
+    PerlInputFilterHandler  Book::FilterRequestFoo::input
+    PerlOutputFilterHandler Book::FilterRequestFoo::output
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now we have the request input and output filters configured.</p>
+
+<p>The connection filter handler uses the
+<tt class="literal">FilterConnectionHandler</tt> attribute. Here is a
+similar example for the connection input and output filters:</p>
+
+<blockquote><pre class="code">package Book::FilterConnectionBar;
+use base qw(Apache::Filter);
+
+sub input  : FilterConnectionHandler {
+    my($filter, $bb, $mode, $block, $readbytes) = @_;
+    #...
+}
+
+sub output : FilterConnectionHandler {
+    my($filter, $bb) = @_;
+    #...
+}
+
+1;</pre></blockquote>
+
+<p>This time the configuration must be done outside the
+<tt class="literal">&lt;Location&gt;</tt> or equivalent sections, usually
+within the <tt class="literal">&lt;VirtualHost&gt;</tt>section or the
+global server configuration:</p>
+
+<blockquote><pre class="code">Listen 8005
+&lt;VirtualHost _default_:8005&gt;
+    PerlModule Book::FilterConnectionBar
+    PerlModule Book::NiceResponse
+
+    PerlInputFilterHandler  Book::FilterConnectionBar::input
+    PerlOutputFilterHandler Book::FilterConnectionBar::output
+    &lt;Location /&gt;
+        SetHandler modperl
+        PerlResponseHandler Book::NiceResponse
+    &lt;/Location&gt;
+
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+<p>This accomplishes the configuration of the connection input and
+<a name="pmodperl-CHP-25-ITERM-6033" /><a name="pmodperl-CHP-25-ITERM-6034" />output filters.</p>
+
+</div>
+<a name="pmodperl-CHP-25-SECT-3.3" /><div class="sect2">
+<h3 class="sect2">25.3.3. Input Filters</h3>
+
+<p>We looked at how input filters call each other in <a href="ch25_03.html#pmodperl-CHP-25-FIG-5">Figure 25-5</a>. Now let's look at some
+examples of input filters.</p>
+
+<a name="pmodperl-CHP-25-SECT-3.3.1" /><div class="sect3">
+<h3 class="sect3">25.3.3.1. Bucket brigade-based connection input filter</h3>
+
+<p>Let's say that <a name="pmodperl-CHP-25-ITERM-6035" /><a name="pmodperl-CHP-25-ITERM-6036" /><a name="pmodperl-CHP-25-ITERM-6037" />we want to test how our handlers
+behave when they are requested as <tt class="literal">HEAD</tt> requests
+rather than <tt class="literal">GET</tt> requests. We can alter the request
+headers at the incoming connection level transparently to all
+handlers.</p>
+
+<p>This example's filter handler looks for data like:</p>
+
+<blockquote><pre class="code">GET /perl/test.pl HTTP/1.1</pre></blockquote>
+
+<p>and turns it into:</p>
+
+<blockquote><pre class="code">HEAD /perl/test.pl HTTP/1.1</pre></blockquote>
+
+<p>The input filter handler that does that by directly manipulating the
+bucket brigades is shown in <a href="ch25_03.html#pmodperl-CHP-25-EX-5">Example 25-5</a>.</p>
+
+<a name="pmodperl-CHP-25-EX-5" /><div class="example">
+<h4 class="objtitle">Example 25-5. Book/InputFilterGET2HEAD.pm</h4>
+<blockquote><pre class="code">package Book::InputFilterGET2HEAD;
+
+use strict;
+use warnings;
+
+use base qw(Apache::Filter);
+
+use APR::Brigade ( );
+use APR::Bucket ( );
+
+use Apache::Const -compile =&gt; 'OK';
+use APR::Const    -compile =&gt; ':common';
+
+sub handler : FilterConnectionHandler {
+    my($filter, $bb, $mode, $block, $readbytes) = @_;
+
+    return Apache::DECLINED if $filter-&gt;ctx;
+
+    my $rv = $filter-&gt;next-&gt;get_brigade($bb, $mode, $block, $readbytes);
+    return $rv unless $rv =  = APR::SUCCESS;
+
+    for (my $b = $bb-&gt;first; $b; $b = $bb-&gt;next($b)) {
+        my $data;
+        my $status = $b-&gt;read($data);
+        return $status unless $status =  = APR::SUCCESS;
+        warn("data: $data\n");
+
+        if ($data and $data =~ s|^GET|HEAD|) {
+            my $bn = APR::Bucket-&gt;new($data);
+            $b-&gt;insert_after($bn);
+            $b-&gt;remove; # no longer needed
+            $filter-&gt;ctx(1); # flag that that we have done the job
+            last;
+        }
+    }
+
+    Apache::OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>The filter handler is called for each bucket brigade, which in turn
+includes buckets with data. The basic task of any input filter
+handler is to request the bucket brigade from the upstream filter,
+and return it to the downstream filter using the second argument,
+<tt class="literal">$bb</tt>. It's important to remember
+that you can call methods on this argument, but you
+shouldn't assign to this argument, or the chain will
+be broken. You have two techniques to choose from to retrieve,
+modify, and return <a name="pmodperl-CHP-25-ITERM-6038" />bucket brigades:</p>
+
+<ul><li>
+<p>Create a new, empty bucket brigade, <tt class="literal">$ctx_bb</tt>, pass
+it to the upstream filter via <tt class="literal">get_brigade( )</tt>, and
+wait for this call to return. When it returns,
+<tt class="literal">$ctx_bb</tt> is populated with buckets. Now the filter
+should move the bucket from <tt class="literal">$ctx_bb</tt> to
+<tt class="literal">$bb</tt>, on the way modifying the buckets if needed.
+Once the buckets are moved, and the filter returns, the downstream
+filter will receive the populated bucket brigade.</p>
+</li><li>
+<p>Pass <tt class="literal">$bb</tt> to <tt class="literal">get_brigade( )</tt> to
+the upstream filter, so it will be populated with buckets. Once
+<tt class="literal">get_brigade( )</tt> returns, the filter can go through
+the buckets and modify them in place, or it can do nothing and just
+return (in which case, the downstream filter will receive the bucket
+brigade unmodified).</p>
+</li></ul>
+<p>Both techniques allow addition and removal of buckets, alhough the
+second technique is more efficient since it doesn't
+have the overhead of creating the new brigade and moving the bucket
+from one brigade to another. In this example we have chosen to use
+the second technique; in the next example we will see the first
+technique.</p>
+
+<p>Our filter has to perform the substitution of only one HTTP header
+(which normally resides in one bucket), so we have to make sure that
+no other data gets mangled (e.g., there could be
+<tt class="literal">POST</tt> ed data that may match
+<tt class="literal">/^GET/</tt> in one of the buckets). We use
+<tt class="literal">$filter-&gt;ctx</tt> as a flag here. When
+it's undefined, the filter knows that it
+hasn't done the required substitution; once it
+completes the job, it sets the context to <tt class="literal">1</tt>.</p>
+
+<p>To optimize the speed, the filter immediately returns
+<tt class="literal">Apache::DECLINED</tt> when it's
+invoked after the substitution job has been done:</p>
+
+<blockquote><pre class="code">return Apache::DECLINED if $filter-&gt;ctx;</pre></blockquote>
+
+<p>mod_perl then calls <tt class="literal">get_brigade( )</tt> internally,
+which passes the bucket brigade to the downstream filter.
+Alternatively, the filter could do:</p>
+
+<blockquote><pre class="code">my $rv = $filter-&gt;next-&gt;get_brigade($bb, $mode, $block, $readbytes);
+return $rv unless $rv =  = APR::SUCCESS;
+return Apache::OK if $filter-&gt;ctx;</pre></blockquote>
+
+<p>but this is a bit less efficient.</p>
+
+<p>If the job hasn't yet been done, the filter calls
+<tt class="literal">get_brigade( )</tt>, which populates the
+<tt class="literal">$bb</tt> bucket brigade. Next, the filter steps through
+the buckets, looking for the bucket that matches the regex
+<tt class="literal">/^GET/</tt>. If it finds it, a new bucket is created
+with the modified data <tt class="literal">s/^GET/HEAD/</tt>, and that
+bucket is inserted in place of the old bucket. In our example, we
+insert the new bucket after the bucket that we have just modified and
+immediately remove the bucket that we don't need any
+more:</p>
+
+<blockquote><pre class="code">$b-&gt;insert_after($bn);
+$b-&gt;remove; # no longer needed</pre></blockquote>
+
+<p>Finally, we set the context to <tt class="literal">1</tt>, so we know not
+to apply the substitution on the following data and break from the
+<tt class="literal">for</tt> loop.</p>
+
+<p>The handler returns <tt class="literal">Apache::OK</tt>, indicating that
+everything was fine. The downstream filter will receive the bucket
+brigade with one bucket modified.</p>
+
+<p>Now let's check that the handler works properly.
+Consider the response handler shown in <a href="ch25_03.html#pmodperl-CHP-25-EX-6">Example 25-6</a>.</p>
+
+<a name="pmodperl-CHP-25-EX-6" /><div class="example">
+<h4 class="objtitle">Example 25-6. Book/RequestType.pm</h4>
+<blockquote><pre class="code">package Book::RequestType;
+
+use strict;
+use warnings;
+
+use Apache::RequestIO ( );
+use Apache::RequestRec ( );
+use Apache::Response ( );
+
+use Apache::Const -compile =&gt; 'OK';
+
+sub handler {
+    my $r = shift;
+
+    $r-&gt;content_type('text/plain');
+    my $response = "the request type was " . $r-&gt;method;
+    $r-&gt;set_content_length(length $response);
+    $r-&gt;print($response);
+
+    Apache::OK;
+}
+
+1;</pre></blockquote>
+</div>
+
+<p>This handler returns to the client the request type it has issued. In
+the case of the <tt class="literal">HEAD</tt> request, Apache will discard
+the response body, but it will still set the correct
+<tt class="literal">Content-Length</tt> header, which will be 24 in case of
+a <tt class="literal">GET</tt> request and 25 for <tt class="literal">HEAD</tt>.
+Therefore, if this response handler is configured as:</p>
+
+<blockquote><pre class="code">Listen 8005
+&lt;VirtualHost _default_:8005&gt;
+    &lt;Location /&gt;
+        SetHandler modperl
+        PerlResponseHandler +Book::RequestType
+    &lt;/Location&gt;
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+<p>and a <tt class="literal">GET</tt> request is issued to
+<em class="emphasis">/</em>:</p>
+
+<blockquote><pre class="code">panic% perl -MLWP::UserAgent -le \
+'$r = LWP::UserAgent-&gt;new( )-&gt;get("http://localhost:8005/"); \
+print $r-&gt;headers-&gt;content_length . ": ".  $r-&gt;content'
+24: the request type was GET</pre></blockquote>
+
+<p>the response's body is:</p>
+
+<blockquote><pre class="code">the request type was GET</pre></blockquote>
+
+<p>and the <tt class="literal">Content-Length</tt> header is set to 24.</p>
+
+<p>However, if we enable the
+<tt class="literal">Book::InputFilterGET2HEAD</tt> input connection filter:</p>
+
+<blockquote><pre class="code">Listen 8005
+&lt;VirtualHost _default_:8005&gt;
+    PerlInputFilterHandler +Book::InputFilterGET2HEAD
+
+    &lt;Location /&gt;
+        SetHandler modperl
+        PerlResponseHandler +Book::RequestType
+    &lt;/Location&gt;
+&lt;/VirtualHost&gt;</pre></blockquote>
+
+<p>and issue the same <tt class="literal">GET</tt> request, we get only:</p>
+
+<blockquote><pre class="code">25:</pre></blockquote>
+
+<p>which means that the body was discarded by Apache, because our filter
+turned the <tt class="literal">GET</tt> request into a
+<tt class="literal">HEAD</tt> request. If Apache wasn't
+discarding the body of responses to <tt class="literal">HEAD</tt> requests,
+the response would be:</p>
+
+<blockquote><pre class="code">the request type was HEAD</pre></blockquote>
+
+<p>That's why the content length is reported as 25 and
+not 24, as in <a name="pmodperl-CHP-25-ITERM-6039" /><a name="pmodperl-CHP-25-ITERM-6040" /><a name="pmodperl-CHP-25-ITERM-6041" />the real <tt class="literal">GET</tt>
+request.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-3.3.2" /><div class="sect3">
+<h3 class="sect3">25.3.3.2. Bucket brigade-based HTTP request input filter</h3>
+
+<p>Let's look at <a name="pmodperl-CHP-25-ITERM-6042" /><a name="pmodperl-CHP-25-ITERM-6043" /><a name="pmodperl-CHP-25-ITERM-6044" />the request input filter that lowers
+the case of the text in the request's body,
+<tt class="literal">Book::InputRequestFilterLC</tt> (shown in <a href="ch25_03.html#pmodperl-CHP-25-EX-7">Example 25-7</a>).</p>
+
+<a name="pmodperl-CHP-25-EX-7" /><div class="example">
+<h4 class="objtitle">Example 25-7. Book/InputRequestFilterLC.pm</h4>
+<blockquote><pre class="code">package Book::InputRequestFilterLC;
+
+use strict;
+use warnings;
+
+use base qw(Apache::Filter);
+
+use Apache::Connection ( );
+use APR::Brigade ( );
+use APR::Bucket ( );
+
+use Apache::Const -compile =&gt; 'OK';
+use APR::Const    -compile =&gt; ':common';
+
+sub handler : FilterRequestHandler {
+    my($filter, $bb, $mode, $block, $readbytes) = @_;
+
+    my $c = $filter-&gt;c;
+    my $bb_ctx = APR::Brigade-&gt;new($c-&gt;pool, $c-&gt;bucket_alloc);
+    my $rv = $filter-&gt;next-&gt;get_brigade($bb_ctx, $mode, $block, $readbytes);
+    return $rv unless $rv =  = APR::SUCCESS;
+
+    while (!$bb_ctx-&gt;empty) {
+        my $b = $bb_ctx-&gt;first;
+
+        $b-&gt;remove;
+
+        if ($b-&gt;is_eos) {
+            $bb-&gt;insert_tail($b);
+            last;
+        }
+
+        my $data;
+        my $status = $b-&gt;read($data);
+        return $status unless $status =  = APR::SUCCESS;
+
+        $b = APR::Bucket-&gt;new(lc $data) if $data;
+
+        $bb-&gt;insert_tail($b);
+    }
+
+    Apache::OK;
+}
+
+1;</pre></blockquote>
+</div>
+
+<p>As promised, in this filter handler we have used the first technique
+of bucket-brigade modification. The handler creates a temporary
+bucket brigade (<tt class="literal">ctx_bb</tt>), populates it with data
+using <tt class="literal">get_brigade( )</tt>, and then moves buckets from
+it to the bucket brigade <tt class="literal">$bb</tt>, which is then
+retrieved by the downstream filter when our handler returns.</p>
+
+<p>This filter doesn't need to know whether it was
+invoked for the first time with this request or whether it has
+already done something. It's a stateless handler,
+since it has to lowercase everything that passes through it. Notice
+that this filter can't be used as a connection
+filter for HTTP requests, since it will invalidate the incoming
+request headers. For example, the first header line:</p>
+
+<blockquote><pre class="code">GET /perl/TEST.pl HTTP/1.1</pre></blockquote>
+
+<p>will become:</p>
+
+<blockquote><pre class="code">get /perl/test.pl http/1.1</pre></blockquote>
+
+<p>which messes up the request method, the URL, and the protocol.</p>
+
+<p>Now if we use the <tt class="literal">Book::Dump</tt> response handler we
+developed earlier in this chapter, which dumps the query string and
+the content body as a response, and configure the server as follows:</p>
+
+<blockquote><pre class="code">&lt;Location /lc_input&gt;
+    SetHandler modperl
+    PerlResponseHandler    +Book::Dump
+    PerlInputFilterHandler +Book::InputRequestFilterLC
+&lt;/Location&gt;</pre></blockquote>
+
+<p>when issuing a <tt class="literal">POST</tt> request:</p>
+
+<blockquote><pre class="code">panic% echo "mOd_pErl RuLeS" | POST 'http://localhost:8002/lc_input?FoO=1&amp;BAR=2'</pre></blockquote>
+
+<p>we get a response like this:</p>
+
+<blockquote><pre class="code">args:
+FoO=1&amp;BAR=2
+content:
+mod_perl rules</pre></blockquote>
+
+<p>We can see that our filter lowercased the <tt class="literal">POST</tt> ed
+body before the content handler received it, and the query string
+wasn't <a name="pmodperl-CHP-25-ITERM-6045" /><a name="pmodperl-CHP-25-ITERM-6046" /><a name="pmodperl-CHP-25-ITERM-6047" />changed.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-3.3.3" /><div class="sect3">
+<h3 class="sect3">25.3.3.3. Stream-based HTTP request input filter</h3>
+
+<p>Let's now look <a name="pmodperl-CHP-25-ITERM-6048" /><a name="pmodperl-CHP-25-ITERM-6049" /><a name="pmodperl-CHP-25-ITERM-6050" />at the same filter implemented using
+the stream-based filtering API (see <a href="ch25_03.html#pmodperl-CHP-25-EX-8">Example 25-8</a>).</p>
+
+<a name="pmodperl-CHP-25-EX-8" /><div class="example">
+<h4 class="objtitle">Example 25-8. Book/InputRequestFilterLC2.pm</h4>
+<blockquote><pre class="code">package Book::InputRequestFilterLC2;
+
+use strict;
+use warnings;
+
+use base qw(Apache::Filter);
+
+use Apache::Const -compile =&gt; 'OK';
+
+use constant BUFF_LEN =&gt; 1024;
+
+sub handler : FilterRequestHandler {
+    my $filter = shift;
+
+    while ($filter-&gt;read(my $buffer, BUFF_LEN)) {
+        $filter-&gt;print(lc $buffer);
+    }
+
+    Apache::OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>You've probably asked yourself why we had to go
+through the bucket-brigade filters when all this can be done so much
+more easily. The reason is that we wanted you to understand how the
+filters work underneath, which will help you when you need to debug
+filters or optimize their speed. Also, in certain cases a
+bucket-brigade filter may be more efficient than a stream-based one.
+For example, if the filter applies a transformation to selected
+buckets, certain buckets may contain open file handles or pipes,
+rather than real data. When you call <tt class="literal">read( )</tt> the
+buckets will be forced to read in that data, but if you
+don't want to modify these buckets, you can pass
+them as they are and let Apache use a faster technique for sending
+data from the file handles or pipes.</p>
+
+<p>The logic is very simple here: the filter reads in a loop and prints
+the modified data, which at some point (when the internal mod_perl
+buffer is full or when the filter returns) will be sent to the next
+filter.</p>
+
+<p><tt class="literal">read( )</tt> populates <tt class="literal">$buffer</tt> to a
+maximum of <tt class="literal">BUFF_LEN</tt> characters (1,024 in our
+example). Assuming that the current bucket brigade contains 2,050
+characters, <tt class="literal">read( )</tt> will get the first 1,024
+characters, then 1,024 characters more, and finally the remaining two
+characters. Notice that even though the response handler may have
+sent more than 2,050 characters, every filter invocation operates on
+a single bucket brigade, so you have to wait for the next invocation
+to get more input. In one of the earlier examples, we showed that you
+can force the generation of several bucket brigades in the content
+handler by using <tt class="literal">rflush( )</tt>. For example:</p>
+
+<blockquote><pre class="code">$r-&gt;print("string");
+$r-&gt;rflush( );
+$r-&gt;print("another string");</pre></blockquote>
+
+<p>It's possible to get more than one bucket brigade
+from the same filter handler invocation only if the filter is not
+using the streaming interface&#8212;simply call <tt class="literal">get_brigade(
+)</tt> as many times as needed or until the EOS token is
+received.</p>
+
+<p>The configuration section is pretty much identical:</p>
+
+<blockquote><pre class="code">&lt;Location /lc_input2&gt;
+     SetHandler modperl
+     PerlResponseHandler    +Book::Dump
+     PerlInputFilterHandler +Book::InputRequestFilterLC2
+ &lt;/Location&gt;</pre></blockquote>
+
+<p>When issuing a <tt class="literal">POST</tt> request:</p>
+
+<blockquote><pre class="code">% echo "mOd_pErl RuLeS" | POST 'http://localhost:8002/lc_input2?FoO=1&amp;BAR=2'</pre></blockquote>
+
+<p>we get a response like this:</p>
+
+<blockquote><pre class="code">args:
+FoO=1&amp;BAR=2
+content:
+mod_perl rules</pre></blockquote>
+
+<p>Again, we can see that our filter lowercased the
+<tt class="literal">POST</tt> ed body before the content handler received
+it. The query string wasn't <a name="pmodperl-CHP-25-ITERM-6051" /><a name="pmodperl-CHP-25-ITERM-6052" /><a name="pmodperl-CHP-25-ITERM-6053" />changed.</p>
+
+</div>
+</div>
+<a name="pmodperl-CHP-25-SECT-3.4" /><div class="sect2">
+<h3 class="sect2">25.3.4. Output Filters</h3>
+
+<p>Earlier, in <a href="ch25_03.html#pmodperl-CHP-25-FIG-6">Figure 25-6</a>, we saw how output filters
+call each other. Now let's look at some examples of
+output filters.</p>
+
+<a name="pmodperl-CHP-25-SECT-3.4.1" /><div class="sect3">
+<h3 class="sect3">25.3.4.1. Stream-based HTTP request output filter</h3>
+
+<p>The <tt class="literal">PerlOutputFilterHandler</tt><a name="pmodperl-CHP-25-ITERM-6054" /><a name="pmodperl-CHP-25-ITERM-6055" /> handler registers and configures
+output filters.</p>
+
+<p>The example of a stream-based output filter that we are going to
+present is simpler than the one that directly manipulates bucket
+brigades, although internally the stream-based interface is still
+manipulating the bucket brigades.</p>
+
+<p><tt class="literal">Book::FilterROT13</tt> implements the simple
+Caesar-cypher encryption that replaces each English letter with the
+one 13 places forward or back along the alphabet, so that
+"mod_perl 2.0 rules!" becomes
+"zbq_crey 2.0 ehyrf!". Since the
+English alphabet consists of 26 letters, the ROT13 encryption is
+self-inverse, so the same code can be used for encoding and decoding.
+In our example, <tt class="literal">Book::FilterROT13</tt> reads portions
+of the output generated by some previous handler, rotates the
+characters and sends them downstream.</p>
+
+<p>The first argument to the filter handler is an
+<tt class="literal">Apache::Filter</tt> object, which as of this writing
+provides two methods, <tt class="literal">read( )</tt> and <tt class="literal">print(
+)</tt>. The <tt class="literal">read( )</tt> method reads a chunk of
+the output stream into the given buffer, returning the number of
+characters read. An optional size argument may be given to specify
+the maximum size to read into the buffer. If omitted, an arbitrary
+number of characters (which depends on the size of the bucket brigade
+sent by the upstream filter or handler) will fill the buffer. The
+<tt class="literal">print( )</tt> method passes data down to the next
+filter. This filter is shown in <a href="ch25_03.html#pmodperl-CHP-25-EX-9">Example 25-9</a>.</p>
+
+<a name="pmodperl-CHP-25-EX-9" /><div class="example">
+<h4 class="objtitle">Example 25-9. Book/FilterROT13.pm</h4>
+<blockquote><pre class="code">package Book::FilterROT13;
+
+use strict;
+
+use Apache::RequestRec ( );
+use Apache::RequestIO ( );
+use Apache::Filter ( );
+
+use Apache::Const -compile =&gt; 'OK';
+
+use constant BUFF_LEN =&gt; 1024;
+
+sub handler {
+    my $filter = shift;
+
+    while ($filter-&gt;read(my $buffer, BUFF_LEN)) {
+        $buffer =~ tr/A-Za-z/N-ZA-Mn-za-m/;
+        $filter-&gt;print($buffer);
+    }
+
+    return Apache::OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>Let's say that we want to encrypt the output of the
+registry scripts accessed through a <em class="emphasis">/perl-rot13</em>
+location using the ROT13 algorithm. The following configuration
+section accomplishes that:</p>
+
+<blockquote><pre class="code">PerlModule Book::FilterROT13
+Alias /perl-rot13/ /home/httpd/perl/
+&lt;Location /perl-rot13&gt;
+    SetHandler perl-script
+    PerlResponseHandler ModPerl::Registry
+    PerlOutputFilterHandler Book::FilterROT13
+    Options +ExecCGI
+    #PerlOptions +ParseHeaders
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now that you know how to write input and output filters, you can
+write a pair of filters that decode ROT13 input before the request
+processing starts and then encode the generated response back to
+ROT13 on the way back to the client.</p>
+
+<p>The request output filter can be used as the connection output filter
+as well. However, HTTP headers will then look invalid to standard
+HTTP user agents. The client should expect the data to come encoded
+as ROT13 and decode it before using it. Writing such a client in Perl
+should be a trivial task.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-3.4.2" /><div class="sect3">
+<h3 class="sect3">25.3.4.2. Another stream-based HTTP request output filter</h3>
+
+<p>Let's look at another example of an HTTP request
+output filter&#8212;but first, let's develop a
+response handler that sends two lines of output: the numerals
+1234567890 and the English alphabet in a single string. This handler
+is shown in <a href="ch25_03.html#pmodperl-CHP-25-EX-10">Example 25-10</a>.</p>
+
+<a name="pmodperl-CHP-25-EX-10" /><div class="example">
+<h4 class="objtitle">Example 25-10. Book/SendAlphaNum.pm</h4>
+<blockquote><pre class="code">package Book::SendAlphaNum;
+
+use strict;
+use warnings;
+
+use Apache::RequestRec ( );
+use Apache::RequestIO ( );
+
+use Apache::Const -compile =&gt; qw(OK);
+
+sub handler {
+    my $r = shift;
+
+    $r-&gt;content_type('text/plain');
+
+    $r-&gt;print(1..9, "0\n");
+    $r-&gt;print('a'..'z', "\n");
+
+    Apache::OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>The purpose of our filter handler is to reverse every line of the
+response body, preserving the newline characters in their places.
+Since we want to reverse characters only in the response body,
+without breaking the HTTP headers, we will use an HTTP request output
+filter.</p>
+
+<p>The first filter implementation (<a href="ch25_03.html#pmodperl-CHP-25-EX-11">Example 25-11</a>) uses
+the stream-based filtering API.</p>
+
+<a name="pmodperl-CHP-25-EX-11" /><div class="example">
+<h4 class="objtitle">Example 25-11. Book/FilterReverse1.pm</h4>
+<blockquote><pre class="code">package Book::FilterReverse1;
+
+use strict;
+use warnings;
+
+use base qw(Apache::Filter);
+
+use Apache::Const -compile =&gt; qw(OK);
+
+use constant BUFF_LEN =&gt; 1024;
+
+sub handler : FilterRequestHandler {
+    my $filter = shift;
+
+    while ($filter-&gt;read(my $buffer, BUFF_LEN)) {
+        for (split "\n", $buffer) {
+            $filter-&gt;print(scalar reverse $_);
+            $filter-&gt;print("\n");
+        }
+    }
+
+    Apache::OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>Next, we add the following configuration to
+<em class="emphasis">httpd.conf</em>:</p>
+
+<blockquote><pre class="code">PerlModule Book::FilterReverse1
+PerlModule Book::SendAlphaNum
+&lt;Location /reverse1&gt;
+    SetHandler modperl
+    PerlResponseHandler     Book::SendAlphaNum
+    PerlOutputFilterHandler Book::FilterReverse1
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now when a request to <em class="emphasis">/reverse1</em> is made, the
+response handler <tt class="literal">Book::SendAlphaNum::handler( )</tt>
+sends:</p>
+
+<blockquote><pre class="code">1234567890
+abcdefghijklmnopqrstuvwxyz</pre></blockquote>
+
+<p>as a response and the output filter handler
+<tt class="literal">Book::FilterReverse1::handler</tt> reverses the lines,
+so the client gets:</p>
+
+<blockquote><pre class="code">0987654321
+zyxwvutsrqponmlkjihgfedcba</pre></blockquote>
+
+<p>The <tt class="literal">Apache::Filter</tt> module loads the <tt class="literal">read(
+)</tt> and <tt class="literal">print( )</tt> methods that encapsulate
+the stream-based filtering interface.</p>
+
+<p>The reversing filter is quite simple: in the loop it reads the data
+in the <tt class="literal">readline( )</tt> mode in chunks up to the buffer
+length (1,024 in our example), then it prints each line reversed
+while preserving the newline control characters at the end of each
+line. Behind the scenes, <tt class="literal">$filter-&gt;read( )</tt>
+retrieves the incoming brigade and gets the data from it, and
+<tt class="literal">$filter-&gt;print( )</tt> appends to the new brigade,
+which is then sent to the next filter in the stack. <tt class="literal">read(
+)</tt> breaks the <tt class="literal">while</tt> loop when the brigade
+is emptied or the EOS token is received.</p>
+
+<p>So as not to distract the reader from the purpose of the example,
+we've used oversimplified code that
+won't correctly handle input lines that are longer
+than 1,024 characters or use a different line-termination token (it
+could be "\n",
+"\r", or
+"\r\n", depending on the platform).
+Moreover, a single line may be split across two or even more bucket
+brigades, so we have to store the unprocessed string in the filter
+context so that it can be used in the following invocations. So here
+is an example of a more complete handler, which does takes care of
+these issues:</p>
+
+<blockquote><pre class="code">sub handler {
+    my $f = shift;
+
+    my $leftover = $f-&gt;ctx;
+    while ($f-&gt;read(my $buffer, BUFF_LEN)) {
+        $buffer = $leftover . $buffer if defined $leftover;
+        $leftover = undef;
+        while ($buffer =~ /([^\r\n]*)([\r\n]*)/g) {
+            $leftover = $1, last unless $2;
+            $f-&gt;print(scalar(reverse $1), $2);
+        }
+    }
+
+    if ($f-&gt;seen_eos) {
+        $f-&gt;print(scalar reverse $leftover) if defined $leftover;
+    }
+    else {
+        $f-&gt;ctx($leftover) if defined $leftover;
+    }
+
+    return Apache::OK;
+}</pre></blockquote>
+
+<p>The handler uses the <tt class="literal">$leftover</tt> variable to store
+unprocessed data as long as it fails to assemble a complete line or
+there is an incomplete line following the newline token. On the next
+handler invocation, this data is then prepended to the next chunk
+that is read. When the filter is invoked for the last time, it
+unconditionally reverses and flushes any remaining<a name="pmodperl-CHP-25-ITERM-6056" /><a name="pmodperl-CHP-25-ITERM-6057" /> data.</p>
+
+</div>
+
+<a name="pmodperl-CHP-25-SECT-3.4.3" /><div class="sect3">
+<h3 class="sect3">25.3.4.3. Bucket brigade-based HTTP request output filter</h3>
+
+<p>The filter implementation<a name="pmodperl-CHP-25-ITERM-6058" /><a name="pmodperl-CHP-25-ITERM-6059" /><a name="pmodperl-CHP-25-ITERM-6060" /> in <a href="ch25_03.html#pmodperl-CHP-25-EX-12">Example 25-12</a> uses
+the bucket brigades API to accomplish exactly the same task as the
+filter in <a href="ch25_03.html#pmodperl-CHP-25-EX-11">Example 25-11</a>.</p>
+
+<a name="pmodperl-CHP-25-EX-12" /><div class="example">
+<h4 class="objtitle">Example 25-12. Book/FilterReverse2.pm</h4>
+<blockquote><pre class="code">package Book::FilterReverse2;
+
+use strict;
+use warnings;
+
+use base qw(Apache::Filter);
+
+use APR::Brigade ( );
+use APR::Bucket ( );
+
+use Apache::Const -compile =&gt; 'OK';
+use APR::Const -compile =&gt; ':common';
+
+sub handler : FilterRequestHandler {
+    my($filter, $bb) = @_;
+
+    my $c = $filter-&gt;c;
+    my $bb_ctx = APR::Brigade-&gt;new($c-&gt;pool, $c-&gt;bucket_alloc);
+
+    while (!$bb-&gt;empty) {
+        my $bucket = $bb-&gt;first;
+
+        $bucket-&gt;remove;
+
+        if ($bucket-&gt;is_eos) {
+            $bb_ctx-&gt;insert_tail($bucket);
+            last;
+        }
+
+        my $data;
+        my $status = $bucket-&gt;read($data);
+        return $status unless $status =  = APR::SUCCESS;
+
+        if ($data) {
+            $data = join "",
+                map {scalar(reverse $_), "\n"} split "\n", $data;
+            $bucket = APR::Bucket-&gt;new($data);
+        }
+
+        $bb_ctx-&gt;insert_tail($bucket);
+    }
+
+    my $rv = $filter-&gt;next-&gt;pass_brigade($bb_ctx);
+    return $rv unless $rv =  = APR::SUCCESS;
+
+    Apache::OK;
+}
+1;</pre></blockquote>
+</div>
+
+<p>Here's the corresponding configuration:</p>
+
+<blockquote><pre class="code">PerlModule Book::FilterReverse2
+PerlModule Book::SendAlphaNum
+&lt;Location /reverse2&gt;
+    SetHandler modperl
+    PerlResponseHandler     Book::SendAlphaNum
+    PerlOutputFilterHandler Book::FilterReverse2
+&lt;/Location&gt;</pre></blockquote>
+
+<p>Now when a request to <em class="emphasis">/reverse2</em> is made, the
+client gets:</p>
+
+<blockquote><pre class="code">0987654321
+zyxwvutsrqponmlkjihgfedcba</pre></blockquote>
+
+<p>as expected.</p>
+
+<p>The bucket brigades output filter version is just a bit more
+complicated than the stream-based one. The handler receives the
+incoming bucket brigade <tt class="literal">$bb</tt> as its second
+argument. Because when it is completed, the handler must pass a
+brigade to the next filter in the stack, we create a new bucket
+brigade, into which we put the modified buckets and which eventually
+we pass to the next filter.</p>
+
+<p>The core of the handler is in removing buckets from the head of the
+bucket brigade <tt class="literal">$bb</tt> one at a time, reading the data
+from each bucket, reversing the data, and then putting it into a
+newly created bucket, which is inserted at the end of the new bucket
+brigade. If we see a bucket that designates the end of the stream, we
+insert that bucket at the tail of the new bucket brigade and break
+the loop. Finally, we pass the created brigade with modified data to
+the next filter and return.</p>
+
+<p>As in the original version of
+<tt class="literal">Book::FilterReverse1::handler</tt>, this filter is not
+smart enough to handle incomplete lines. The trivial exercise of
+making the filter foolproof by porting a better matching rule and
+using the <tt class="literal">$leftover</tt> buffer from the previous
+section is left to the<a name="pmodperl-CHP-25-ITERM-6061" /><a name="pmodperl-CHP-25-ITERM-6062" /><a name="pmodperl-CHP-25-ITERM-6063" /> reader.</p>
+
+</div>
+</div>
+
+
+<hr width="684" align="left" />
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch25_02.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="part6.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">25.2. New Apache Phases and Corresponding Perl*Handlers</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">VI. Appendixes</td></tr></table></div>
+<hr width="684" align="left" />
+
+
+<p><p><font size="-1"><a href="copyrght.html">Copyright &copy; 2003</a> O'Reilly &amp; Associates. All rights reserved.</font></p>
+
+<map name="library-map">
+<area shape="rect" coords="0,0,85,92" href="../index.html"><area shape="rect" coords="89,1,204,113" href="../apache/index.html"><area shape="rect" coords="208,-1,296,136" href="../php/index.html"><area shape="rect" coords="301,-1,403,132" href="../modperl/index.html"><area shape="rect" coords="406,3,503,115" href="../mysql/index.html"><area shape="rect" coords="507,2,596,142" href="../lian/index.html"><area shape="rect" coords="600,1,690,127" href="../rlinux/index.html">
+</map>
+
+</body></html>
