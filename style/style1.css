@@ -1,9 +1,11 @@
+@charset "utf-8";
+
 /*** main elements ***/
 
 /* body specs */
 
 body {
-  font-size: 82%; /* 12px */
+  /*font-size: 82%;*/ /* 12px */
   line-height: 130%;
   font-family: sans-serif;
   color: #000000;
@@ -442,3 +444,16 @@ span.sociable_tagline:hover span {
 }
 .sociable ul li:before { content: ""; }
 .sociable img { border: 0; }
+
+/*** 翻訳用 (for Japanese translation) ***/
+
+.original {
+    /* 控えめ表示 */
+    font-size: 0.8em;
+    color: gray;
+}
+
+.trans_note { /* 訳注 */
+    font-size: 0.8em;
+    border: 1px solid orange;
+}
