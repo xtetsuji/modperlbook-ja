@@ -1,36 +1,80 @@
-<html><head><title> (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+<html>
+<head>
+<title> (Practical mod_perl)</title>
+<link rel="stylesheet" type="text/css" href="../style/style1.css" />
 
-<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" />
+<meta name="DC.Format" content="text/xml" scheme="MIME" />
+<meta name="DC.Language" content="en-US" />
+<meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." />
+<meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" />
+<meta name="DC.Subject.Keyword" content="stuff" />
+<meta name="DC.Title" content="Practical mod_perl" />
+<meta name="DC.Type" content="Text.Monograph" />
 
-</head><body bgcolor="#ffffff">
+</head>
+<body bgcolor="#ffffff">
 
-
-
+<!-- 翻訳ノート
+オライリーメディアのWikipediaページ
+http://ja.wikipedia.org/wiki/%E3%82%AA%E3%83%A9%E3%82%A4%E3%83%AA%E3%83%BC%E3%83%A1%E3%83%87%E3%82%A3%E3%82%A2
+を参考にしています。
+-->
 
 <div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="index.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch00_01.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
 
 
-<p><b>Copyright &copy; 2003 O'Reilly &amp; Associates, Inc. All rights reserved.</b></p><p>Printed in the United States of America.</p><p>Published by O'Reilly &amp; Associates, Inc., 1005 Gravenstein
-Highway North, Sebastopol, CA 95472.</p><p>O'Reilly &amp; Associates books may be purchased for educational,
+<p class="original"><b>Copyright &copy; 2003 O'Reilly &amp; Associates, Inc. All rights reserved.</b></p>
+
+<p>Printed in the United States of America.</p>
+
+<p>Published by O'Reilly &amp; Associates, Inc., 1005 Gravenstein Highway North, Sebastopol, CA 95472.</p>
+
+<p class="original hidden">O'Reilly &amp; Associates books may be purchased for educational,
 business, or sales promotional use. Online editions are also available
 for most titles (<a href="http://safari.oreilly.com">http://safari.oreilly.com</a>). For more
 information, contact our corporate/institutional sales department:
-(800) 998-9938 or <a href="mailto:corporate@oreilly.com"><em class="email">corporate@oreilly.com</em></a>.</p><p>Nutshell Handbook, the Nutshell Handbook logo, and the O'Reilly
+(800) 998-9938 or <a href="mailto:corporate@oreilly.com"><em class="email">corporate@oreilly.com</em></a>.</p>
+
+<p>オライリーとそれに関連した書籍は、教育、ビジネスおよび宣伝販促用として購入されるでしょう。オンラインの版もまた多数のタイトル(<a href="http://safari.oreilly.com">http://safari.oreilly.com</a>)が利用可能です。
+より多くの情報は、我々の会社および販売部門 (800) 998-9938 or <a href="mailto:corporate@oreilly.com"><em class="email">corporate@oreilly.com</em></a> に問い合わせ下さい。<span class="trans_note">日本語翻訳上の間違いは<a href="https://github.com/xtetsuji/modperlbook-ja/">当該プロジェクトのページ</a>よりお問い合わせ下さい。</span></p>
+
+<p class="original hidden">Nutshell Handbook, the Nutshell Handbook logo, and the O'Reilly
 logo are registered trademarks of O'Reilly &amp; Associates, Inc. Many of
 the designations used by manufacturers and sellers to distinguish
 their products are claimed as trademarks. Where those designations
 appear in this book, and O'Reilly &amp; Associates, Inc. was aware of a
 trademark claim, the designations have been printed in caps or initial
 caps. The association between the image of a Thoroughbred horse and
-the topic of mod_perl is a trademark of O'Reilly &amp; Associates, Inc.</p><p>While every precaution has been taken in the preparation of this
+the topic of mod_perl is a trademark of O'Reilly &amp; Associates, Inc.</p>
+
+<p>クイックリファレンス、またクイックリファレンスのロゴ,またオライリーのロゴは
+トレードマークとして O'Reilly &amp; Associates, Inc に登録されています。
+製造者や販売者を識別するために使われている多くの名称はトレードマークとして
+主張されます。どの名称がこの書籍中に現れるか、そして
+O'reilly &amp; Associates, Inc はトレードマークの主張、大文字で印刷された名称、
+または冒頭大文字で印刷された名称によって認識されています。
+サラブレット馬のイメージ画像と
+mod_perlのトピックとの間の関連性は O'Reilly &amp; Associates, Inc の
+トレードマークです。</p>
+
+<p>Nutshell Handbook, the Nutshell Handbook logo, and the O'Reilly
+logo are registered trademarks of O'Reilly &amp; Associates, Inc. Many of
+the designations used by manufacturers and sellers to distinguish
+their products are claimed as trademarks. Where those designations
+appear in this book, and O'Reilly &amp; Associates, Inc. was aware of a
+trademark claim, the designations have been printed in caps or initial
+caps. The association between the image of a Thoroughbred horse and
+the topic of mod_perl is a trademark of O'Reilly &amp; Associates, Inc.</p>
+
+<p>While every precaution has been taken in the preparation of this
 book, the publisher and authors assume no responsibility for errors or
 omissions, or for damages resulting from the use of the information
-contained herein. External urls and hyperlinks may have changed from the time of publication.
-
-</p>
+contained herein. External urls and hyperlinks may have changed from the time of publication.</p>
 
 <hr width="684" align="left" />
-<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="index.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_01.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">Table of Contents</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">Preface</td></tr></table></div>
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="index.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_01.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228"><span class="original hidden">Table of Contents</span>目次</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228"><span class="original hidden">Preface</span>序文</td></tr></table></div>
 <hr width="684" align="left" />
 
 
