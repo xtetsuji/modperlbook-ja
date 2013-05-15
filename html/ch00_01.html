@@ -1,8 +1,21 @@
-<html><head><title>Preface (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+<html>
+<head>
+<title>序文 (Practical mod_perl)</title>
+<link rel="stylesheet" type="text/css" href="../style/style1.css" />
 
-<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" />
+<meta name="DC.Format" content="text/xml" scheme="MIME" />
+<meta name="DC.Language" content="en-US" />
+<meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." />
+<meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" />
+<meta name="DC.Subject.Keyword" content="stuff" />
+<meta name="DC.Title" content="Practical mod_perl" />
+<meta name="DC.Type" content="Text.Monograph" />
 
-</head><body bgcolor="#ffffff">
+</head>
+
+<body bgcolor="#ffffff">
 
 
 
@@ -10,19 +23,49 @@
 <div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="copyrght.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch00_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
 
 
-<h1 class="chapter">Preface</h1><p>mod_perl is an Apache module that builds the power of the Perl
+<h1 class="chapter original hidden">Preface</h1>
+<h1 class="chapter">序文</h1>
+
+<p class="original hidden">mod_perl is an Apache module that builds the power of the Perl
 programming language directly into the Apache web server. With
 mod_perl, CGI scripts run as much as 50 times faster, and you can
 integrate databases with the server, write Apache modules in Perl,
 embed Perl code directly into Apache configuration files, and even
 use Perl in server-side includes. With mod_perl, Apache is not only a
-web server, it is a complete programming platform.</p><p>Getting mod_perl running is easy. Tweaking mod_perl and Apache for
+web server, it is a complete programming platform.</p>
+
+<p>mod_perlはApacheウェブサーバの中に直接強力なプログラム言語Perlを
+挿入するためにビルドしたApacheモジュールです。
+
+mod_perlがあれば、CGIスクリプトは50倍早くたくさん実行でき、
+データベースをサーバと一体化することができ、
+PerlでApacheモジュールを書くこともでき、
+Apache設定ファイルの中に直接Perlのコードを埋め込むこともでき、
+かつサーバサイドインクルードでもPerlを使うことができます。
+
+mod_perlがあれば、Apacheはただのウェブサーバではなく、
+完全なプログラミングプラットフォームであるのです。
+</p>
+
+<p class="original hidden">Getting mod_perl running is easy. Tweaking mod_perl and Apache for
 the best performance and reliability is much more difficult. This
 book is about building mod_perl, using it, programming with it, and
-optimizing it.</p><div class="sect1"><a name="pmodperl-PREFACE-2-SECT-1" />
-<h2 class="sect1">0.1. What You Need to Know</h2>
+optimizing it.</p>
 
-<p>To use this book effectively, you need to be familiar with the
+<p>
+取得したmod_perlを実行することは簡単です。
+mod_perlを微調整することやベストな性能と信頼性を求めたApacheはとても難しいです。
+
+この書籍は、mod_perlのビルド、それを利用すること、
+それを使ってプログラミングをすること、
+そしてそれを最適化することについて取り扱っています。
+</p>
+
+<div class="sect1"><a name="pmodperl-PREFACE-2-SECT-1" />
+<h2 class="sect1 original hidden">0.1. What You Need to Know</h2>
+<h2 class="sect1">0.1. あなたが知る必要のあること</h2>
+
+<p class="original hidden">To use this book effectively, you need to be familiar with the
 day-to-day details of running a web server, and you need to know the
 Perl programming language. We expect that you have already programmed
 in the Perl programming language. Having written simple CGI scripts
@@ -30,15 +73,38 @@ and having experience with setting up the Apache web server are
 definite pluses. Knowing your way around the operating system is
 another plus, but not a requirement.</p>
 
-<p>Most examples in the book were done on the Linux operating system,
+<p>
+この書籍を効果的に使うためには、日々稼働しているウェブサーバになじむこと、
+そしてPerlプログラム言語を知る必要があります。
+
+あなたが既にPerlプログラム言語でプログラムをしているとは思います。
+
+簡単なCGIスクリプトを書いていたり、
+Apacheウェブサーバをセットアップする経験があったりすることは、
+まぎれもない好条件です。
+
+オペレーティングシステム周りで知っているあなたの手法は
+さらに好条件ですが、それは必須ではありません。
+</p>
+
+<p class="original hidden">Most examples in the book were done on the Linux operating system,
 but the examples and discussions should apply equally well to other
 operating systems, especially other Unix flavors. There is a
 dedicated section on installing mod_perl on Windows machines in <a href="ch02_01.html">Chapter 2</a>.</p>
 
+<p>
+この書籍中のほとんどの例はLinuxオペレーティングシステムで実行されるものですが、
+その例や議論は特にUNIXフレバー以外の他のオペレーティングシステム
+でもきっと同様に適用できるでしょう。
+
+<a href="ch02_01.html">第2章</a>には、Windowsマシンにmod_perlをインストールする
+事に専念した節があります。
+</p>
+
 </div>
 
 <hr width="684" align="left" />
-<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="copyrght.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">Copyright Page</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.2. Who This Book Is For</td></tr></table></div>
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="copyrght.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228"><span class="original hidden">Copyright Page</span>著作権ページ</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228"><span class="original hidden">0.2. Who This Book Is For</span>この書籍は誰のためのものか</td></tr></table></div>
 <hr width="684" align="left" />
 
 
