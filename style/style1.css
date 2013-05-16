@@ -456,6 +456,8 @@ span.sociable_tagline:hover span {
 .trans_note { /* 訳注 */
     font-size: 0.8em;
     border: 1px solid orange;
+    color: red;
+    font-weight: bold;
 }
 
 .hidden {
