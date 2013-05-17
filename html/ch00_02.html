@@ -1,8 +1,22 @@
-<html><head><title>Who This Book Is For (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+<html>
+<head>
+<title>Who This Book Is For (Practical mod_perl)
+</title>
+<link rel="stylesheet" type="text/css" href="../style/style1.css" />
 
-<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" />
+<meta name="DC.Format" content="text/xml" scheme="MIME" />
+<meta name="DC.Language" content="en-US" />
+<meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." />
+<meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" />
+<meta name="DC.Subject.Keyword" content="stuff" />
+<meta name="DC.Title" content="Practical mod_perl" />
+<meta name="DC.Type" content="Text.Monograph" />
 
-</head><body bgcolor="#ffffff">
+</head>
+
+<body bgcolor="#ffffff">
 
 
 
@@ -11,19 +25,35 @@
 
 
 
-<h2 class="sect1">0.2. Who This Book Is For</h2>
+<h2 class="sect1 original hidden">0.2. Who This Book Is For</h2>
+<h2 class="sect1">0.2. この書籍は誰のためのものか</h2>
 
-<p>This book is not solely about mod_perl web development. It covers two
+<p class="original hidden">This book is not solely about mod_perl web development. It covers two
 main topics: server administration and programming under mod_perl.</p>
 
-<p>At first, you might think these two topics are unrelated. But in real
+<p>
+この書籍はただmod_perlウェブ開発についてのものではありません。
+2つの主要なトピック、サーバ管理とmod_perlの元でプログラミングをすること、
+を扱います。
+
+</p>
+
+<p class="original hidden">At first, you might think these two topics are unrelated. But in real
 life, the programmer often needs to know how to build and maintain
 the server, and the administrator ends up doing much of the
 programming and tweaking himself.</p>
 
-<p>In this book, administrators will learn:</p>
+<p>最初にこの2つのトピックは無関係であると考えたことでしょう。
+しかし実際の作業では、プログラマーがサーバをどうやって構築したり保守するか
+知っていることがたびたび求められますし、管理者は最終的にたくさんの
+プログラミングやプログラマ達の微調整をすることになるのです。</p>
 
-<ul><li>
+
+<p class="original hidden">In this book, administrators will learn:</p>
+
+<p>この書籍では、管理者も以下のようなことが学べることでしょう。</p>
+
+<ul class="original hidden"><li>
 <p>How to build and configure the server, with emphasis on improving
 server performance while keeping memory usage low.</p>
 </li><li>
@@ -39,14 +69,59 @@ one with more carefully chosen components.</p>
 </li><li>
 <p>How to allow users to run custom scripts on a mod_perl server.</p>
 </li></ul>
-<p>As for programmers, the good news is that you can be a capable
+
+<ul><li>
+<p>
+どのようにしてサーバの構築や設定を、メモリ使用量を低く保っている間の
+パフォーマンスの増進を重視して行うか。
+</p>
+</li><li>
+<p>
+どのようにして無停止で処理し続ける確かなサーバを作り、
+万一の機能不全時にどのようにして無停止でオンラインに戻すか。
+</p>
+</li><li>
+<p>
+どのようにして複数のサーバやプロキシのような追加ツールを使い、
+最高のパフォーマンスを出すか。
+</p>
+</li><li>
+<p>
+どのようにして正しいマシンやコンポーネントを選ぶか。
+多くの慎重なコンポーネントの選択があっても、
+往々にして最も高価なマシンはより安価なそれに比べて速くは無い。
+</p>
+</li><li>
+<p>
+どのようにしてmod_perlサーバでカスタムスクリプトを動作させることを
+ユーザに許可するか。
+</p>
+</li></ul>
+
+
+<p class="original hidden">As for programmers, the good news is that you can be a capable
 mod_perl programmer while knowing very little about it. But most of
 us don't want to stop at being simply capable: we
 want to develop code that's robust, scalable, and
 blindingly fast. Here's a taste of the sort of
 things we cover in this book:</p>
 
-<ul><li>
+<p>
+プログラマーにとって、よい情報は、
+それについてとても少ない事を知る間に
+能力のあるmod_perlプログラマーになれる事です。
+
+しかし私たちの大多数は、
+堅牢でスケーラブルで強烈に速いコードを開発したいという
+シンプルな能力の維持をやめるなんてことは望みません。
+<span class="trans_note">capable:の節が上手く訳せていません</span>
+
+
+ここには、そのようなことの多少の一端があり、
+この書籍中ではそのようなことで以下のようなことがカバーされています:
+</p>
+
+<ul class="original hidden"><li>
 <p>In CGI, it's often hard to find
 what's wrong with a CGI script that returns a
 nondescriptive error message to your browser. You can try the
@@ -78,15 +153,82 @@ with the simplest and most basic databases (flat files), continue to
 Database Management (DBM) implementations, and finally do an in-depth
 study of relational databases with SQL.</p>
 </li></ul>
-<p>Of course, there's lots more, as you can tell from
+
+<ul><li>
+<p>
+CGIでは、あなたのブラウザへ送られる陳腐なエラーメッセージが
+しばしばCGIスクリプトの何が悪いのか探すのが困難です。
+
+あなたは <em class="filename">error_log</em> ファイルを試すことができますが、
+<tt class="literal">-d</tt>スイッチを使わなければならなかったりして
+Perlデバッガが呼び出されていたりする複雑なスクリプトでは、
+シェルから呼び出されることができないようなCGIスクリプトについては
+どちらにしても難しくあるでしょう。
+<span class="trans_note">かなり翻訳が怪しいです</span>
+
+<a href="ch22_01.html">第22章</a>では、どのようにして
+デバッグモードの下のスクリプトを起動することができそれを操作することができるか
+ご紹介できるでしょう。</p>
+</li><li>
+<p>
+悲しいことに、mod_perl はコーディングスタイルについて神経質なのです&#8212;。
+例えば、ファイルをオープンしたあとにクローズすることを忘れることは
+mod_perlは好みません。
+
+しかし、もしあなたが上手に尋ねれば、あなたのためにクリーンナップする
+特別なやり方に入ってくれるでしょう。
+<span class="trans_note">上手く訳せていませんが、要するにファイルハンドルを上手にレキシカルにするなりすれば問題無いということを言っているのでしょう。</span>
+
+<a href="ch06_01.html">第6章</a>では、どのようにしてmod_perlで幸せに
+<em class="filename">error_log</em>ファイルを小さく保つか、
+ご紹介できるでしょう。
+</li><li>
+<p>
+既にご存知かもしれませんが、mod_perlはとても高速です。
+しかし、さらに高速なものを作ることができるようになるにはもう少々努力が必要です。
+
+この発想は単純です。
+あなたがより多くのメモリ(RAM)を所持しているのであれば、
+あなたはより多くのリクエストを捌くことができます。
+
+しかし、同じ規模のRAMを使ってより多くのリクエストを捌くことができるかも
+しれないのは、メモリシェアリングのおかげなのです
+<span class="trans_note">memory sharing を直訳しています</span>。
+
+より多くの情報は<a href="ch10_01.html">第10章</a>を参照ください。</p>
+</li><li>
+
+<p>
+mod_perlがあれば、全体を作り直す必要はありません。
+もし、あなたが "shelf solution"<span class="trans_note">そのままにしましたが「本棚のような解法」などと訳すのがよいでしょうか。</span> と称するものを必要とするならば、
+この書籍には思いのほか少量のコピーアンドペーストで済むように
+することを導くことも含まれています。</p>
+</li><li>
+<p>
+多くのプログラマーがデータベースと同時にmod_perlを使っています。
+まずは最も簡単でとても基本的なデータベース(フラットファイル)から開始して、
+データベース管理(DBM)実装を続けて、最終的にSQLでリレーショナルデータベースの
+学習に深く入っていくことにします。</p>
+</li></ul>
+
+
+<p class="original hidden">Of course, there's lots more, as you can tell from
 just the sheer size and weight of the book. This book is filled with
 gems of information that, taken together, provide a wealth of
 information on how to work effectively with mod_perl.</p>
 
+<p>
+もちろん、まさにこの書籍のかなりのサイズや重量から
+あなたが伝えることができることは非常に多くあります。
+この書籍はmod_perlでどのように効果的な仕事をすることができるかという
+情報の資産を提供する情報の宝庫で満たされています。
+<span class="trans_note">翻訳の質が悪いので後々直します</span>
+</p>
+
 
 
 <hr width="684" align="left" />
-<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">Preface</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.3. How This Book Is Organized</td></tr></table></div>
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_01.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_03.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228"><span class="original hidden">Preface</span>序文</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.3. <span class="original hidden">How This Book Is Organized</span>どのようにこの書籍は構成されているか</td></tr></table></div>
 <hr width="684" align="left" />
 
 
