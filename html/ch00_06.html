@@ -1,8 +1,23 @@
-<html><head><title>Apache and Perl Versions (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+<html>
+<head>
+<title>ApacheとPerlのバージョン (Practical mod_perl)
+</title>
+<link rel="stylesheet" type="text/css" href="../style/style1.css" />
 
-<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
 
-</head><body bgcolor="#ffffff">
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" />
+<meta name="DC.Format" content="text/xml" scheme="MIME" />
+<meta name="DC.Language" content="en-US" />
+<meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." />
+<meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" />
+<meta name="DC.Subject.Keyword" content="stuff" />
+<meta name="DC.Title" content="Practical mod_perl" />
+<meta name="DC.Type" content="Text.Monograph" />
+
+
+</head>
+<body bgcolor="#ffffff">
 
 
 
@@ -11,26 +26,58 @@
 
 
 
-<h2 class="sect1">0.6. Apache and Perl Versions</h2>
+<h2 class="sect1 original hidden">0.6. Apache and Perl Versions</h2>
+<h2 class="sect1">0.6. ApacheとPerlのバージョン</h2>
 
-<p>We have used mod_perl 1.26 and Apache 1.3.24 in most of the examples
+<p class="origianl hidden">We have used mod_perl 1.26 and Apache 1.3.24 in most of the examples
 in this book. You should be able to reproduce all the presented
 examples with these or later versions of mod_perl and Apache.</p>
 
-<p>We have tested all the examples with Perl 5.6.1. However, most of the
+<p>
+我々はこの書籍中の多くの例の中で mod_perl 1.26 と Apache 1.3.24 を
+使っていきます。これらもしくは最新のバージョンの mod_perl と Apache で
+与えられた例の数々を全て模倣することができるようになるべきです。
+<span class="trans_note">もちろんこの記述はApache1.3/mod_perl1系の話です。
+Apache2.x/mod_perl2系は全く別構文を持つのでそれらは別と考えてください</span>
+</p>
+
+<p class="original hidden">We have tested all the examples with Perl 5.6.1. However, most of the
 examples should work the same under all Perl versions between
 5.005_03 and 5.8.0.</p>
 
-<p>At the time of this writing, Apache 2.0 is very young and mod_perl
+<p>
+我々はPerl5.6.1にて全ての例をテストしています。
+しかしながら例の多くは5.005_03から5.8.0の間の全てのPerl上で同様に
+動作することでしょう。
+<span class="trans_note">2013年現在、Perl5.8.1よりも前のバージョンは
+モジュール保守の対象から完全に外れています。Perl5.8.0は文字コード周りの
+バグがあり、Perl5.8系からも見放された存在であることに注意してください。
+また2013年現在Perl5.18が最新版として存在し、Perl5.14以前は保守の対象外と
+なっていることにも留意してください。しかし、2013年5月現在、Perl5.16で
+mod_perl2が動作するよう保守が続けられていますがmod_perl1については
+過度な期待はできないと思われます。</span>
+</p>
+
+<p class="original hidden">At the time of this writing, Apache 2.0 is very young and mod_perl
 2.0 is still in development. See <a href="part5.html">Part V</a> for
 information on mod_perl 2.0. While much of this book should apply to
 both mod_perl 1.x and mod_perl 2.0, the code has been tested only on
 mod_perl 1.26.</p>
 
+<p>
+これを書いている時点で、Apache 2.0 が非常に若く、
+依然として mod_perl 2.0 が開発されています。
+mod_perl 2.0 の情報については <a href="part5.html">パート5</a>を見てください。
+
+<span class="trans_note">この書籍「Practical mod_perl」が書かれた2003年現在はそのような状況でしたが、この書籍がmod_perl 2として載せた事例は、現在では「mod_perl 1.99」と呼ばれる、2013年現在のmod_perl 2と古いmod_perl 1のキメラのような奇怪な存在として存在します。そのような<strong>mod_perl 1.99</strong>を同梱したLinuxディストリビューションも存在するので使用実例も存在しますが、現在特段の理由がない限り今現在「mod_perl 1.99」を使うことは強く忌避されることでしょう。この訳注では、mod_perl 2を称した「mod_perl 1.99」について、本当のmod_perl 2の解説を出来る限り入れていきます。</span>
+この書籍の多くの事柄がmod_perl 1.x や mod_perl 2.0 の両方に適用することが
+できるである間ずっと、そのコードは mod_perl 1.26 上のみでテストされます。
+<span class="trans_note">While を「間ずっと」と訳していますが、
+これは誤訳かと思います。上手い訳が思いつきませんでした</span></p>
 
 
 <hr width="684" align="left" />
-<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">0.5. Filesystem Conventions</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.7. Typographic Conventions</td></tr></table></div>
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_05.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_07.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">0.5. <span class="original hidden">Filesystem Conventions</span>ファイルシステムの慣習</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.7. <span class="original hidden">Typographic Conventions</span>印刷上の慣習</td></tr></table></div>
 <hr width="684" align="left" />
 
 
