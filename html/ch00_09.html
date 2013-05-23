@@ -1,4 +1,4 @@
-<html><head><title>Installing Perl Modules (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+<html><head><title>Perlモジュールのインストール (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
 
 <meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
 
@@ -11,7 +11,8 @@
 
 
 
-<h2 class="sect1">0.9. Installing Perl Modules</h2>
+<h2 class="sect1 original hidden">0.9. Installing Perl Modules</h2>
+<h2 class="sect1">0.9. Perlモジュールのインストール</h2>
 
 <p>mod_perl and all the various Perl modules and helper utilities
 mentioned in this book are available via FTP and HTTP from any of the
@@ -19,9 +20,19 @@ sites on the Comprehensive Perl Archive Network (CPAN) at <a href="http://cpan.o
 hundred public FTP and HTTP sites that mirror each
 others' contents on a regular basis.</p>
 
+<p class="original hidden">
+この書籍で言及したmod_perlや全ての種類のPerlモジュールやヘルパーユーティリティは
+どの CPAN (Comprehensive Perl Archive Network) <a href="http://cpan.org/">http://cpan.org/</a> 上からもFTPやHTTP経由で入手可能です。
+これは一定の基準でそれぞれ互いに他のコンテンツをミラーしている
+大量のパブリックなFTPサイトまたはHTTPサイトのリストです。</p>
+
 <p>You can search for and install Perl modules in two ways:</p>
 
-<ul><li>
+<p class="original hidden">You can search for and install Perl modules in two ways:</p>
+
+<p>以下の2つの方法でPerlモジュールをインストールしたり検索したりすることができます</p>
+
+<ul class="original hidden"><li>
 <p>Manually, by going to <a href="http://search.cpan.org/">http://search.cpan.org/</a>, finding the module,
 then downloading, building, and installing it. You can also browse
 the modules by categories or authors at <a href="http://cpan.org/">http://cpan.org/</a>.</p>
@@ -31,14 +42,36 @@ or (on MS Windows systems) the Perl Package Manager (PPM). These
 tools allow you to search for available modules and install them with
 a single command.</p>
 </li></ul>
-<a name="pmodperl-PREFACE-2-SECT-9.1" /><div class="sect2">
-<h3 class="sect2">9.1. Manual Installation</h3>
 
-<p>When you download a module manually, it's best to
+<ul><li>
+<p>
+手動でなら、<a href="http://search.cpan.org/">http://search.cpan.org/</a> に行くことによって、モジュールを検索し、それによって得たものを
+ダウンロード、ビルド、そしてインストールします。
+そのうえ <a href="http://cpan.org/">http://cpan.org/</a> では、カテゴリや作者別にモジュールをブラウズすることができます。</p>
+</li><li>
+<p>
+自動であんら、Andreas Koenig の CPAN シェルまたは (MS Windowsシステム上の)
+Perlパッケージマネージャー(PPM)を使うことです。
+これらのツールは単一のコマンドでそれら利用可能なモジュールごとに
+検索したりインストールさせてくれます。</p>
+</li></ul>
+
+
+<a name="pmodperl-PREFACE-2-SECT-9.1" /></a><div class="sect2">
+<h3 class="sect2 original hidden">9.1. Manual Installation</h3>
+<h3 class="sect2">9.1. 手動によるインストール</h3>
+
+<p class="origianl hidden">When you download a module manually, it's best to
 find the one closest to you. You can find a list of CPAN mirrors at
 <a href="http://mirror.cpan.org/">http://mirror.cpan.org/</a>.</p>
 
-<p>You can download the source packages with your browser, or, if you
+<p>手動でモジュールをダウンロードする時は、
+あなたにとっての秘密の場所を探すとよいでしょう。
+<span class="trans_note">find the one closet to you. の部分の翻訳がうまくできていません</span>
+<a href="http://mirror.cpan.org/">http://mirror.cpan.org/</a> にて
+CPANミラーのリストを探すことができます。</p>
+
+<p class="origianl hidden">You can download the source packages with your browser, or, if you
 know the URL of the package, you can use any command tool to do that
 for you. In this book, we usually use the
 <em class="filename">lwp-download</em> perl script (which is bundled with
@@ -46,13 +79,32 @@ the <tt class="literal">libwww-perl</tt> package, by Gisle Aas) as a
 client. You can use any other utility to download the files from the
 Internet.</p>
 
-<p>Once you've downloaded the Perl module you want,
+<p>ブラウザーでソースパッケージをダウンロードすることもできますし、
+またもしあなたがパッケージのURLを知っているならば、それをするために
+何らかのコマンドツールを使うことができます。
+この書籍では、たいていは <em class="filename">lwp-download</em>
+というPerlスクリプト(これは Gisle Aas の <tt class="literal">libwww-perl</tt>
+パッケージに同梱されているものです)をクライアントとして使います。
+あなたはインターネットからファイルをダウンロードするためにどれでも
+他のユーティリティを使うことができます。</p>
+
+<p class="original hidden">Once you've downloaded the Perl module you want,
 you'll need to build and install it. Some modules
 are 100% Perl and can just be copied to the Perl library directory.
 Others contain some components written in C and need to be compiled.</p>
 
-<p>Let's download the CPAN shell package, which we will
+<p>
+一度欲しいPerlモジュールをダウンロードしたら、
+それをビルドしインストールする必要があるでしょう。
+いくつかのモジュールは100% Perlで、単にPerlライブラリディレクトリに
+コピーするだけです。
+その他はCで書かれたいくつかのコンポーネントを含んだもので、
+これはコンパイルが必要です。</p>
+
+<p class="original hidden">Let's download the CPAN shell package, which we will
 use shortly:</p>
+
+<p>すぐに使えるように、以下のようにCPANシェルパッケージをダウンロードしましょう</p>
 
 <blockquote><pre class="code">panic% lwp-download http://www.cpan.org/authors/id/ANDK/CPAN-1.60.tar.gz
 Saving to 'CPAN-1.60.tar.gz'...
@@ -60,18 +112,32 @@ Saving to 'CPAN-1.60.tar.gz'...
 
 </div>
 <a name="pmodperl-PREFACE-2-SECT-9.2" /><div class="sect2">
-<h3 class="sect2">9.2. Prerequisites Needed to Install Perl Modules on Windows</h3>
+<h3 class="sect2 original hidden">9.2. Prerequisites Needed to Install Perl Modules on Windows</h3>
 
-<p>While Unix operating systems include standard utilities such as
+<h3 class="sect2">9.2. Windows上のPerlモジュールのインストールで求める必要不可欠なもの</h3>
+
+<p class="original hidden">While Unix operating systems include standard utilities such as
 <em class="filename">tar</em>, <em class="filename">gzip</em>, and
 <em class="filename">make</em>, Windows systems don't.
 For this reason, you will have to go through some extra steps to
 ensure that you can install modules from the CPAN under Windows.</p>
 
-<p>We assume here that you are using the ActivePerl distribution from
+<p>
+Unixオペレーティングシステムには、
+<em class="filename">tar</em>や <em class="filename">gzip</em>や
+<em class="filename">make</em> といったような標準ユーティリティが
+含まれている一方、Windowsシステムはそうではありません。
+この理由で、あなたがWindows上でCPANからモジュールをインストールできる
+ようにするためにいくつかの特別なステップを通していかなければなりません。</p>
+
+<p class="original hidden">We assume here that you are using the ActivePerl distribution from
 ActiveState.</p>
 
-<p>The first utility needed is <em class="filename">make</em>. On Windows,
+<p>
+我々はここで、あなたがActiveStateからActivePerlディストリビューションを使って
+いることを想定しています。</p>
+
+<p class="original hidden">The first utility needed is <em class="filename">make</em>. On Windows,
 such a utility (called <em class="filename">nmake</em>) is distributed by
 Microsoft for free. You can download a self-extracting archive from
 <a href="ftp://ftp.microsoft.com/Softlib/MSLFILES/nmake15.exe">ftp://ftp.microsoft.com/Softlib/MSLFILES/nmake15.exe</a>.
@@ -85,9 +151,33 @@ your <tt class="literal">PATH</tt>,<a href="#FOOTNOTE-1">[1]</a> such as
 use of <em class="filename">make</em> in the examples in this book with
 <em class="filename">nmake</em>.</p> <blockquote><a name="FOOTNOTE-1" /><p> [1]To see your
 <tt class="literal">PATH</tt>, run <tt class="literal">echo %PATH%</tt> from the
-command line.</p> </blockquote>
+command line. </blockquote> </p>
 
-<p>Some examples, and the use of <tt class="literal">CPAN.pm</tt>, also
+<p>
+最初のユーティリティとして<em class="filename">make</em>が必要とされています。
+Windows上では、そのようなユーティリティは
+(<em class="filename">nmake</em>と呼ばれる)
+無料でMicrosoftから提供されています。
+<a href="ftp://ftp.microsoft.com/Softlib/MSLFILES/nmake15.exe">ftp://ftp.microsoft.com/Softlib/MSLFILES/nmake15.exe</a>から自己解凍アーカイブを
+ダウンロードすることができます。
+この実行可能形式ファイルを実行している間、
+以下の3つのファイル、
+<em class="filename">readme.txt</em>, <em class="filename">nmake.err</em>, and
+<em class="filename">nmake.exe</em>
+を取得することになるでしょう。
+これらファイルをあなたの<tt class="literal">PATH</tt>,<a href="#FOOTNOTE-1">[1]</a>、
+<em class="filename">C:\Windows\System</em> または
+<em class="filename">C:\Windows</em> あるいは
+<em class="filename">C:\Perl\bin</em> にコピーしてください。
+
+<em class="filename">nmake</em>があれば、この書籍中の例の中で
+使われているどんな <em class="filename">make</em> もそれで
+置き換えることができます
+
+<blockquote><a name="FOOTNOTE-1" /><p> [1]あなたの
+<tt class="literal">PATH</tt>を見るために、<tt class="literal">echo %PATH%</tt> をコマンドラインから実行してみてください。</blockquote> </p>
+
+<p class="original hidden">Some examples, and the use of <tt class="literal">CPAN.pm</tt>, also
 require command-line utilities such as <em class="emphasis">tar</em> or
 <em class="emphasis">gzip</em>. There are a number of projects that have
 ported such tools to Windows&#8212;for example, GnuWin32 (<a href="http://gnuwin32.sourceforge.net/">http://gnuwin32.sourceforge.net/</a>) and
@@ -95,13 +185,32 @@ UnixUtils (<a href="http://unxutils.sourceforge.net/">http://unxutils.sourceforg
 toolkits allow you to use standard Unix utilities from your Windows
 command line.</p>
 
-<p>Another option is Cygwin (<a href="http://www.cygwin.com/">http://www.cygwin.com/</a>), which puts a Unix
+<p>
+いくつかの例は、<tt class="literal">CPAN.pm</tt>を使っており、
+同様に <em class="emphasis">tar</em> や <em class="emphasis">gzip</em>
+といったコマンドラインユーティリティも要求しています。
+
+このようなツール群をWindows&#8212;に移植した、
+GnuWin32 (<a href="http://gnuwin32.sourceforge.net/">http://gnuwin32.sourceforge.net/</a>) や
+UnixUtils (<a href="http://unxutils.sourceforge.net/">http://unxutils.sourceforge.net/</a>) といった
+いくつかのプロジェクトが存在します。
+これらのツールキットはあなたのWindowsコマンドラインで
+標準的なUnixユーテリティを使うができるようにします。</p>
+
+<p class="original hidden">Another option is Cygwin (<a href="http://www.cygwin.com/">http://www.cygwin.com/</a>), which puts a Unix
 layer on top of Windows. This allows you to use many Unix-specific
 applications, but these must run from the Cygwin shell. If you use
 Cygwin, you should use the normal Unix steps discussed in this book,
 not any Windows-specific ones.</p>
 
-<p>There is another downside of Windows: compilation tools
+<p>
+他のオプションはWindowsの上にUnixの層を載せる Cygwin (<a href="http://www.cygwin.com/">http://www.cygwin.com/</a>) があります。
+これはあなたにたくさんのUnix固有のアプリケーションを使えるようにしてくれますが、
+これらはCygwinシェルから起動しなければなりません。
+もしあなたがCygwinを使うならば、Windows固有のそれではなく、
+この書籍中で論じている普通のUnixの手順を使う必要があります。</p>
+
+<p class="original hidden">There is another downside of Windows: compilation tools
 aren't included. This means that some modules that
 use C extensions (e.g., mod_perl) can't be installed
 in the normal way, and you have to get precompiled distributions of
@@ -109,14 +218,28 @@ them. In such cases, it is a good idea to follow the PPM instructions
 given later in this Preface, which should allow you to install binary
 versions of some of the modules discussed here.</p>
 
+<p>Windowsの否定的側面は他にもあります。
+コンパイルツールが同梱されていないのです。
+これはC言語拡張を使うようないくつかのモジュール(たとえばmod_perlのような)を
+普通の方法ではインストールすることができないことを意味し、
+それをプリコンパイルした配布物を取得する必要があります。
+今回のような場合は、ここで論じられたバイナリバージョンのいくつかを
+インストールしてくれるだろう、この序文<span class="trans_note">
+大文字のPrefaceなので、この書籍の序文のことか</span>
+の後に与えられたPPMの指示に従うことは良いアイデアです。</p>
+
 </div>
 <a name="pmodperl-PREFACE-2-SECT-9.3" /><div class="sect2">
-<h3 class="sect2">9.3. Building a Perl Module</h3>
+<h3 class="sect2 original hidden">9.3. Building a Perl Module</h3>
+<h3 class="sect2">9.3. Perlモジュールのビルド</h3>
 
-<p>Building a Perl module and installing it is simple and usually
+<p class="original hidden">Building a Perl module and installing it is simple and usually
 painless. Perl modules are distributed as
 <em class="emphasis">gzip</em>ped <em class="emphasis">tar</em> archives. You
 can unpack them like this:</p>
+
+<p>Perlモジュールのビルドとインストールはシンプルで通常は簡単なものです。
+Perlモジュールは<em class="emphasis">gzip</em>された<em class="emphasis">tar</em>アーカイブとして配布されます。これは以下のように伸長することができます。</p>
 
 <blockquote><pre class="code">panic% gunzip -c CPAN-1.60.tar.gz  | tar xvf -
  CPAN-1.60/
@@ -138,16 +261,31 @@ can unpack them like this:</p>
  CPAN-1.60/cpan
  CPAN-1.60/README</pre></blockquote>
 
-<p>Or, if you are using a GNU <em class="filename">tar</em> utility, you can
+<p class="original hidden">Or, if you are using a GNU <em class="filename">tar</em> utility, you can
 unpack the package in one command:</p>
+
+<p>
+また、もし GNU <em class="filename">tar</em> ユーティリティを使っているなら、
+以下のような一つのコマンドでパッケージを伸長することができるでしょう。</p>
 
 <blockquote><pre class="code">panic% tar zxvf CPAN-1.59.tzr.gz</pre></blockquote>
 
-<p>Once the archive has been unpacked, you'll have to
+<p class="original hidden">Once the archive has been unpacked, you'll have to
 enter the newly created directory and issue the <em class="filename">perl
 Makefile.PL</em>, <em class="filename">make</em>, <em class="filename">make
 test</em>, and <em class="filename">make install</em> commands.
 Together, these will build, test, and install the module:</p>
+
+<p>
+一度アーカイブが伸長されれば、
+新しく作成されたディレクトリの中で
+<em class="filename">perl Makefile.PL</em>、<em class="filename">make</em>、
+<em class="filename">make test</em>、そして
+<em class="filename">make install</em> コマンドを発行する
+ことになるでしょう。
+
+では一緒に、これらをビルド、テスト、そしてモジュールをインストールしてみる
+ことにしましょう。</p>
 
 <blockquote><pre class="code">panic% cd CPAN-1.60
 panic% perl Makefile.PL
@@ -182,8 +320,10 @@ t/vcmp..............ok
 All tests successful.
 Files=2, Tests=31,  3 wallclock secs ( 1.22 cusr +  0.91 csys =  2.13 CPU)</pre></blockquote>
 
-<p>Become <em class="emphasis">root</em> if you need to install the module on
+<p class="original hidden">Become <em class="emphasis">root</em> if you need to install the module on
 the whole system:</p>
+
+<p>システム全体にモジュールをインストールするために、<em class="emphasis">root</em> になります。</p>
 
 <blockquote><pre class="code">panic% su
 &lt;root password&gt;
