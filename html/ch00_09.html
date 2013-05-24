@@ -1,8 +1,23 @@
-<html><head><title>Perlモジュールのインストール (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+<html>
+<head>
+<title>Perlモジュールのインストール (Practical mod_perl)
+</title>
+<link rel="stylesheet" type="text/css" href="../style/style1.css" />
 
-<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
 
-</head><body bgcolor="#ffffff">
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" />
+<meta name="DC.Format" content="text/xml" scheme="MIME" />
+<meta name="DC.Language" content="en-US" />
+<meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." />
+<meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" />
+<meta name="DC.Subject.Keyword" content="stuff" />
+<meta name="DC.Title" content="Practical mod_perl" />
+<meta name="DC.Type" content="Text.Monograph" />
+
+
+</head>
+<body bgcolor="#ffffff">
 
 
 
@@ -339,14 +354,24 @@ Appending installation info to /usr/lib/perl5/5.6.1/i386-linux/perllocal.pod</pr
 
 </div>
 <a name="pmodperl-PREFACE-2-SECT-9.4" /><div class="sect2">
-<h3 class="sect2">9.4. Using the CPAN Shell</h3>
+<h3 class="sect2 original hidden">9.4. Using the CPAN Shell</h3>
+<h3 class="sect2">9.4. CPANシェルを使う</h3>
 
-<p>A simpler way to do the same thing is to use Andreas
+<p class="original hidden">A simpler way to do the same thing is to use Andreas
 Koenig's wonderful CPAN shell (recent Perl versions
 come bundled with this module). With it, you can download, build, and
 install Perl modules from a simple command-line shell. The following
 illustrates a typical session in which we install the
 <tt class="literal">Apache::VMonitor</tt> module:</p>
+
+<p>
+これと同じことをするための簡単な方法は
+Andreas Kenigの素晴らしいCPANシェル(最近のPerlバージョンではそのモジュールと
+ともにバンドルされてきている)を使うことです。
+これがあれば、ダウンロード、ビルド、そして簡単なコマンドラインシェルからの
+Perlモジュールのインストールができます。
+以下 <tt class="literal">Apache::VMonitor</tt> をインストールするときの
+典型的なセッションの解説です。</p>
 
 <blockquote><pre class="code">panic% perl -MCPAN -e shell
 
@@ -392,12 +417,21 @@ Appending installation info to /usr/lib/perl5/5.6.1/i386-linux/perllocal.pod
 
 cpan&gt; exit</pre></blockquote>
 
-<p>Notice that the CPAN shell fetches the <em class="emphasis">CHECKSUMS</em>
+<p class="original hidden">Notice that the CPAN shell fetches the <em class="emphasis">CHECKSUMS</em>
 file and verifies that the package hasn't been
 tampered with.</p>
 
-<p>The latest CPAN module comes with a small utility called
+<p>
+CPANシェルが<em class="emphasis">CHECKSUMS</em>ファイルを取ってきて
+そのパッケージを検証する際のお知らせは不正に書き換えられることはありません。</p>
+
+<p class="original hidden">The latest CPAN module comes with a small utility called
 <em class="filename">cpan</em>, which you can use to start the CPAN shell:</p>
+
+<p>
+最新のCPANモジュールは <em class="filename">cpan</em> と呼ばれる小さな
+ユーテリティと一緒に取り寄せられ、
+以下のようにCPANシェルで開始するために使うことができます。</p>
 
 <blockquote><pre class="code">panic% cpan
 
@@ -408,13 +442,24 @@ ReadLine support enabled</pre></blockquote>
 <a name="pmodperl-PREFACE-2-SECT-9.5" /><div class="sect2">
 <h3 class="sect2">9.5. Using the Perl Package Manager</h3>
 
-<p>If you are using ActivePerl on Windows, or the Perl/Apache/mod_perl
+<p class="original hidden">If you are using ActivePerl on Windows, or the Perl/Apache/mod_perl
 binary distribution discussed in <a href="ch02_01.html">Chapter 2</a>, you
 will have access to a handy utility called <em class="filename">ppm</em>.
 This program installs Perl modules from archives separate from the
 CPAN that contain precompiled versions of certain modules.</p>
 
-<p>For first-time configuration, do the following:</p>
+<p>
+もしあなたがWindows上でActivePerlを使っている、または
+<a href="ch02_01.html">第2章</a>で議論されているバイナリ配布物の
+Perl/Apache/mod_perlを使っている場合、
+<em class="filename">ppm</em> と呼ばれる手軽なユーテリティで
+アクセスすることになるでしょう。
+このプログラムは信頼できるモジュールコンパイル済みバージョンを含んだものを
+CPANから分離してアーカイブしたｍのからPerlモジュールをインストールします。</p>
+
+<p class="original hidden">For first-time configuration, do the following:</p>
+
+<p>最初の設定として、以下のことをします。</p>
 
 <blockquote><pre class="code">C:\&gt; ppm
 PPM interactive shell (2.1.5) - type 'help' for available commands.
@@ -424,13 +469,25 @@ PPM&gt; set save
 PPM&gt; quit
 C:\&gt;</pre></blockquote>
 
-<p>These steps will allow you to access a number of interesting packages
+<p class="original hidden">These steps will allow you to access a number of interesting packages
 not available from the ActiveState archive (including mod_perl). To
 see a list of these packages, type <tt class="literal">search</tt> in the
 PPM interactive shell, or visit <a href="http://openinteract.sourceforge.net/ppmpackages/">http://openinteract.sourceforge.net/ppmpackages/</a>
 and <a href="http://theoryx5.uwinnipeg.ca/ppmpackages/">http://theoryx5.uwinnipeg.ca/ppmpackages/</a>.</p>
 
-<p>Now, when you want to install a module, issue the following commands:</p>
+<p>
+これらのステップは(mod_perlを含む)AcitveStateのアーカイブから利用可能ではない
+興味深いパッケージの数々にあなたがアクセスすることができるように
+するｋとおでしょう。
+これらのパッケージのリストを見るためには、
+PPMの対話的シェルで <tt class="literal">search</tt> をタイプするか
+<a href="http://openinteract.sourceforge.net/ppmpackages/">http://openinteract.sourceforge.net/ppmpackages/</a> や <a href="http://theoryx5.uwinnipeg.ca/ppmpackages/">http://theoryx5.uwinnipeg.ca/ppmpackages/</a>
+を訪れてください。</p>
+
+<p class="orignal hidden">Now, when you want to install a module, issue the following commands:</p>
+
+<p>もしすぐにモジュールをインストーしたいときは、
+以下のコマンドを発行してください。</p>
 
 <blockquote><pre class="code">C:\&gt; ppm
 PPM&gt; install Some::Module
@@ -442,13 +499,15 @@ to do it directly:</p>
 
 <blockquote><pre class="code">C:\&gt; ppm install Some::Module</pre></blockquote>
 
-<p>This will have the same effect.</p>
+<p class="origina hidden">This will have the same effect.</p>
+
+<p>これは同じ効果を持つことでしょう。</p>
 
 </div>
 
 
 <hr width="684" align="left" />
-<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">0.8. Command Interpreter Program (Shell) Conventions</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.10. How to Contact Us</td></tr></table></div>
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_08.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch00_10.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">0.8. <span class="original hidden">Command Interpreter Program (Shell) Conventions</span>コマンドラインインタプリタプログラム(シェル)の慣習</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">0.10. <span class="original hidden">How to Contact Us</span>どのようにして我々に連絡をとるか</td></tr></table></div>
 <hr width="684" align="left" />
 
 
