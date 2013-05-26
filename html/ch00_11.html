@@ -11,16 +11,25 @@
 
 
 
-<h2 class="sect1">0.11. Acknowledgments</h2>
+<h2 class="sect1 original hidden">0.11. Acknowledgments</h2>
+<h2 class="sect1">0.11. 謝辞</h2>
 
-<p>Many people have contributed to this book over the long period while
+<p class="original hidden">Many people have contributed to this book over the long period while
 it was in the works.</p>
 
-<p>First things first. This book wouldn't exist without
+<p>多くの人々がこの書籍の執筆作業途中の長い間に貢献してくれました。</p>
+
+<p class="original hidden">First things first. This book wouldn't exist without
 Doug MacEachern, creator of mod_perl. Doug's
 preliminary overview of mod_perl 2.0 was used as the basis of <a href="ch24_01.html">Chapter 24</a> and <a href="ch25_01.html">Chapter 25</a>.</p>
 
-<p>We're also greatly indebted to many people who
+<p>
+何はさておき。この書籍は mod_perl の作者である Doug MacEachern がいなくては
+存在し得なかったでしょう。 Dougの mod_perl 2.0 要約の前置きは
+<a href="ch24_01.html">Chapter 24</a> と <a href="ch25_01.html">Chapter 25</a>
+の基礎として使われています。</p>
+
+<p class="original hidden">We're also greatly indebted to many people who
 contributed chapters or appendixes to this book. Andreas Koenig
 contributed <a href="ch16_01.html">Chapter 16</a>, with helpful corrections,
 additions, and comments from Ask Bj&#xF6;rn Hansen, Frank D.
@@ -28,21 +37,52 @@ Cringle, Mark Kennedy, Doug MacEachern, Tom Hukins, and Wham Bang.
 Matt Sergeant contributed <a href="appe_01.html">Appendix E</a>, with helpful
 comments from Robin Berjon. Andy Wardley contributed <a href="appd_01.html">Appendix D</a>.</p>
 
-<p>We cannot thank enough the following reviewers, who have reviewed
+<p>
+そのうえ我々はこの書籍の章や補遺<span class="trans_note">appendixes</span>
+へ貢献してくれた多くの方の恩を受けています。
+Andreas Koenig は <a href="ch16_01.html">第16章</a> に
+有用な校正や追加に貢献してくれ、Ask Bj&#xF6;rn Hansen、Frank D.
+Cringle, Mark Kennedy, Doug MacEachern, Tom Hukins, and Wham Bang から
+コメントを頂きました。
+
+Matt Sergeant は robin Berjon からの有用なコメントを <a href="appe_01.html">Appendix E</a> に貢献してくれました。<span class="trans_note">翻訳が少し怪しいです</span>
+Andy Wardley は <a href="appd_01.html">Appendix D</a> に貢献してくれました。</p>
+
+<p class="original hidden">We cannot thank enough the following reviewers, who have reviewed
 huge portions of the book (or the whole book) and provided good
 advice: Andreas Koenig, Ged Haywood, Gunther Birznieks, Issac
 Goldstand, Mark Summerfield, Paul Wilt, Per Einar Ellefsen, Philippe
 M. Chiasson, and Robin Berjon. Thank you, guys. Without you, this
 book wouldn't be nearly as useful as it is now.</p>
 
-<p>The following people also contributed much to the book: Aaron
+<p>
+私たちはこの書籍(またはこの書籍全体)の多くの部分に
+レビューしてくれた以下のレビューアーの方々に十分な感謝を
+することができませんし、以下の方から良い忠告を受けました：
+Andreas Koenig, Ged Haywood, Gunther Birznieks, Issac
+Goldstand, Mark Summerfield, Paul Wilt, Per Einar Ellefsen, Philippe
+M. Chiasson, and Robin Berjon.
+みなさんありがとうございます。
+あなた方がいなければ
+kの書籍は今のような有用なものとしてほとんど存在し得なかったでしょう。</p>
+
+<p class="original hidden">The following people also contributed much to the book: Aaron
 Johnson, Ask Bj&#xF6;rn Hansen, Brian Ingerson, David Landgren,
 Doug MacEachern, Ed Philips, Geoff Young, Pat Eyler, Perrin Harkins,
 Philippe Bruhat, Rafael Garcia-Suarez, St&#xE9;phane Payrard,
 Tatsuhiko Miyagawa, and Ken Williams. Thank you all for taking time
 to improve the book.</p>
 
-<p>Since the book is loosely based on the mod_perl guide, we must
+<p>
+そのうえ以下の人々がこの書籍へ多大な貢献をしてくださっています：
+Aaron Johnson, Ask Bj&#xF6;rn Hansen, Brian Ingerson, David Landgren,
+Doug MacEachern, Ed Philips, Geoff Young, Pat Eyler, Perrin Harkins,
+Philippe Bruhat, Rafael Garcia-Suarez, St&#xE9;phane Payrard,
+Tatsuhiko Miyagawa, そして Ken Williams。
+みなさん、この書籍の改善のために時間を使っていただき、ありがとうございます。
+</p>
+
+<p class="original hidden">Since the book is loosely based on the mod_perl guide, we must
 acknowledge the following people who have indirectly contributed to
 the book by helping with the guide (about 200 names!): Aaron Johnson,
 Ajay Shah, Alexander Farber, Andreas J. Koenig, Andreas Piesk, Andrei
@@ -90,10 +130,59 @@ Ulrich Neumerkel, Ulrich Pfeifer, Vivek Khera, Ward Vandewege, Wesley
 Darlington, Will Trillich, Yann Kerherv&#xE9;, and Yann Ramin.
 Thank you all!</p>
 
+<p>
+mod_perlガイドを元に執筆されている間、
+我々は助言の形で間接的にこの書籍に貢献してくれた以下の人々
+(約200名も！)にも謝辞を述べなければなりません。
+Aaron Johnson,
+Ajay Shah, Alexander Farber, Andreas J. Koenig, Andreas Piesk, Andrei
+A. Voropaev, Andrew Ford, Andrew McNaughton, Anthony D. Ettinger,
+Artur Zambrzycki, Ask Bj&#xF6;rn Hansen, Barrie Slaymaker, Bill
+Moseley, Boris Zentner, Brian Moseley, Carl Hansen, Chad K. Lewis,
+Chris Nokleberg, Chris Winters, Christof Damian, Christophe Dupre,
+Cliff Rayman, Craig, Daniel Bohling, Daniel Koch, Daniel W. Burke,
+Darren Chamberlain, Dave Hodgkinson, Dave Rolsky, David Harris, David
+Huggins-Daines, David Landgren, David Mitchell, DeWitt Clinton, Dean
+Fitz, Doug Bagley, Doug Kyle, Doug MacEachern, Drew Taylor, Ed Park,
+Ed Phillips, Edmund Mergl, Edwin Pratomo, Eric Cholet, Eric Strovink,
+Evan A. Zacks, Ewan Edwards, Frank Cringle, Frank Schoeters, Garr
+Updegraff, Ged Haywood, Geoff Crawshaw, Geoffrey S. Young, Gerald
+Richter, Gerd Knops, Glenn, Greg Cope, Greg Stark, Gunther Birznieks,
+Hailei Dai, Henrique Pantarotto, Honza Pazdziora, Howard Jones,
+Hunter Monroe, Ilya Obshadko, Ime Smits, Issac Goldstand, James
+Furness, James G. Smith, James W. Walden, Jan Peter Hecking, Jason
+Bodnar, Jason Rhinelander, Jauder Ho, Jay J, Jean-Louis Guenego, Jeff
+Chan, Jeff Rowe, Jeffrey W. Baker, Jens Heunemann, Jie Gao, Joao
+Fonseca, Joe Schaefer, Joe Slag, John Armstrong, John Deighan, John
+Hyland, John Milton, John Walker, Jon Orwant, Jonathan Peterson,
+Joshua Chamas, Karl Olson, Kavitha, Kees Vonk, Ken Williams, Kenny
+Gatdula, Kevin Murphy, Kevin Swope, Lance Cleveland, Larry
+Leszczynski, Leslie Mikesell, Lincoln Stein, Louis Semprini, Lupe
+Christoph, Mads Toftum, Marc Lehmann, Marcel Grunauer, Mark Mills,
+Mark Summerfield, Marko van der Puil, Marshall Dudley, Matt Sergeant,
+Matthew Darwin, Michael Blakeley, Michael Finke, Michael G. Schwern,
+Michael Hall, Michael Rendell, Michael Schout, Michele Beltrame, Mike
+Depot, Mike Fletcher, Mike MacKenzie, Mike Miller, Nancy Lin, Nathan
+Torkington, Nathan Vonnahme, Neil Conway, Nick Tonkin, Oleg Bartunov,
+Owen Williams, Pascal Eeftinck, Patrick, Paul Buder, Paul Cotter,
+Pavel Shmidt, Per Einar Ellefsen, Perrin Harkins, Peter Galbavy,
+Peter Haworth, Peter J. Schoenster, Peter Skov, Philip Jacob, Philip
+Newton, Radu Greab, Rafael Garcia-Suarez, Ralf Engelschall, Randal L.
+Schwartz, Randy Harmon, Randy Kobes, Rauznitz Balazs, Rex Staples,
+Rich Bowen, Richard A. Wells, Richard Chen, Richard Dice, Richard
+More, Rick Myers, Robert Mathews, Robin Berjon, Rodger Donaldson, Ron
+Pero, Roy Nasser, Salve J. Nilsen, Scott Fagg, Scott Holdren, Sean
+Dague, Shane Nay, Stephane Benoit, Stephen Judd, Steve Fink, Steve
+Reppucci, Steve Willer, Surat Singh Bhati, Terry West, Thomas
+Klausner, Tim Bunce, Tim Noll, Todd Finney, Tom Brown, Tom
+Christiansen, Tom Hughes, Tom Mornini, Tuomas Salo, Tzvetan Stoyanov,
+Ulrich Neumerkel, Ulrich Pfeifer, Vivek Khera, Ward Vandewege, Wesley
+Darlington, Will Trillich, Yann Kerherv&#xE9;, そして Yann Ramin
+のみなさんです。みなさん本当にありがとう！</p>
 
 
 <hr width="684" align="left" />
-<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_10.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="part1.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">0.10. How to Contact Us</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">I. mod_perl Administration</td></tr></table></div>
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="ch00_10.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="part1.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">0.10. <span class="original hidden">How to Contact Us</span>どのようにして我々に連絡をとるか</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">I. <span class="original hidden">mod_perl Administration</span>mod_perlの運用</td></tr></table></div>
 <hr width="684" align="left" />
 
 
