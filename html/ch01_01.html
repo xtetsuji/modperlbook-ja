@@ -1,6 +1,19 @@
-<html><head><title>Introducing CGI and mod_perl (Practical mod_perl)</title><link rel="stylesheet" type="text/css" href="../style/style1.css" />
+<html>
+<head>
+<title>CGIとmod_perlの紹介 (Practical mod_perl)
+</title>
+<link rel="stylesheet" type="text/css" href="../style/style1.css" />
 
-<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" /><meta name="DC.Format" content="text/xml" scheme="MIME" /><meta name="DC.Language" content="en-US" /><meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." /><meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" /><meta name="DC.Subject.Keyword" content="stuff" /><meta name="DC.Title" content="Practical mod_perl" /><meta name="DC.Type" content="Text.Monograph" />
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+
+<meta name="DC.Creator" content="Stas Bekman and Eric Cholet" />
+<meta name="DC.Format" content="text/xml" scheme="MIME" />
+<meta name="DC.Language" content="en-US" />
+<meta name="DC.Publisher" content="O'Reilly &amp; Associates, Inc." />
+<meta name="DC.Source" scheme="ISBN" content="0-596-00227-0" />
+<meta name="DC.Subject.Keyword" content="stuff" />
+<meta name="DC.Title" content="Practical mod_perl" />
+<meta name="DC.Type" content="Text.Monograph" />
 
 </head><body bgcolor="#ffffff">
 
@@ -10,14 +23,31 @@
 <div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part1.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228" /><td align="right" valign="top" width="228"><a href="ch01_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr></table></div>
 
 
-<h1 class="chapter">Chapter 1. Introducing CGI and mod_perl</h1>
-<div class="htmltoc"><h4 class="tochead">Contents:</h4><p>
+<h1 class="chapter original hidden">Chapter 1. Introducing CGI and mod_perl</h1>
+<h1 class="chapter">第1章. CGIとmod_perlの紹介</h1>
+<div class="htmltoc original hidden"><h4 class="tochead">Contents:</h4><p>
 <a href="ch01_01.html#pmodperl-CHP-1-SECT-1">A Brief History of CGI</a><br />
 <a href="ch01_02.html">The Apache 1.3 Server Model</a><br />
 <a href="ch01_03.html">The Development of mod_perl 1.0</a><br />
 <a href="ch01_04.html">Apache 1.3 Request Processing Phases</a><br />
-<a href="ch01_05.html">References</a><br /></p></div><p>This chapter provides the foundations on which the rest of the book
-builds. In this chapter, we give you:</p><ul><li>
+<a href="ch01_05.html">References</a><br /></p></div>
+
+<div class="htmltoc"><h4 class="tochead">目次:</h4><p>
+<a href="ch01_01.html#pmodperl-CHP-1-SECT-1">簡潔なCGIの歴史</a><br />
+<a href="ch01_02.html">Apache 1.3 のサーバモデル</a><br />
+<a href="ch01_03.html">mod_perl 1.0 での開発</a><br />
+<a href="ch01_04.html">Apache 1.3 のリクエスト処理フェーズ</a><br />
+<a href="ch01_05.html">参考文献</a><br /></p></div>
+
+<p class="original hidden">This chapter provides the foundations on which the rest of the book
+builds. In this chapter, we give you:</p>
+
+<p>
+この章はこの書籍の構造の残りの部分の基礎を提供するものです。
+我々は以下のようなものを提供します。
+</p>
+
+<ul class="original hidden"><li>
 <p>A history of CGI and the HTTP protocol.</p>
 </li><li>
 <p>An explanation of the Apache 1.3 Unix model, which is crucial to
@@ -31,7 +61,25 @@ also introduce the <tt class="literal">Apache::Registry</tt> and
 <tt class="literal">Apache::PerlRun</tt> modules.</p>
 </li><li>
 <p>An introduction to the mod_perl API and handlers.</p>
-</li></ul><div class="sect1"><a name="pmodperl-CHP-1-SECT-1" />
+</li></ul>
+
+<ul><li>
+<p>CGIとHTTPプロトコルの歴史</p>
+</li><li>
+<p>どのように mod_perl 1.0 が動作するか理解するために極めて重大な Apache 1.3 Unix モデルの説明。</p>
+</li><li>
+<p>mod_perl 1.0 とその開発の全体的な図。</p>
+</li><li>
+<p>
+Apche Perl API (たとえば mod_perl API) でもある Apache C API と
+CGI 互換との間の違いの概要。
+そのうえ我々は<tt class="literal">Apache::Registry</tt> と
+<tt class="literal">Apache::PerlRun</tt> のモジュールの紹介もします。</p>
+</li><li>
+<p>mod_perl API とハンドラの紹介。</p>
+</li></ul>
+
+<div class="sect1 original hidden"><a name="pmodperl-CHP-1-SECT-1" />
 <h2 class="sect1">1.1. A Brief History of CGI</h2>
 
 <p>When
@@ -80,6 +128,58 @@ compiled CGI programs were executed was named
 named <em class="emphasis">cgi-src</em>. Nowadays most servers come with a
 preconfigured directory for CGI programs called, as you have probably
 guessed, <em class="emphasis">cgi-bin</em>.</p>
+
+
+<div class="sect1"><a name="pmodperl-CHP-1-SECT-1" />
+<h2 class="sect1">1.1. 簡潔なCGIの歴史</h2>
+
+<p>
+When<a name="pmodperl-CHP-1-ITERM-3246" /><a name="pmodperl-CHP-1-ITERM-3247" />the
+World Wide Web was born, there was only one web server and one web
+client. The <em class="emphasis">httpd</em>
+<a name="pmodperl-CHP-1-ITERM-3248" /><a name="pmodperl-CHP-1-ITERM-3249" /><a name="pmodperl-CHP-1-ITERM-3250" />web
+server was developed by the Centre d'Etudes et de
+Recherche Nucl&#xE9;aires (CERN) in Geneva, Switzerland.
+<em class="emphasis">httpd</em> has since become the generic name of the
+binary executable of many web servers. When CERN stopped funding the
+development of <em class="emphasis">httpd</em>, it was taken over by the
+Software Development Group of the National Center for Supercomputing
+Applications (NCSA). The NCSA also produced Mosaic, the first web
+browser, whose developers later went on to write the Netscape client.</p>
+
+<p>Mosaic
+<a name="pmodperl-CHP-1-ITERM-3251" /><a name="pmodperl-CHP-1-ITERM-3252" /><a name="pmodperl-CHP-1-ITERM-3253" />could
+fetch and view <a name="pmodperl-CHP-1-ITERM-3254" /><a name="pmodperl-CHP-1-ITERM-3255" />static documents<a href="#FOOTNOTE-2">[2]</a>
+and images served by the <em class="emphasis">httpd</em> server. This
+provided a far better means of disseminating information to large
+numbers of people than sending each person an email. However, the
+glut of online resources soon made search engines necessary, which
+meant that users needed to be able to submit data (such as a search
+string) and servers needed to process that data and return
+appropriate content.</p> <blockquote><a name="FOOTNOTE-2" /><p> [2]A
+static document is one that exists in a constant state, such as a
+text file that doesn't change.</p> </blockquote>
+
+<p>Search <a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />engines were first
+implemented by extending the web server, modifying its source code
+directly. Rewriting the source was not very practical, however, so
+the NCSA developed the <em class="emphasis">Common Gateway Interface</em>
+(CGI) specification. CGI became a standard for interfacing external
+applications with web servers and other information servers and
+generating dynamic information.</p>
+
+<p>A CGI program can be written in virtually any language that can read
+from <tt class="literal">STDIN</tt> and write to <tt class="literal">STDOUT</tt>,
+regardless of whether it is interpreted (e.g., the Unix shell),
+compiled (e.g., C or C++), or a combination of both (e.g., Perl). The
+first CGI programs were written in C and needed to be compiled into
+binary executables. For this reason, the directory from which the
+compiled CGI programs were executed was named
+<em class="emphasis">cgi-bin</em>, and the source files directory was
+named <em class="emphasis">cgi-src</em>. Nowadays most servers come with a
+preconfigured directory for CGI programs called, as you have probably
+guessed, <em class="emphasis">cgi-bin</em>.</p>
+</div>
 
 <a name="pmodperl-CHP-1-SECT-1.1" /><div class="sect2">
 <h3 class="sect2">1.1.1. The HTTP Protocol</h3>
@@ -649,7 +749,7 @@ handled in the right <a name="pmodperl-CHP-1-ITERM-3335" /><a name="pmodperl-CHP
 </div>
 
 <hr width="684" align="left" />
-<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part1.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch01_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">I. mod_perl Administration</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">1.2. The Apache 1.3 Server Model</td></tr></table></div>
+<div class="navbar"><table width="684" border="0"><tr><td align="left" valign="top" width="228"><a href="part1.html"><img src="../images//txtpreva.gif" alt="Previous" border="0" /></a></td><td align="center" valign="top" width="228"><a href="index.html"><img src="../images//txthome.gif" alt="Home" border="0" /></a></td><td align="right" valign="top" width="228"><a href="ch01_02.html"><img src="../images//txtnexta.gif" alt="Next" border="0" /></a></td></tr><tr><td align="left" valign="top" width="228">I. <span class="original hidden">mod_perl Administration</span>mod_perlの運用</td><td align="center" valign="top" width="228"><a href="index/index.html"><img src="../images//index.gif" alt="Book Index" border="0" /></a></td><td align="right" valign="top" width="228">1.2. <span class="original hidden">The Apache 1.3 Server Model</span>Apache 1.3 のサーバモデル</td></tr></table></div>
 <hr width="684" align="left" />
 
 
