@@ -82,7 +82,7 @@ CGI 互換との間の違いの概要。
 <div class="sect1 original hidden"><a name="pmodperl-CHP-1-SECT-1" />
 <h2 class="sect1">1.1. A Brief History of CGI</h2>
 
-<p>When
+<p class="original hidden">When
 <a name="pmodperl-CHP-1-ITERM-3246" /><a name="pmodperl-CHP-1-ITERM-3247" />the
 World Wide Web was born, there was only one web server and one web
 client. The <em class="emphasis">httpd</em>
@@ -96,7 +96,22 @@ Software Development Group of the National Center for Supercomputing
 Applications (NCSA). The NCSA also produced Mosaic, the first web
 browser, whose developers later went on to write the Netscape client.</p>
 
-<p>Mosaic
+<p>
+<a name="pmodperl-CHP-1-ITERM-3246" /><a name="pmodperl-CHP-1-ITERM-3247" />
+ワールドワイドウェブ(WWW)が生まれた頃は、
+ただ一つのウェブサーバと一つのウェブクライアントだけがありました。
+<em class="emphasis">httpd</em><a name="pmodperl-CHP-1-ITERM-3248" /><a name="pmodperl-CHP-1-ITERM-3249" /><a name="pmodperl-CHP-1-ITERM-3250" />
+その<em class="emphasis">httpd</em>ウェブサーバはスイスのジュネーブにある
+欧州原子核研究機構 (CERN) で開発されたものでした。
+<em class="emphasis">httpd</em>は以後多くのウェブサーバの実行可能バイナリの
+一般的な名前になっています。
+CERNが<em class="emphasis">httpd</em>の開発への資金援助を停止したとき、
+それは米国立スーパーコンピュータ応用研究所(NCSA)のソフトウェア開発グループに
+よって引き継がれました。
+そのうえNCSAは、以後Netscapeクライアントを書くことになる開発者達による、
+最初のウェブブラウザであるMosaicを生み出しました。</p>
+
+<p class="original hidden">Mosaic
 <a name="pmodperl-CHP-1-ITERM-3251" /><a name="pmodperl-CHP-1-ITERM-3252" /><a name="pmodperl-CHP-1-ITERM-3253" />could
 fetch and view <a name="pmodperl-CHP-1-ITERM-3254" /><a name="pmodperl-CHP-1-ITERM-3255" />static documents<a href="#FOOTNOTE-2">[2]</a>
 and images served by the <em class="emphasis">httpd</em> server. This
@@ -109,7 +124,37 @@ appropriate content.</p> <blockquote><a name="FOOTNOTE-2" /><p> [2]A
 static document is one that exists in a constant state, such as a
 text file that doesn't change.</p> </blockquote>
 
-<p>Search <a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />engines were first
+<p>
+
+Mosaic
+<a name="pmodperl-CHP-1-ITERM-3251" /><a name="pmodperl-CHP-1-ITERM-3252" /><a name="pmodperl-CHP-1-ITERM-3253" />は
+静的なドキュメントの取得と閲覧
+<a name="pmodperl-CHP-1-ITERM-3254" /><a name="pmodperl-CHP-1-ITERM-3255" />
+をすることができ<a href="#FOOTNOTE-2">[2]</a>、
+<em class="emphasis">httpd</em> サーバによる画像も提供しました。
+これはそれぞれの人々へ電子メールで送信するよりも多くの数の人々に
+情報を拡散させるという意味でより良いものを提供しました。
+しなしながら、供給過剰のオンラインリソースはまもなく検索エンジンが
+必要となり作り出しました。
+検索エンジンとは
+ユーザがデータ(検索文字列ようなもの)を入力することができることを必要とし、
+サーバはデータを処理しふさわしい内容を返答することを必要とするものです。
+<blockquote><a name="FOOTNOTE-2" /><p> [2]
+静的なドキュメントは不変な状態で存在するもので、
+変更されないテキストファイルのようなものです。
+</blockquote></p>
+
+<p class="original hidden">Search <a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />engines were first
+implemented by extending the web server, modifying its source code
+directly. Rewriting the source was not very practical, however, so
+the NCSA developed the <em class="emphasis">Common Gateway Interface</em>
+(CGI) specification. CGI became a standard for interfacing external
+applications with web servers and other information servers and
+generating dynamic information.</p>
+
+<p>
+(stub)
+Search <a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />engines were first
 implemented by extending the web server, modifying its source code
 directly. Rewriting the source was not very practical, however, so
 the NCSA developed the <em class="emphasis">Common Gateway Interface</em>
