@@ -153,16 +153,17 @@ applications with web servers and other information servers and
 generating dynamic information.</p>
 
 <p>
-(stub)
-Search <a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />engines were first
-implemented by extending the web server, modifying its source code
-directly. Rewriting the source was not very practical, however, so
-the NCSA developed the <em class="emphasis">Common Gateway Interface</em>
-(CGI) specification. CGI became a standard for interfacing external
-applications with web servers and other information servers and
-generating dynamic information.</p>
 
-<p>A CGI program can be written in virtually any language that can read
+検索<a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />エンジンはウェブサーバの拡張機能として最初に実装され、
+直接それらのソースコードを修正していました。
+書き換えられたソースコードはあまり実用的でなく、
+一方ではNECは<em class="emphasis">Common Gateway Interface</em>(CGI)の仕様を
+開発しました。
+CGIはウェブサーバとその他の情報のサーバと
+動的な情報を生成することを外部アプリケーションとの
+インターフェースのための標準になりました。</p>
+
+<p class="original hidden">A CGI program can be written in virtually any language that can read
 from <tt class="literal">STDIN</tt> and write to <tt class="literal">STDOUT</tt>,
 regardless of whether it is interpreted (e.g., the Unix shell),
 compiled (e.g., C or C++), or a combination of both (e.g., Perl). The
@@ -174,6 +175,21 @@ named <em class="emphasis">cgi-src</em>. Nowadays most servers come with a
 preconfigured directory for CGI programs called, as you have probably
 guessed, <em class="emphasis">cgi-bin</em>.</p>
 
+<p>
+CGIプログラムは<tt class="literal">STDIN</tt>から読むことができ、
+<tt class="literal">STDOUT</tt>に書くことができるような
+事実上全ての言語で書くことができ、
+それがインタープリタ(たとえばUnixシェル)かコンパイルされたもの
+(たとえばCやC++)またはその複合(たとえばPerl)であるかを気にしません。
+最初のCGIプログラムはCで書かれ、バイナリ実行形式にコンパイルされることが
+必要とされました。
+これの理由として、実行されるコンパイルされたCGIプログラムが
+<em class="emphasis">cgi-bin</em>と名付けられたディレクトリにあり、
+ソースファイルがあるディレクトリが<em class="emphasis">cgi-src</em>
+という名前をつけられていたためです。
+最近ではほとんどのサーバが、あなたがたぶん
+<em class="emphasis">cgi-bin</em>と推測できるような
+CGIプログラムを呼び出すためのディレクトリを事前に準備しています。</p>
 
 <div class="sect1"><a name="pmodperl-CHP-1-SECT-1" />
 <h2 class="sect1">1.1. 簡潔なCGIの歴史</h2>
