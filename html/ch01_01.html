@@ -79,8 +79,9 @@ CGI 互換との間の違いの概要。
 <p>mod_perl API とハンドラの紹介。</p>
 </li></ul>
 
-<div class="sect1 original hidden"><a name="pmodperl-CHP-1-SECT-1" />
-<h2 class="sect1">1.1. A Brief History of CGI</h2>
+<div class="sect1"><a name="pmodperl-CHP-1-SECT-1" />
+<h2 class="sect1 original hidden">1.1. A Brief History of CGI</h2>
+<h2 class="sect1">1.1. 簡潔なCGIの歴史</h2>
 
 <p class="original hidden">When
 <a name="pmodperl-CHP-1-ITERM-3246" /><a name="pmodperl-CHP-1-ITERM-3247" />the
@@ -190,62 +191,13 @@ CGIプログラムは<tt class="literal">STDIN</tt>から読むことができ�
 最近ではほとんどのサーバが、あなたがたぶん
 <em class="emphasis">cgi-bin</em>と推測できるような
 CGIプログラムを呼び出すためのディレクトリを事前に準備しています。</p>
-
-<div class="sect1"><a name="pmodperl-CHP-1-SECT-1" />
-<h2 class="sect1">1.1. 簡潔なCGIの歴史</h2>
-
-<p>
-When<a name="pmodperl-CHP-1-ITERM-3246" /><a name="pmodperl-CHP-1-ITERM-3247" />the
-World Wide Web was born, there was only one web server and one web
-client. The <em class="emphasis">httpd</em>
-<a name="pmodperl-CHP-1-ITERM-3248" /><a name="pmodperl-CHP-1-ITERM-3249" /><a name="pmodperl-CHP-1-ITERM-3250" />web
-server was developed by the Centre d'Etudes et de
-Recherche Nucl&#xE9;aires (CERN) in Geneva, Switzerland.
-<em class="emphasis">httpd</em> has since become the generic name of the
-binary executable of many web servers. When CERN stopped funding the
-development of <em class="emphasis">httpd</em>, it was taken over by the
-Software Development Group of the National Center for Supercomputing
-Applications (NCSA). The NCSA also produced Mosaic, the first web
-browser, whose developers later went on to write the Netscape client.</p>
-
-<p>Mosaic
-<a name="pmodperl-CHP-1-ITERM-3251" /><a name="pmodperl-CHP-1-ITERM-3252" /><a name="pmodperl-CHP-1-ITERM-3253" />could
-fetch and view <a name="pmodperl-CHP-1-ITERM-3254" /><a name="pmodperl-CHP-1-ITERM-3255" />static documents<a href="#FOOTNOTE-2">[2]</a>
-and images served by the <em class="emphasis">httpd</em> server. This
-provided a far better means of disseminating information to large
-numbers of people than sending each person an email. However, the
-glut of online resources soon made search engines necessary, which
-meant that users needed to be able to submit data (such as a search
-string) and servers needed to process that data and return
-appropriate content.</p> <blockquote><a name="FOOTNOTE-2" /><p> [2]A
-static document is one that exists in a constant state, such as a
-text file that doesn't change.</p> </blockquote>
-
-<p>Search <a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />engines were first
-implemented by extending the web server, modifying its source code
-directly. Rewriting the source was not very practical, however, so
-the NCSA developed the <em class="emphasis">Common Gateway Interface</em>
-(CGI) specification. CGI became a standard for interfacing external
-applications with web servers and other information servers and
-generating dynamic information.</p>
-
-<p>A CGI program can be written in virtually any language that can read
-from <tt class="literal">STDIN</tt> and write to <tt class="literal">STDOUT</tt>,
-regardless of whether it is interpreted (e.g., the Unix shell),
-compiled (e.g., C or C++), or a combination of both (e.g., Perl). The
-first CGI programs were written in C and needed to be compiled into
-binary executables. For this reason, the directory from which the
-compiled CGI programs were executed was named
-<em class="emphasis">cgi-bin</em>, and the source files directory was
-named <em class="emphasis">cgi-src</em>. Nowadays most servers come with a
-preconfigured directory for CGI programs called, as you have probably
-guessed, <em class="emphasis">cgi-bin</em>.</p>
 </div>
 
 <a name="pmodperl-CHP-1-SECT-1.1" /><div class="sect2">
-<h3 class="sect2">1.1.1. The HTTP Protocol</h3>
+<h3 class="sect2 original hidden">1.1.1. The HTTP Protocol</h3>
+<h3 class="sect2">1.1.1. HTTPプロトコル</h3>
 
-<p>Interaction between <a name="pmodperl-CHP-1-ITERM-3258" /><a name="pmodperl-CHP-1-ITERM-3259" />the
+<p class="original hidden">Interaction between <a name="pmodperl-CHP-1-ITERM-3258" /><a name="pmodperl-CHP-1-ITERM-3259" />the
 browser and the server is governed by the <em class="emphasis">HyperText
 Transfer Protocol</em> (HTTP), now an official Internet
 standard maintained by the World Wide Web Consortium (W3C). HTTP uses
@@ -255,9 +207,26 @@ connection to the server and sends a request, the server sends a
 response, and the connection is closed. Requests and responses take
 the form of <em class="emphasis">messages</em>. A message is a simple
 sequence of text lines.</p> <blockquote><a name="FOOTNOTE-3" /><p> [3]TCP/IP is a low-level Internet protocol for
-transmitting bits of data, regardless of its use.</p> </blockquote>
+transmitting bits of data, regardless of its use.</blockquote></p>
 
-<p>HTTP messages have two parts. First come the
+<p>
+ブラウザとサーバの相互作用
+<a name="pmodperl-CHP-1-ITERM-3258" /><a name="pmodperl-CHP-1-ITERM-3259" />
+は、<em class="emphasis">HyperText Transfer Protocol</em> (HTTP)
+によって規定され、今ではワールドワイドウェブコンソーシアム(W3C)
+によってメインテナンスされる公式のインターネット標準です。
+HTTPは簡潔なリクエスト・レスポンスモデルを取ります。
+クライアントはサーバへのTCP<a href="#FOOTNOTE-3">[3]</a>コネクションを
+確立しリクエストを送り、
+サーバはレスポンスを送り、そして接続が閉じられます。
+リクエストとレスポンスは<em class="emphasis">メッセージ群</em>の
+形式を運びます。
+メッセージは簡素な連続したテキスト行です。
+<blockquote><a name="FOOTNOTE-3" /><p> [3]
+TCP/IPはそのデータがどのように使われるか気にかけない、
+データの一部分を送り届けるための低レベルのインターネットプロトコルです。</blockquote></p>
+
+<p class="original hidden">HTTP messages have two parts. First come the
 <a name="pmodperl-CHP-1-ITERM-3260" /><em class="emphasis">headers</em>,
 which hold descriptive information about the request or response. The
 various types of headers and their possible content are fully
@@ -269,11 +238,29 @@ rather, specific headers are used to describe the content type and
 its encoding. This enables new content types to be incorporated into
 the Web without any fanfare.</p>
 
-<p>HTTP is a <a name="pmodperl-CHP-1-ITERM-3262" />stateless<a name="pmodperl-CHP-1-ITERM-3263" /> protocol. This means that requests
+<p>
+HTTPメッセージは2つのパートを持ちます。
+最初は<a name="pmodperl-CHP-1-ITERM-3260" /><em class="emphasis">ヘッダー群</em>。これはリクエストまたはレスポンスについての記述的な情報を持っています。
+ヘッダの様々なタイプや、それらの考えうる内容は
+HTTPプロトコルによって全て詳細に規定されています。
+ヘッダ群は空行によって追跡され、
+そこからメッセージ<a name="pmodperl-CHP-1-ITERM-3261" /><em class="emphasis">ボディ</em>が続きます。<span class="trans_note">この部分の意味は分かるのですが和訳に自信がないので超訳にしようか悩んでいます。</span>
+ボディはHTMLページまたはGIFイメージのようなメッセージである実際の内容です。
+HTTPプロトコルはボディの内容を定義しません。
+むしろヘッダ指定が内容の種類やそのエンコーディングについての記述に使われます。
+これはどんな派手さも無いウェブに受け入れられる新しい内容の種類も
+可能とするものです<span class="original hidden">超訳にすればよかったかもしれませんが、直訳にしておきました。変ですね。後で直します</span></p>
+
+<p class="original hidden">HTTP is a <a name="pmodperl-CHP-1-ITERM-3262" />stateless<a name="pmodperl-CHP-1-ITERM-3263" /> protocol. This means that requests
 are not related to each other. This makes life simple for CGI
 programs: they need worry about only the current request.</p>
 
+<p>
+HTTPは<a name="pmodperl-CHP-1-ITERM-3262" />ステートレス<a name="pmodperl-CHP-1-ITERM-3263" />なプロトコルです。これは複数のリクエストが互いに関係の無いことを
+意味しています。これはCGIプログラムにとって簡素な生涯を作ります。
+そうです、それらは今のリクエストについてのみ心配が必要なだけなのです。</p>
 </div>
+
 <a name="pmodperl-CHP-1-SECT-1.2" /><div class="sect2">
 <h3 class="sect2">1.1.2. The Common Gateway Interface Specification</h3>
 
