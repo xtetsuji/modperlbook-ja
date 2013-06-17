@@ -158,7 +158,7 @@ generating dynamic information.</p>
 検索<a name="pmodperl-CHP-1-ITERM-3256" /><a name="pmodperl-CHP-1-ITERM-3257" />エンジンはウェブサーバの拡張機能として最初に実装され、
 直接それらのソースコードを修正していました。
 書き換えられたソースコードはあまり実用的でなく、
-一方ではNECは<em class="emphasis">Common Gateway Interface</em>(CGI)の仕様を
+一方ではNCSAは<em class="emphasis">Common Gateway Interface</em>(CGI)の仕様を
 開発しました。
 CGIはウェブサーバとその他の情報のサーバと
 動的な情報を生成することを外部アプリケーションとの
@@ -262,15 +262,23 @@ HTTPは<a name="pmodperl-CHP-1-ITERM-3262" />ステートレス<a name="pmodperl
 </div>
 
 <a name="pmodperl-CHP-1-SECT-1.2" /><div class="sect2">
-<h3 class="sect2">1.1.2. The Common Gateway Interface Specification</h3>
+<h3 class="sect2 original hidden">1.1.2. The Common Gateway Interface Specification</h3>
+<h3 class="sect2">1.1.2. Common Gateway Interfaceの仕様</h3>
 
-<p>If you are new to the CGI world, there's no need to
+<p class="original hidden">If you are new to the CGI world, there's no need to
 worry&#8212;basic CGI programming is very easy. Ninety percent of
 CGI-specific code is concerned with reading data submitted by a user
 through an HTML form, processing it, and returning some response,
 usually as an HTML document.</p>
 
-<p>In this section, we will show you how easy basic CGI programming is,
+<p>
+もしあなたがCGIの世界への新入りであるなら、何の心配も要りません―
+基礎的なCGIプログラミングはとても簡単だからです。
+CGI固有のコードの90%は、HTMLフォームを通してユーザからサブミットされた
+データの読み込み、その処理、そして通常はHTMLドキュメントである
+いくつかのレスポンスを返すことです。</p>
+
+<p class="original hidden">In this section, we will show you how easy basic CGI programming is,
 rather than trying to teach you the entire CGI specification. There
 are many books and <a name="pmodperl-CHP-1-ITERM-3264" /><a name="pmodperl-CHP-1-ITERM-3265" /><a name="pmodperl-CHP-1-ITERM-3266" />online tutorials that cover CGI in
 great detail (see <a href="http://hoohoo.ncsa.uiuc.edu/">http://hoohoo.ncsa.uiuc.edu/</a>). Our aim is to
@@ -278,7 +286,19 @@ demonstrate that if you know Perl, you can start writing CGI scripts
 almost immediately. You need to learn only two things: how to accept
 data and how to generate output.</p>
 
-<p>The HTTP protocol makes
+<p>
+この部では、CGI仕様全体を教えられることを試されるより、
+我々はどのようにして簡単に基礎的なCGIプログラミングを行うか
+お見せできるでしょう。
+たくさんの書籍や大変多くの詳細(<a href="http://hoohoo.ncsa.uiuc.edu/">http://hoohoo.ncsa.uiuc.edu/</a>を見てください)を網羅した
+オンラインチュートリアル<a name="pmodperl-CHP-1-ITERM-3264" /><a name="pmodperl-CHP-1-ITERM-3265" /><a name="pmodperl-CHP-1-ITERM-3266" />があります。
+我々の目標は、あなたがPerlを知っていれば、ほとんどすぐにCGIスクリプトを
+書き始めることが出来ることを説明することです。
+
+あなたはたった2つのことだけを習えばよいのです。
+どのようにしてデータを受け取るか、そしてどのようにして出力を生成するかです。</p>
+
+<p class="original hidden">The HTTP protocol makes
 <a name="pmodperl-CHP-1-ITERM-3267" />clients and servers understand each
 other by transferring all the information between them using headers,
 where each header is a key-value pair. When you submit a form, the
@@ -290,6 +310,21 @@ tells the client what kind of information it should expect, followed
 by the information itself. The server can send additional headers,
 but these are optional. <a href="ch01_01.html#pmodperl-CHP-1-FIG-1">Figure 1-1</a> depicts a
 typical request-response cycle.</p>
+
+<p>
+HTTPプロトコルは、どのヘッダもキーと値のペアとなったヘッダ群を使った
+クライアント・サーバ間の全ての情報の転送によるクライアント・サーバ間の
+互いの理解を作ります。
+あなたがフォームをサブミットしたとき、
+CGIプログラムは入力情報を含んだヘッダを見て、
+受け取ったデータ(例えば、フォーム経由で供給されたデータベース問い合わせの
+ためのキーワード等)を処理し
+― その時それはクライアントからレスポンスが返されることを待機します ―
+それ自身の情報によってその後<span class="trans_note">followedの略語がうまく選べませんでした</span>の予想をすべき情報の種類をクライアントへ伝える
+特殊なヘッダを送信します。
+サーバは追加ヘッダを送信することができますが、
+これらはオプショナルです。<a href="ch01_01.html#pmodperl-CHP-1-FIG-1">図1-1</a>
+が通常のリクエスト・レスポンスサイクルを表現しています。</p>
 
 <a name="pmodperl-CHP-1-FIG-1" /><div class="figure"><img src="figs/pmp_0101.gif" alt="Figure 1-1" width="374" /></div><h4 class="objtitle">Figure 1-1. Request-response cycle</h4>
 
