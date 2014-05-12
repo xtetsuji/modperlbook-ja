@@ -328,12 +328,21 @@ CGIプログラムは入力情報を含んだヘッダを見て、
 
 <a name="pmodperl-CHP-1-FIG-1" /><div class="figure"><img src="figs/pmp_0101.gif" alt="Figure 1-1" width="374" /></div><h4 class="objtitle">Figure 1-1. Request-response cycle</h4>
 
-<p>Sometimes CGI programs can generate a response without needing any
+<p class="original hidden">Sometimes CGI programs can generate a response without needing any
 input data from the client. For example, a news service may respond
 with the latest stories without asking for any input from the client.
 But if you want stories for a specific day, you have to tell the
 script which day's stories you want. Hence, the
 script will need to retrieve some input from you.</p>
+
+<p>時々、CGIプログラムはクライアントからのどんな入力データも必要とせずに
+レスポンスを生成することができる場合があり、
+ニュースサービスはクライアントからどんな入力を求めなくても
+最新のストーリーを返すことできしょう。
+しかしもしあなたが特定の日のストーリーが欲しい場合は、
+欲しいストーリーの日付をスクリプトに付けて問い合わせができるべきです。
+それゆえスクリプトはあたなからの何らかの入力を持ってくる必要があるでしょう。</p>
+
 
 <p>To get your feet wet with CGI scripts, let's look at
 the classic<a name="pmodperl-CHP-1-ITERM-3268" /><a name="pmodperl-CHP-1-ITERM-3269" /><a name="pmodperl-CHP-1-ITERM-3270" /> "Hello
